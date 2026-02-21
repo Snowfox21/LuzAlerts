@@ -1,0 +1,63 @@
+# === Секреты и конфиг ===
+.env
+*.env
+!.env.example
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.installed.cfg
+
+# === Виртуальные окружения ===
+.venv/
+venv/
+env/
+ENV/
+
+# === Alembic ===
+# (сами миграции коммитим, но не кэш)
+*.pyc
+
+# === Тесты и покрытие ===
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# === IDE и редакторы ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# === Docker тома и данные БД ===
+pgdata/
+
+# === Логи ===
+*.log
+logs/
+
+# === Ключи и сертификаты ===
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+google-services.json
+GoogleService-Info.plist
+
+# === Node (на случай Flutter/JS части) ===
+node_modules/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
