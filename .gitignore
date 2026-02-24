@@ -21,6 +21,7 @@ build/
 venv/
 env/
 ENV/
+backend/.venv.312/
 
 # === Alembic ===
 # (сами миграции коммитим, но не кэш)

@@ -6,16 +6,17 @@ from pydantic import BaseModel, Field
 # ---------- User ----------
 
 class UserCreate(BaseModel):
-    device_id: str
-    nis_number: str | None = None
-    fcm_token: str | None = None
+    device_id: str = Field(..., description="Уникальный идентификатор устройства (UUID/Instance ID Android/iOS). Берется из API устройства.")
+    nis_number: str | None = Field(default=None, description="Номер счета абонента (NIS). Пользователь вводит вручную в настройках.")
+    fcm_token: str | None = Field(default=None, description="Токен Firebase Cloud Messaging для отправки Push-уведомлений. Выдается SDK Firebase при старте приложения.")
 
 
 class UserOut(BaseModel):
     id: int
-    device_id: str
-    nis_number: str | None
-    feeder_number: str | None
+    device_id: str = Field(description="Уникальный ID устройства")
+    role: str = Field(description="Роль пользователя: admin или user")
+    nis_number: str | None = Field(description="Номер счета абонента (NIS)")
+    feeder_number: str | None = Field(description="Уникальный номер линии (фидера), автоматически определяемый по NIS (пока пустое)")
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
-from sqlalchemy import select
+from geoalchemy2.types import Geography
+from sqlalchemy import select, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crowdsource import check_and_confirm_reports
@@ -19,7 +20,7 @@ async def create_report(payload: ReportCreate, db: AsyncSession = Depends(get_db
     result = await db.execute(select(User).where(User.device_id == payload.device_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found. Register first via POST /users/")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado. Regístrese primero.")
 
     # Reverse geocode координат
     geo = await reverse_geocode(payload.latitude, payload.longitude)
@@ -60,8 +61,8 @@ async def get_reports_in_area(
         .where(
             UserReport.is_active == True,
             ST_DWithin(
-                UserReport.location.cast("geography"),
-                point.cast("geography"),
+                cast(UserReport.location, Geography(srid=4326)),
+                cast(point, Geography(srid=4326)),
                 radius_m,
             ),
         )
