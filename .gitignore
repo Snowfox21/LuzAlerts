@@ -61,3 +61,12 @@ node_modules/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+Instructions/DB.md
+
+Instructions/project_documents/
+
+# Scraper
+scraper/.env
+scraper/.venv.312/
+scraper/__pycache__/
