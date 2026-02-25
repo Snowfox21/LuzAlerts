@@ -23,11 +23,17 @@ class OutageStatus(str, enum.Enum):
     planned = "planned"
 
 
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    user = "user"
+
+
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.user)
     nis_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     feeder_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fcm_token: Mapped[str | None] = mapped_column(String(256), nullable=True)

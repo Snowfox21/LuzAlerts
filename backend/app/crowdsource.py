@@ -1,5 +1,6 @@
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
-from sqlalchemy import func, select, text
+from geoalchemy2.types import Geography
+from sqlalchemy import func, select, text, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -17,8 +18,8 @@ async def check_and_confirm_reports(db: AsyncSession, lat: float, lon: float) ->
     count_q = select(func.count(UserReport.id)).where(
         UserReport.is_active == True,
         ST_DWithin(
-            UserReport.location.cast("geography"),
-            point.cast("geography"),
+            cast(UserReport.location, Geography(srid=4326)),
+            cast(point, Geography(srid=4326)),
             settings.REPORT_RADIUS_M,
         ),
     )
@@ -31,8 +32,8 @@ async def check_and_confirm_reports(db: AsyncSession, lat: float, lon: float) ->
             .where(
                 UserReport.is_active == True,
                 ST_DWithin(
-                    UserReport.location.cast("geography"),
-                    point.cast("geography"),
+                    cast(UserReport.location, Geography(srid=4326)),
+                    cast(point, Geography(srid=4326)),
                     settings.REPORT_RADIUS_M,
                 ),
             )

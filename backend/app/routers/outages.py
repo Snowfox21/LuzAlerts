@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
-from sqlalchemy import select
+from geoalchemy2.types import Geography
+from sqlalchemy import select, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -49,7 +50,7 @@ async def list_outages(
 
     if lat is not None and lon is not None:
         point = ST_SetSRID(ST_MakePoint(lon, lat), 4326)
-        q = q.where(ST_DWithin(Outage.location.cast("geography"), point.cast("geography"), radius_m))
+        q = q.where(ST_DWithin(cast(Outage.location, Geography(srid=4326)), cast(point, Geography(srid=4326)), radius_m))
 
     q = q.order_by(Outage.created_at.desc()).limit(200)
     result = await db.execute(q)

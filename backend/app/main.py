@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="LuzParaguay API",
-    description="Мониторинг отключений электроэнергии в Парагвае",
+    description="Monitoreo de cortes de energía en Paraguay",
     version="0.1.0",
     lifespan=lifespan,
 )

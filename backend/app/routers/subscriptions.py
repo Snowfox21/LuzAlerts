@@ -13,12 +13,12 @@ router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 async def create_subscription(payload: SubscriptionCreate, db: AsyncSession = Depends(get_db)):
     """Подписать пользователя на уведомления по barrio или feeder."""
     if not payload.barrio and not payload.feeder_number:
-        raise HTTPException(status_code=422, detail="Specify at least barrio or feeder_number.")
+        raise HTTPException(status_code=422, detail="Especifique al menos un barrio o número de alimentador.")
 
     result = await db.execute(select(User).where(User.device_id == payload.device_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found. Register first via POST /users/")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado. Regístrese primero.")
 
     # Не создавать дублирующую подписку
     dup_q = select(Subscription).where(
@@ -47,7 +47,7 @@ async def list_subscriptions(device_id: str, db: AsyncSession = Depends(get_db))
     result = await db.execute(select(User).where(User.device_id == device_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
     subs = (await db.execute(select(Subscription).where(Subscription.user_id == user.id))).scalars().all()
     return subs
@@ -59,14 +59,14 @@ async def delete_subscription(subscription_id: int, device_id: str, db: AsyncSes
     result = await db.execute(select(User).where(User.device_id == device_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
     sub = (await db.execute(
         select(Subscription).where(Subscription.id == subscription_id, Subscription.user_id == user.id)
     )).scalar_one_or_none()
 
     if sub is None:
-        raise HTTPException(status_code=404, detail="Subscription not found.")
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada.")
 
     await db.delete(sub)
     await db.commit()
