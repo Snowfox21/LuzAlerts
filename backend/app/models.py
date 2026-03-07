@@ -56,7 +56,9 @@ class Outage(Base):
     barrio: Mapped[str | None] = mapped_column(String(128), nullable=True)
     feeder_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    # Геометрия: точка или полигон зоны отключения
+    # Геометрия и координаты
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     location: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326), nullable=True)
 
     scheduled_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -76,9 +78,11 @@ class UserReport(Base):
     location: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326))
 
     # Reverse-geocode результат
+    department: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(128), nullable=True)
     barrio: Mapped[str | None] = mapped_column(String(128), nullable=True)
     street: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    city: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    house: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

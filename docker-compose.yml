@@ -10,6 +10,40 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U luz -d luzpy" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: luzpy_backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzpy
+      NOMINATIM_URL: https://nominatim.openstreetmap.org
+      NOMINATIM_EMAIL: your@email.com
+      REPORT_RADIUS_M: 500
+      REPORT_THRESHOLD: 3
+    depends_on:
+      db:
+        condition: service_healthy
+
+  scraper:
+    build:
+      context: .
+      dockerfile: scraper/Dockerfile
+    container_name: luzpy_scraper
+    environment:
+      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzpy
+      ANDE_URL: https://www.ande.gov.py/
+      POLL_INTERVAL_MINUTES: 60
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:

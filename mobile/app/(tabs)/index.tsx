@@ -1,22 +1,55 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, useColorScheme, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
+import { View, Text, StyleSheet, useColorScheme, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import { useRouter } from 'expo-router';
 import { Colors, Spacing } from '../../src/theme/Theme';
-import { Outage, OutageStatus } from '../../src/api/types';
+import { Outage, OutageStatus, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
+import { OutageCard } from '../../src/components/OutageCard';
 
 export default function MapScreen() {
     const colorScheme = useColorScheme() ?? 'light';
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
+    const router = useRouter();
 
     const fetchOutages = async () => {
+        setLoading(true);
         try {
-            const response = await apiClient.get<Outage[]>('/outages/');
-            // Filter out outages without coordinates for the map
-            setOutages(response.data.filter(o => o.latitude && o.longitude));
+            let fetchedOutages: Outage[] = [];
+            let mappedReports: Outage[] = [];
+
+            try {
+                const outagesRes = await apiClient.get<Outage[]>('/outages/');
+                fetchedOutages = (outagesRes.data || []).filter(o => o.latitude && o.longitude);
+                console.log(`Fetched ${fetchedOutages.length} official outages`);
+            } catch (err) {
+                console.error('Error fetching official outages:', err);
+            }
+
+            try {
+                const reportsRes = await apiClient.get<any[]>('/reports/');
+                mappedReports = (reportsRes.data || [])
+                    .filter(r => r.latitude && r.longitude)
+                    .map(r => ({
+                        id: r.id + 1000000,
+                        source: OutageSource.CROWDSOURCE,
+                        status: OutageStatus.ACTIVE,
+                        title: r.comment || 'Corte reportado por usuario',
+                        barrio: r.barrio || r.city || r.street || 'Zona reportada',
+                        created_at: r.created_at,
+                        latitude: r.latitude,
+                        longitude: r.longitude,
+                    }));
+                console.log(`Fetched ${mappedReports.length} user reports`);
+            } catch (err) {
+                console.error('Error fetching user reports:', err);
+            }
+
+            setOutages([...fetchedOutages, ...mappedReports]);
         } catch (error) {
-            console.error('Error fetching outages for map:', error);
+            console.error('General error fetching data for map:', error);
         } finally {
             setLoading(false);
         }
@@ -46,7 +79,6 @@ export default function MapScreen() {
     return (
         <View style={styles.container}>
             <MapView
-                provider={PROVIDER_GOOGLE}
                 style={styles.map}
                 initialRegion={{
                     latitude: -25.2637,
@@ -55,6 +87,12 @@ export default function MapScreen() {
                     longitudeDelta: 0.2,
                 }}
                 customMapStyle={colorScheme === 'dark' ? darkMapStyle : []}
+                onPress={() => setSelectedOutage(null)}
+                zoomEnabled={true}
+                zoomControlEnabled={Platform.OS === 'android'}
+                scrollEnabled={true}
+                pitchEnabled={true}
+                rotateEnabled={true}
             >
                 {outages.map((outage) => (
                     <Marker
@@ -64,16 +102,22 @@ export default function MapScreen() {
                             longitude: outage.longitude!,
                         }}
                         pinColor={getMarkerColor(outage.status)}
-                    >
-                        <Callout>
-                            <View style={styles.callout}>
-                                <Text style={styles.calloutTitle}>{outage.title}</Text>
-                                <Text style={styles.calloutDescription}>{outage.barrio || 'Zona desconocida'}</Text>
-                            </View>
-                        </Callout>
-                    </Marker>
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            setSelectedOutage(outage);
+                        }}
+                    />
                 ))}
             </MapView>
+
+            {selectedOutage && (
+                <View style={styles.cardOverlay}>
+                    <OutageCard
+                        outage={selectedOutage}
+                        onPress={() => router.push(`/outage/${selectedOutage.id}`)}
+                    />
+                </View>
+            )}
         </View>
     );
 }
@@ -90,18 +134,23 @@ const styles = StyleSheet.create({
     map: {
         ...StyleSheet.absoluteFillObject,
     },
-    callout: {
-        padding: Spacing.xs,
-        width: 200,
-    },
-    calloutTitle: {
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    calloutDescription: {
-        fontSize: 12,
-        marginTop: 2,
-        color: '#666',
+    cardOverlay: {
+        position: 'absolute',
+        bottom: Spacing.xl + 20,
+        left: Spacing.md,
+        right: Spacing.md,
+        borderRadius: 8,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+            },
+            android: {
+                elevation: 4,
+            }
+        })
     },
 });
 

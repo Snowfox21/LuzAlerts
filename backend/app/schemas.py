@@ -46,8 +46,13 @@ class OutageOut(BaseModel):
 
 class ReportCreate(BaseModel):
     device_id: str
-    latitude: float = Field(..., ge=-90, le=90)
-    longitude: float = Field(..., ge=-180, le=180)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    department: str | None = None
+    city: str | None = None
+    barrio: str | None = None
+    street: str | None = None
+    house: str | None = None
     comment: str | None = None
 
 
@@ -55,9 +60,11 @@ class ReportOut(BaseModel):
     id: int
     latitude: float
     longitude: float
+    department: str | None
+    city: str | None
     barrio: str | None
     street: str | None
-    city: str | None
+    house: str | None
     comment: str | None
     confirmed: bool
     created_at: datetime
