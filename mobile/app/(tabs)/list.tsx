@@ -7,7 +7,7 @@ import { OutageCard } from '../../src/components/OutageCard';
 import { useRouter } from 'expo-router';
 
 export default function ListScreen() {
-    const colorScheme = useColorScheme() ?? 'light';
+    const colorScheme = useColorScheme() ?? 'dark';
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -21,7 +21,7 @@ export default function ListScreen() {
 
             try {
                 const outagesRes = await apiClient.get<Outage[]>('/outages/');
-                fetchedOutages = (outagesRes.data || []).filter(o => o.latitude && o.longitude);
+                fetchedOutages = outagesRes.data || [];
             } catch (err) {
                 console.error('Error fetching official outages:', err);
             }
@@ -29,7 +29,6 @@ export default function ListScreen() {
             try {
                 const reportsRes = await apiClient.get<any[]>('/reports/');
                 mappedReports = (reportsRes.data || [])
-                    .filter(r => r.latitude && r.longitude)
                     .map(r => ({
                         id: r.id + 1000000,
                         source: OutageSource.CROWDSOURCE,

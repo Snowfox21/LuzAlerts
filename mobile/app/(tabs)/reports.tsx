@@ -3,13 +3,15 @@ import { View, Text, StyleSheet, useColorScheme, Platform, Alert, ActivityIndica
 import { TouchableOpacity, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
 import { Colors, Spacing, Typography } from '../../src/theme/Theme';
 import { AlertTriangle, CheckCircle2, MapPin, X } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 
 export default function ReportsScreen() {
-    const colorScheme = useColorScheme() ?? 'light';
+    const colorScheme = useColorScheme() ?? 'dark';
+    const router = useRouter();
     const [modalVisible, setModalVisible] = React.useState(false);
     const [submitting, setSubmitting] = React.useState(false);
     const [autofilling, setAutofilling] = React.useState(false);
@@ -73,7 +75,6 @@ export default function ReportsScreen() {
                     house: loc.streetNumber || ''
                 });
             }
-            Alert.alert('Éxito', 'Los datos se han autocompletado según tu ubicación.');
         } catch (error) {
             console.warn('Geocoding error:', error);
             Alert.alert('Error', 'No se pudo obtener la dirección exacta, но las coordenadas han sido guardadas.');
@@ -114,7 +115,6 @@ export default function ReportsScreen() {
 
             setSuccess(true);
             setModalVisible(false);
-            setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
             console.error('Error reporting outage:', error);
             Alert.alert('Error', 'Hubo un problema al enviar el reporte. Verifica tu conexión o los datos ingresados.');
@@ -135,7 +135,14 @@ export default function ReportsScreen() {
                 </Text>
                 <TouchableOpacity
                     style={[styles.button, { backgroundColor: Colors[colorScheme].tint, width: '60%' }]}
-                    onPress={() => setSuccess(false)}
+                    onPress={() => {
+                        setSuccess(false);
+                        if (coords) {
+                            router.navigate({ pathname: '/(tabs)/', params: { focusLat: String(coords.lat), focusLon: String(coords.lon) } });
+                        } else {
+                            router.navigate('/(tabs)/');
+                        }
+                    }}
                 >
                     <Text style={styles.buttonText}>Aceptar</Text>
                 </TouchableOpacity>

@@ -36,6 +36,27 @@ def parse_time_range(horario_str: str, base_date: datetime) -> tuple[datetime | 
         
     return start, end
 
+async def cleanup_old_data(days: int = 7) -> None:
+    """Deletes outages and user reports older than `days` days."""
+    from app.database import AsyncSessionLocal
+    from app.models import Outage, UserReport
+    from sqlalchemy import delete
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    async with AsyncSessionLocal() as session:
+        r1 = await session.execute(
+            delete(Outage).where(
+                (Outage.scheduled_end < cutoff) |
+                ((Outage.scheduled_end == None) & (Outage.created_at < cutoff))
+            )
+        )
+        r2 = await session.execute(
+            delete(UserReport).where(UserReport.created_at < cutoff)
+        )
+        await session.commit()
+    logger.info(f"Cleanup done: removed {r1.rowcount} outages, {r2.rowcount} user reports older than {days} days.")
+
+
 async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
     """
     Takes raw dictionaries parsed from ANDE, cleans them, applies geocoding, 

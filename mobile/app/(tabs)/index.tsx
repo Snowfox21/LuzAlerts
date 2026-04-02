@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, useColorScheme, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing } from '../../src/theme/Theme';
 import { Outage, OutageStatus, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
+import { AlertTriangle } from 'lucide-react-native';
 
 export default function MapScreen() {
-    const colorScheme = useColorScheme() ?? 'light';
+    const colorScheme = useColorScheme() ?? 'dark';
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
     const router = useRouter();
+    const mapRef = useRef<MapView>(null);
+    const { focusLat, focusLon } = useLocalSearchParams<{ focusLat?: string; focusLon?: string }>();
 
     const fetchOutages = async () => {
         setLoading(true);
@@ -59,6 +62,19 @@ export default function MapScreen() {
         fetchOutages();
     }, []);
 
+    useEffect(() => {
+        if (!focusLat || !focusLon) return;
+        const lat = parseFloat(focusLat);
+        const lon = parseFloat(focusLon);
+        fetchOutages();
+        mapRef.current?.animateToRegion({
+            latitude: lat,
+            longitude: lon,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+        }, 800);
+    }, [focusLat, focusLon]);
+
     const getMarkerColor = (status: OutageStatus) => {
         switch (status) {
             case OutageStatus.ACTIVE: return '#EF4444';
@@ -79,6 +95,7 @@ export default function MapScreen() {
     return (
         <View style={styles.container}>
             <MapView
+                ref={mapRef}
                 style={styles.map}
                 initialRegion={{
                     latitude: -25.2637,
@@ -118,6 +135,15 @@ export default function MapScreen() {
                     />
                 </View>
             )}
+
+            <TouchableOpacity
+                style={[styles.reportButton, { backgroundColor: Colors[colorScheme].tint }]}
+                onPress={() => router.push('/(tabs)/reports')}
+                activeOpacity={0.85}
+            >
+                <AlertTriangle size={18} color="#fff" />
+                <Text style={styles.reportButtonText}>Reportar</Text>
+            </TouchableOpacity>
         </View>
     );
 }
@@ -151,6 +177,33 @@ const styles = StyleSheet.create({
                 elevation: 4,
             }
         })
+    },
+    reportButton: {
+        position: 'absolute',
+        top: Spacing.md,
+        right: Spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: Spacing.md,
+        borderRadius: 24,
+        gap: 6,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 6,
+            },
+            android: {
+                elevation: 5,
+            }
+        })
+    },
+    reportButtonText: {
+        color: '#fff',
+        fontWeight: '700',
+        fontSize: 15,
     },
 });
 

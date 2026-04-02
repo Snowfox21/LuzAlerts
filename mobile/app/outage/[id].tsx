@@ -8,7 +8,7 @@ import { MapPin, Calendar, Info, Clock, CheckCircle2, AlertTriangle } from 'luci
 
 export default function OutageDetailScreen() {
     const { id } = useLocalSearchParams();
-    const colorScheme = useColorScheme() ?? 'light';
+    const colorScheme = useColorScheme() ?? 'dark';
     const [outage, setOutage] = useState<Outage | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     header: {
         padding: Spacing.lg,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#ccc',
+        borderBottomColor: Colors.dark.border,
     },
     statusRow: {
         flexDirection: 'row',
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     section: {
         padding: Spacing.lg,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#ccc',
+        borderBottomColor: Colors.dark.border,
     },
     row: {
         flexDirection: 'row',
