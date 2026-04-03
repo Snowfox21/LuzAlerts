@@ -71,6 +71,16 @@ async def create_report(payload: ReportCreate, db: AsyncSession = Depends(get_db
     return report
 
 
+@router.get("/{report_id}", response_model=ReportOut)
+async def get_report(report_id: int, db: AsyncSession = Depends(get_db)):
+    """Получить конкретный репорт по ID."""
+    result = await db.execute(select(UserReport).where(UserReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    return report
+
+
 @router.get("/", response_model=list[ReportOut])
 async def get_reports_in_area(
     latitude: Optional[float] = Query(None),

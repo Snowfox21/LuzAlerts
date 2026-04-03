@@ -77,9 +77,9 @@ export default function ListScreen() {
                 renderItem={({ item }) => (
                     <OutageCard
                         outage={item}
-                        onPress={item.source !== OutageSource.CROWDSOURCE
-                            ? () => router.push(`/outage/${item.id}`)
-                            : undefined}
+                        onPress={item.source === OutageSource.CROWDSOURCE
+                            ? () => router.push(`/report/${item.id - 1000000}`)
+                            : () => router.push(`/outage/${item.id}`)}
                     />
                 )}
                 refreshControl={
