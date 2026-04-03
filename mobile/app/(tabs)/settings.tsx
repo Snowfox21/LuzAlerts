@@ -4,13 +4,10 @@ import {
     TouchableOpacity, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing } from '../../src/theme/Theme';
-import { ChevronRight, Plus, X, Info } from 'lucide-react-native';
+import { Plus, X, Info } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId } from '../../src/utils/device';
-
-const NIS_KEY = '@luzpy_nis';
 
 interface Subscription {
     id: number;
@@ -20,10 +17,6 @@ interface Subscription {
 
 export default function SettingsScreen() {
     const colorScheme = useColorScheme() ?? 'dark';
-
-    const [nis, setNis] = useState('');
-    const [nisEditing, setNisEditing] = useState(false);
-    const [nisInput, setNisInput] = useState('');
 
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [loadingSubs, setLoadingSubs] = useState(true);
@@ -40,7 +33,6 @@ export default function SettingsScreen() {
     const inputBg = colorScheme === 'dark' ? '#1c1c1e' : '#f9f9f9';
 
     useEffect(() => {
-        AsyncStorage.getItem(NIS_KEY).then(v => { if (v) setNis(v); });
         fetchSubscriptions();
     }, []);
 
@@ -56,13 +48,6 @@ export default function SettingsScreen() {
             setLoadingSubs(false);
         }
     }, []);
-
-    const saveNis = async () => {
-        const trimmed = nisInput.trim();
-        await AsyncStorage.setItem(NIS_KEY, trimmed);
-        setNis(trimmed);
-        setNisEditing(false);
-    };
 
     const addBarrio = async () => {
         const barrio = barrioInput.trim();
@@ -111,39 +96,16 @@ export default function SettingsScreen() {
                         <Text style={[styles.sectionHeader, { color: iconColor }]}>CUENTA</Text>
                         <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
                             <View style={styles.row}>
-                                <Text style={[styles.label, { color: textColor }]}>Número de NIS</Text>
-                                {nisEditing ? (
-                                    <View style={styles.nisEditRow}>
-                                        <TextInput
-                                            style={[styles.nisInput, { borderColor, color: textColor, backgroundColor: inputBg }]}
-                                            value={nisInput}
-                                            onChangeText={setNisInput}
-                                            placeholder="Ej: 1234567-8"
-                                            placeholderTextColor={iconColor}
-                                            keyboardType="default"
-                                            autoFocus
-                                        />
-                                        <TouchableOpacity onPress={saveNis} style={[styles.saveBtn, { backgroundColor: tint }]}>
-                                            <Text style={styles.saveBtnText}>Guardar</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity
-                                        style={styles.nisValueRow}
-                                        onPress={() => { setNisInput(nis); setNisEditing(true); }}
-                                    >
-                                        <Text style={{ color: iconColor, marginRight: 4 }}>
-                                            {nis || 'No configurado'}
-                                        </Text>
-                                        <ChevronRight size={16} color={borderColor} />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                            <View style={[styles.hint, { borderTopColor: borderColor }]}>
-                                <Info size={13} color={iconColor} />
-                                <Text style={[styles.hintText, { color: iconColor }]}>
-                                    El NIS es el número de tu medidor ANDE. Se usará para alertas específicas de tu línea.
-                                </Text>
+                                <Text style={[styles.label, { color: iconColor }]}>Número de NIS</Text>
+                                <TouchableOpacity
+                                    style={styles.nisValueRow}
+                                    onPress={() => Alert.alert(
+                                        'En desarrollo',
+                                        'La sincronización de datos con ANDE mediante NIS está en proceso de desarrollo. Próximamente podrás vincularlo para recibir alertas específicas de tu línea.'
+                                    )}
+                                >
+                                    <Info size={18} color={iconColor} />
+                                </TouchableOpacity>
                             </View>
                         </View>
 
