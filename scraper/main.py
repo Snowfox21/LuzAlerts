@@ -5,7 +5,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import sys # Trigger import of backend path
 from ande_parser import parse_outages
-from processor import normalize_and_save_outages
+from consultas_parser import fetch_emergency_outages
+from processor import normalize_and_save_outages, cleanup_old_data
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -13,12 +14,18 @@ logger = logging.getLogger(__name__)
 async def run_scraper():
     logger.info("Starting ANDE Scraper run...")
     try:
-        # 1. Fetch HTML from ANDE and parse
+        # 1. Fetch planned outages from ANDE website
         raw_outages = await parse_outages()
-        
-        # 2. Normalize strings, geocode, and save to DB
-        await normalize_and_save_outages(raw_outages)
-        
+
+        # 2. Fetch emergency outages from consultas.ande.gov.py
+        emergency_outages = await fetch_emergency_outages()
+
+        # 3. Normalize, geocode, and save all to DB
+        await normalize_and_save_outages(raw_outages + emergency_outages)
+
+        # 3. Remove data older than 7 days
+        await cleanup_old_data(days=7)
+
         logger.info("Scraper run completed.")
     except Exception as e:
         logger.error(f"Error during scraper run: {e}", exc_info=True)

@@ -1,0 +1,8 @@
+.venv
+.venv.312
+.pytest_cache
+__pycache__
+*.pyc
+.env
+uvicorn.log
+tests/

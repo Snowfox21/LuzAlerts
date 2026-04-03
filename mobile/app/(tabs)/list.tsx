@@ -1,20 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, useColorScheme, RefreshControl, ActivityIndicator } from 'react-native';
 import { Colors, Spacing, Typography } from '../../src/theme/Theme';
-import { Outage } from '../../src/api/types';
+import { Outage, OutageStatus, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
+import { useRouter } from 'expo-router';
 
 export default function ListScreen() {
-    const colorScheme = useColorScheme() ?? 'light';
+    const colorScheme = useColorScheme() ?? 'dark';
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const router = useRouter();
 
     const fetchOutages = async () => {
+        setLoading(true);
         try {
-            const response = await apiClient.get<Outage[]>('/outages/');
-            setOutages(response.data);
+            let fetchedOutages: Outage[] = [];
+            let mappedReports: Outage[] = [];
+
+            try {
+                const outagesRes = await apiClient.get<Outage[]>('/outages/');
+                fetchedOutages = outagesRes.data || [];
+            } catch (err) {
+                console.error('Error fetching official outages:', err);
+            }
+
+            try {
+                const reportsRes = await apiClient.get<any[]>('/reports/');
+                mappedReports = (reportsRes.data || [])
+                    .map(r => ({
+                        id: r.id + 1000000,
+                        source: OutageSource.CROWDSOURCE,
+                        status: OutageStatus.ACTIVE,
+                        title: r.comment || 'Corte reportado por usuario',
+                        barrio: r.barrio || r.city || r.street || 'Zona reportada',
+                        created_at: r.created_at,
+                        latitude: r.latitude,
+                        longitude: r.longitude,
+                    }));
+            } catch (err) {
+                console.error('Error fetching user reports:', err);
+            }
+
+            setOutages([...fetchedOutages, ...mappedReports]);
         } catch (error) {
             console.error('Error fetching outages:', error);
         } finally {
@@ -45,7 +74,14 @@ export default function ListScreen() {
             <FlatList
                 data={outages}
                 keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => <OutageCard outage={item} />}
+                renderItem={({ item }) => (
+                    <OutageCard
+                        outage={item}
+                        onPress={item.source === OutageSource.CROWDSOURCE
+                            ? () => router.push(`/report/${item.id - 1000000}`)
+                            : () => router.push(`/outage/${item.id}`)}
+                    />
+                )}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />
                 }

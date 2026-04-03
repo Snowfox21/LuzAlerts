@@ -1,95 +1,301 @@
-import { View, Text, StyleSheet, useColorScheme, SectionList, Platform, Switch, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    View, Text, StyleSheet, useColorScheme, SectionList, Platform,
+    TouchableOpacity, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../../src/theme/Theme';
-import { ChevronRight } from 'lucide-react-native';
+import { Plus, X, Info } from 'lucide-react-native';
+import apiClient from '../../src/api/client';
+import { getOrCreateDeviceId } from '../../src/utils/device';
 
-const SETTINGS_DATA = [
-    {
-        title: 'Cuenta',
-        data: [
-            { id: 'nis', label: 'Número de NIS', value: '1234567-8' },
-            { id: 'reports', label: 'Mis reportes', value: null },
-        ]
-    },
-    {
-        title: 'Notificaciones',
-        data: [
-            { id: 'push', label: 'Alertas en tiempo real', type: 'switch', value: true },
-            { id: 'barrio', label: 'Notificar por mi barrio', type: 'switch', value: true },
-        ]
-    },
-    {
-        title: 'Aplicación',
-        data: [
-            { id: 'lang', label: 'Idioma', value: 'Español' },
-            { id: 'about', label: 'Acerca de LuzParaguay', value: null },
-        ]
-    }
-];
+interface Subscription {
+    id: number;
+    barrio: string | null;
+    feeder_number: string | null;
+}
 
 export default function SettingsScreen() {
-    const colorScheme = useColorScheme() ?? 'light';
+    const colorScheme = useColorScheme() ?? 'dark';
+
+    const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+    const [loadingSubs, setLoadingSubs] = useState(true);
+    const [addingBarrio, setAddingBarrio] = useState(false);
+    const [barrioInput, setBarrioInput] = useState('');
+    const [submittingBarrio, setSubmittingBarrio] = useState(false);
+    const [deletingId, setDeletingId] = useState<number | null>(null);
+
+    const bg = Colors[colorScheme].background;
+    const textColor = Colors[colorScheme].text;
+    const iconColor = Colors[colorScheme].icon;
+    const borderColor = Colors[colorScheme].border;
+    const tint = Colors[colorScheme].tint;
+    const inputBg = colorScheme === 'dark' ? '#1c1c1e' : '#f9f9f9';
+
+    useEffect(() => {
+        fetchSubscriptions();
+    }, []);
+
+    const fetchSubscriptions = useCallback(async () => {
+        setLoadingSubs(true);
+        try {
+            const deviceId = await getOrCreateDeviceId();
+            const res = await apiClient.get<Subscription[]>(`/subscriptions/?device_id=${deviceId}`);
+            setSubscriptions((res.data || []).filter(s => s.barrio));
+        } catch {
+            // No subscriptions yet or backend unreachable
+        } finally {
+            setLoadingSubs(false);
+        }
+    }, []);
+
+    const addBarrio = async () => {
+        const barrio = barrioInput.trim();
+        if (!barrio) return;
+        setSubmittingBarrio(true);
+        try {
+            const deviceId = await getOrCreateDeviceId();
+            try { await apiClient.post('/users/', { device_id: deviceId }); } catch {}
+            await apiClient.post('/subscriptions/', { device_id: deviceId, barrio });
+            setBarrioInput('');
+            setAddingBarrio(false);
+            await fetchSubscriptions();
+        } catch (err: any) {
+            const detail = err?.response?.data?.detail;
+            Alert.alert('Error', detail || 'No se pudo agregar la suscripción.');
+        } finally {
+            setSubmittingBarrio(false);
+        }
+    };
+
+    const deleteSubscription = async (id: number) => {
+        setDeletingId(id);
+        try {
+            const deviceId = await getOrCreateDeviceId();
+            await apiClient.delete(`/subscriptions/${id}?device_id=${deviceId}`);
+            setSubscriptions(prev => prev.filter(s => s.id !== id));
+        } catch {
+            Alert.alert('Error', 'No se pudo eliminar la suscripción.');
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
     return (
-        <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? Colors.dark.background : '#F2F2F7' }]}>
+        <KeyboardAvoidingView
+            style={{ flex: 1, backgroundColor: colorScheme === 'dark' ? '#000' : '#F2F2F7' }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
             <SectionList
-                sections={SETTINGS_DATA}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                    <TouchableOpacity
-                        style={[styles.item, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}
-                        activeOpacity={item.type === 'switch' ? 1 : 0.7}
-                    >
-                        <Text style={[styles.itemLabel, { color: Colors[colorScheme].text }]}>{item.label}</Text>
+                sections={[]}
+                keyExtractor={() => ''}
+                renderItem={() => null}
+                ListHeaderComponent={
+                    <View>
+                        {/* NIS Section */}
+                        <Text style={[styles.sectionHeader, { color: iconColor }]}>CUENTA</Text>
+                        <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
+                            <View style={styles.row}>
+                                <Text style={[styles.label, { color: iconColor }]}>Número de NIS</Text>
+                                <TouchableOpacity
+                                    style={styles.nisValueRow}
+                                    onPress={() => Alert.alert(
+                                        'En desarrollo',
+                                        'La sincronización de datos con ANDE mediante NIS está en proceso de desarrollo. Próximamente podrás vincularlo para recibir alertas específicas de tu línea.'
+                                    )}
+                                >
+                                    <Info size={18} color={iconColor} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
 
-                        <View style={styles.rightContent}>
-                            {item.value && !item.type && (
-                                <Text style={{ color: Colors[colorScheme].icon, marginRight: 8 }}>{item.value}</Text>
-                            )}
-                            {item.type === 'switch' ? (
-                                <Switch
-                                    value={item.value as boolean}
-                                    trackColor={{ false: '#767577', true: Colors[colorScheme].tint }}
-                                    ios_backgroundColor="#3e3e3e"
-                                />
+                        {/* Barrio Subscriptions */}
+                        <Text style={[styles.sectionHeader, { color: iconColor }]}>MIS BARRIOS</Text>
+                        <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
+                            {loadingSubs ? (
+                                <ActivityIndicator color={tint} style={{ padding: Spacing.md }} />
+                            ) : subscriptions.length === 0 && !addingBarrio ? (
+                                <Text style={[styles.emptyText, { color: iconColor }]}>
+                                    No estás suscripto a ningún barrio todavía.
+                                </Text>
                             ) : (
-                                <ChevronRight size={20} color={Colors[colorScheme].border} />
+                                subscriptions.map((sub, idx) => (
+                                    <View
+                                        key={sub.id}
+                                        style={[
+                                            styles.row,
+                                            idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: borderColor }
+                                        ]}
+                                    >
+                                        <Text style={[styles.label, { color: textColor }]}>{sub.barrio}</Text>
+                                        {deletingId === sub.id ? (
+                                            <ActivityIndicator size="small" color={iconColor} />
+                                        ) : (
+                                            <TouchableOpacity onPress={() => deleteSubscription(sub.id)}>
+                                                <X size={20} color={iconColor} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ))
+                            )}
+
+                            {addingBarrio && (
+                                <View style={[
+                                    styles.addRow,
+                                    (subscriptions.length > 0 || !loadingSubs) && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: borderColor }
+                                ]}>
+                                    <TextInput
+                                        style={[styles.barrioInput, { borderColor, color: textColor, backgroundColor: inputBg }]}
+                                        value={barrioInput}
+                                        onChangeText={setBarrioInput}
+                                        placeholder="Ej: Villa Morra"
+                                        placeholderTextColor={iconColor}
+                                        autoFocus
+                                        returnKeyType="done"
+                                        onSubmitEditing={addBarrio}
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.saveBtn, { backgroundColor: tint }, submittingBarrio && { opacity: 0.6 }]}
+                                        onPress={addBarrio}
+                                        disabled={submittingBarrio}
+                                    >
+                                        {submittingBarrio
+                                            ? <ActivityIndicator color="#fff" size="small" />
+                                            : <Text style={styles.saveBtnText}>OK</Text>
+                                        }
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { setAddingBarrio(false); setBarrioInput(''); }} style={{ marginLeft: 8 }}>
+                                        <X size={20} color={iconColor} />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {!addingBarrio && (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.row,
+                                        (subscriptions.length > 0 || !loadingSubs) && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: borderColor }
+                                    ]}
+                                    onPress={() => setAddingBarrio(true)}
+                                >
+                                    <Plus size={18} color={tint} />
+                                    <Text style={[styles.addLabel, { color: tint }]}>Agregar barrio</Text>
+                                </TouchableOpacity>
                             )}
                         </View>
-                    </TouchableOpacity>
-                )}
-                renderSectionHeader={({ section: { title } }) => (
-                    <Text style={[styles.header, { color: Colors[colorScheme].icon }]}>{title.toUpperCase()}</Text>
-                )}
+
+                        {/* App Section */}
+                        <Text style={[styles.sectionHeader, { color: iconColor }]}>APLICACIÓN</Text>
+                        <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
+                            <View style={styles.row}>
+                                <Text style={[styles.label, { color: textColor }]}>Versión</Text>
+                                <Text style={{ color: iconColor }}>1.0.0</Text>
+                            </View>
+                        </View>
+
+                        <View style={{ height: Spacing.xl * 2 }} />
+                    </View>
+                }
                 contentContainerStyle={{ paddingBottom: Spacing.xl }}
             />
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
+    sectionHeader: {
         fontSize: 13,
         fontWeight: '400',
         paddingHorizontal: Spacing.md,
         paddingTop: Spacing.lg,
         paddingBottom: Spacing.sm,
     },
-    item: {
+    card: {
+        marginHorizontal: Spacing.md,
+        borderRadius: 10,
+        borderWidth: StyleSheet.hairlineWidth,
+        overflow: 'hidden',
+    },
+    row: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: Spacing.md,
-        paddingVertical: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 13,
+        minHeight: 48,
     },
-    itemLabel: {
+    label: {
         fontSize: 17,
+        flex: 1,
     },
-    rightContent: {
+    hint: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        paddingHorizontal: Spacing.md,
+        paddingBottom: Spacing.sm,
+        paddingTop: Spacing.xs,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        gap: 6,
+    },
+    hintText: {
+        fontSize: 12,
+        flex: 1,
+        lineHeight: 16,
+    },
+    nisValueRow: {
         flexDirection: 'row',
         alignItems: 'center',
-    }
+    },
+    nisEditRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        justifyContent: 'flex-end',
+        gap: 8,
+    },
+    nisInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 6,
+        fontSize: 15,
+        maxWidth: 160,
+    },
+    addRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        gap: 8,
+    },
+    barrioInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 6,
+        fontSize: 15,
+    },
+    saveBtn: {
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 7,
+        borderRadius: 8,
+        minWidth: 64,
+        alignItems: 'center',
+    },
+    saveBtnText: {
+        color: '#fff',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    emptyText: {
+        padding: Spacing.md,
+        fontSize: 14,
+        textAlign: 'center',
+    },
+    addLabel: {
+        fontSize: 17,
+        marginLeft: Spacing.sm,
+    },
 });

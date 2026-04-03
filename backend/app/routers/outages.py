@@ -75,3 +75,34 @@ async def list_outages(
             resolved_at=o.resolved_at,
         ))
     return items
+
+
+@router.get("/{outage_id}", response_model=OutageOut)
+async def get_outage(
+    outage_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Получить информацию о конкретном отключении по ID."""
+    result = await db.execute(select(Outage).where(Outage.id == outage_id))
+    o = result.scalar_one_or_none()
+    
+    if o is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Outage no encontrado")
+        
+    lat_v, lon_v = _extract_coords(o)
+    return OutageOut(
+        id=o.id,
+        source=o.source.value,
+        status=o.status.value,
+        title=o.title,
+        description=o.description,
+        barrio=o.barrio,
+        feeder_number=o.feeder_number,
+        latitude=lat_v,
+        longitude=lon_v,
+        scheduled_start=o.scheduled_start,
+        scheduled_end=o.scheduled_end,
+        created_at=o.created_at,
+        resolved_at=o.resolved_at,
+    )

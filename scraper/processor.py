@@ -36,6 +36,27 @@ def parse_time_range(horario_str: str, base_date: datetime) -> tuple[datetime | 
         
     return start, end
 
+async def cleanup_old_data(days: int = 7) -> None:
+    """Deletes outages and user reports older than `days` days."""
+    from app.database import AsyncSessionLocal
+    from app.models import Outage, UserReport
+    from sqlalchemy import delete
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    async with AsyncSessionLocal() as session:
+        r1 = await session.execute(
+            delete(Outage).where(
+                (Outage.scheduled_end < cutoff) |
+                ((Outage.scheduled_end == None) & (Outage.created_at < cutoff))
+            )
+        )
+        r2 = await session.execute(
+            delete(UserReport).where(UserReport.created_at < cutoff)
+        )
+        await session.commit()
+    logger.info(f"Cleanup done: removed {r1.rowcount} outages, {r2.rowcount} user reports older than {days} days.")
+
+
 async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
     """
     Takes raw dictionaries parsed from ANDE, cleans them, applies geocoding, 
@@ -47,6 +68,7 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
         
     from app.database import AsyncSessionLocal
     from app.models import Outage, OutageSource, OutageStatus
+    from app.geocoding import forward_geocode
     from sqlalchemy.future import select
     
     async with AsyncSessionLocal() as session:
@@ -62,7 +84,6 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
                 start_time, end_time = parse_time_range(horario, base_date)
             
             # Check if this exact outage is already reported (deduplication)
-            # We assume it's the same if it has the same raw text and same scheduled_start
             stmt = select(Outage).where(
                 Outage.source == OutageSource.ande_official,
                 Outage.description == raw_text
@@ -70,14 +91,40 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             existing = (await session.execute(stmt)).scalars().first()
             if existing:
                 continue
+
+            # Geocoding: Try to find coordinates for the zone
+            # Clean the string: remove "ZONA XX :" prefix if it exists
+            search_query = re.sub(r"ZONA\s*\d+\s*[:\-]?\s*", "", zona, flags=re.IGNORECASE).strip()
+            
+            # Aggressive cleaning: if it contains "Barrio ... - [City]" or "Ciudad de [City]"
+            # Example: "Barrio San Jorge – Asunción" -> "San Jorge, Asunción"
+            # Example: "Ciudad de San Bernardino" -> "San Bernardino"
+            match_barrio = re.search(r"Barrio\s+([^-–,.]+)(?:[-–,]\s*([^-–,.]+))?", search_query, re.IGNORECASE)
+            match_ciudad = re.search(r"Ciudad\s+de\s+([^-–,.]+)", search_query, re.IGNORECASE)
+            
+            if match_barrio:
+                b, c = match_barrio.groups()
+                search_query = f"{b.strip()}" + (f", {c.strip()}" if c else "")
+            elif match_ciudad:
+                search_query = match_ciudad.group(1).strip()
                 
+            if not search_query: # fallback to original if regex failed or emptied it
+                search_query = zona
+                
+            geo_data = await forward_geocode(f"{search_query}, Paraguay")
+            
+            is_emergency = raw.get("source") == "ande_emergency"
             outage = Outage(
                 source=OutageSource.ande_official,
-                status=OutageStatus.planned,
+                status=OutageStatus.active if is_emergency else OutageStatus.planned,
                 title=title,
                 description=raw_text,
                 scheduled_start=start_time,
-                scheduled_end=end_time
+                scheduled_end=end_time,
+                latitude=geo_data.get("lat"),
+                longitude=geo_data.get("lon"),
+                location=f"POINT({geo_data.get('lon')} {geo_data.get('lat')})" if geo_data.get("lat") else None,
+                barrio=geo_data.get("barrio") or (zona if "ZONA" not in zona.upper() else None)
             )
             session.add(outage)
             

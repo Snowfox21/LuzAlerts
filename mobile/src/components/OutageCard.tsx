@@ -10,7 +10,7 @@ interface Props {
 }
 
 export const OutageCard = ({ outage, onPress }: Props) => {
-    const colorScheme = useColorScheme() ?? 'light';
+    const colorScheme = useColorScheme() ?? 'dark';
 
     const getStatusColor = (status: OutageStatus) => {
         switch (status) {
