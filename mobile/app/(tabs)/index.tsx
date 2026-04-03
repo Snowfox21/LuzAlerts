@@ -1,18 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, useColorScheme, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Region } from 'react-native-maps';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Location from 'expo-location';
 import { Colors, Spacing } from '../../src/theme/Theme';
 import { Outage, OutageStatus, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
 import { AlertTriangle } from 'lucide-react-native';
 
+const ASUNCION: Region = {
+    latitude: -25.2637,
+    longitude: -57.5759,
+    latitudeDelta: 0.2,
+    longitudeDelta: 0.2,
+};
+
 export default function MapScreen() {
     const colorScheme = useColorScheme() ?? 'dark';
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
+    const [initialRegion, setInitialRegion] = useState<Region>(ASUNCION);
     const router = useRouter();
     const mapRef = useRef<MapView>(null);
     const { focusLat, focusLon } = useLocalSearchParams<{ focusLat?: string; focusLon?: string }>();
@@ -60,6 +69,21 @@ export default function MapScreen() {
 
     useEffect(() => {
         fetchOutages();
+        Location.requestForegroundPermissionsAsync().then(({ status }) => {
+            if (status !== 'granted') return;
+            Location.getLastKnownPositionAsync()
+                .then(pos => pos ?? Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
+                .then(pos => {
+                    if (!pos) return;
+                    setInitialRegion({
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        latitudeDelta: 0.1,
+                        longitudeDelta: 0.1,
+                    });
+                })
+                .catch(() => {}); // keep Asunción fallback
+        });
     }, []);
 
     useEffect(() => {
@@ -97,12 +121,7 @@ export default function MapScreen() {
             <MapView
                 ref={mapRef}
                 style={styles.map}
-                initialRegion={{
-                    latitude: -25.2637,
-                    longitude: -57.5759,
-                    latitudeDelta: 0.2,
-                    longitudeDelta: 0.2,
-                }}
+                initialRegion={initialRegion}
                 customMapStyle={colorScheme === 'dark' ? darkMapStyle : []}
                 onPress={() => setSelectedOutage(null)}
                 zoomEnabled={true}
