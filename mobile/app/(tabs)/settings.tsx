@@ -226,10 +226,6 @@ export default function SettingsScreen() {
                         <Text style={[styles.sectionHeader, { color: iconColor }]}>APLICACIÓN</Text>
                         <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
                             <View style={styles.row}>
-                                <Text style={[styles.label, { color: textColor }]}>Idioma</Text>
-                                <Text style={{ color: iconColor }}>Español</Text>
-                            </View>
-                            <View style={[styles.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: borderColor }]}>
                                 <Text style={[styles.label, { color: textColor }]}>Versión</Text>
                                 <Text style={{ color: iconColor }}>1.0.0</Text>
                             </View>
