@@ -131,7 +131,9 @@ export default function MapScreen() {
                 <View style={styles.cardOverlay}>
                     <OutageCard
                         outage={selectedOutage}
-                        onPress={() => router.push(`/outage/${selectedOutage.id}`)}
+                        onPress={selectedOutage.source !== OutageSource.CROWDSOURCE
+                            ? () => router.push(`/outage/${selectedOutage.id}`)
+                            : undefined}
                     />
                 </View>
             )}

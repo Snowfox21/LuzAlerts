@@ -74,7 +74,14 @@ export default function ListScreen() {
             <FlatList
                 data={outages}
                 keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => <OutageCard outage={item} onPress={() => router.push(`/outage/${item.id}`)} />}
+                renderItem={({ item }) => (
+                    <OutageCard
+                        outage={item}
+                        onPress={item.source !== OutageSource.CROWDSOURCE
+                            ? () => router.push(`/outage/${item.id}`)
+                            : undefined}
+                    />
+                )}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />
                 }
