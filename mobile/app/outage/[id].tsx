@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, useColorScheme, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme, ActivityIndicator, ScrollView, TouchableOpacity, Linking, Platform } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Colors, Spacing, Typography } from '../../src/theme/Theme';
 import { Outage, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { MapPin, Calendar, Info, Clock, CheckCircle2, AlertTriangle } from 'lucide-react-native';
+import { FEATURES, ANDE_WHATSAPP_NUMBER } from '../../src/constants/features';
 
 export default function OutageDetailScreen() {
     const { id } = useLocalSearchParams();
@@ -122,6 +123,18 @@ export default function OutageDetailScreen() {
                     </Text>
                 </View>
             )}
+
+            {FEATURES.WHATSAPP_ANDE_BOT && (
+                <View style={[styles.section, { borderBottomWidth: 0 }]}>
+                    <TouchableOpacity
+                        style={styles.whatsappButton}
+                        activeOpacity={0.8}
+                        onPress={() => Linking.openURL(`https://wa.me/${ANDE_WHATSAPP_NUMBER.replace('+', '')}`)}
+                    >
+                        <Text style={styles.whatsappButtonText}>Reportar a ANDE por WhatsApp</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </ScrollView>
     );
 }
@@ -163,5 +176,25 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginLeft: Spacing.md,
         flex: 1,
-    }
+    },
+    whatsappButton: {
+        backgroundColor: '#25D366',
+        borderRadius: Platform.OS === 'ios' ? 12 : 8,
+        paddingVertical: 14,
+        alignItems: 'center',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+            },
+            android: { elevation: 3 },
+        }),
+    },
+    whatsappButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
+    },
 });

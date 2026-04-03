@@ -113,9 +113,10 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
                 
             geo_data = await forward_geocode(f"{search_query}, Paraguay")
             
+            is_emergency = raw.get("source") == "ande_emergency"
             outage = Outage(
                 source=OutageSource.ande_official,
-                status=OutageStatus.planned,
+                status=OutageStatus.active if is_emergency else OutageStatus.planned,
                 title=title,
                 description=raw_text,
                 scheduled_start=start_time,
