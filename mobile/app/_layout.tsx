@@ -1,11 +1,12 @@
-import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { Stack, useRouter, useNavigationContainerRef } from 'expo-router';
+import { useColorScheme, useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../src/theme/Theme';
 import { useDeviceSetup } from '../src/hooks/useDeviceSetup';
+import { ONBOARDING_KEY } from './onboarding';
 
-// Show notifications as alerts when the app is in the foreground
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
         shouldShowAlert: true,
@@ -16,8 +17,17 @@ Notifications.setNotificationHandler({
 
 export default function RootLayout() {
     const colorScheme = useColorScheme() ?? 'dark';
+    const router = useRouter();
+    const [ready, setReady] = useState(false);
 
     useDeviceSetup();
+
+    useEffect(() => {
+        AsyncStorage.getItem(ONBOARDING_KEY).then(done => {
+            if (!done) router.replace('/onboarding');
+            setReady(true);
+        });
+    }, []);
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
@@ -32,6 +42,7 @@ export default function RootLayout() {
                     },
                     headerShadowVisible: false,
                 }}>
+                <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             </Stack>
         </GestureHandlerRootView>
