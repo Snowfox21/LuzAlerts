@@ -1,185 +1,158 @@
-# LuzParaguay
+# ⚡ LuzParaguay
 
-Real-time power outage monitoring app for Paraguay. Combines official ANDE data with crowdsourced reports from users.
+> Real-time power outage tracker for Paraguay — official ANDE data + crowdsourced reports, in your pocket.
 
----
-
-## Features
-
-- **Official outages** — automatic scraping of planned outages from ANDE's website every 60 minutes
-- **Crowdsourcing** — users can report outages from their location in one tap
-- **Interactive map** — markers color-coded by status (planned / active / resolved)
-- **Push notifications** — get notified automatically when a new outage appears within 5 km of your location
-- **Dark mode** — default UI optimized for low-battery situations
+Paraguay has frequent unannounced power cuts. ANDE publishes planned outage notices on their website — but only in Spanish, only as raw HTML, and with no notification system. LuzParaguay scrapes that data every hour, enriches it with GPS coordinates, and puts it on an interactive map. When the official data has gaps, users fill them in by tapping "Report" from wherever they are.
 
 ---
 
-## Tech Stack
+## What it does
 
-| Layer | Technology |
+| | |
+|---|---|
+| 🗺 **Live map** | Color-coded markers — planned (yellow), active (red), resolved (green) |
+| 📡 **Official data** | Scrapes ANDE's website every 60 minutes, geocodes zones automatically |
+| 👥 **Crowdsourcing** | Users report outages in one tap; 3+ reports in 500 m auto-confirms the area |
+| 🔔 **Push notifications** | Notified automatically when a new outage appears within 5 km of your location |
+| 🌙 **Dark mode** | Default dark UI — useful when the lights are already out |
+
+---
+
+## Tech stack
+
+| Layer | Tech |
 |---|---|
 | Mobile | React Native (Expo), TypeScript |
-| Backend API | Python 3.12, FastAPI, SQLAlchemy (async) |
+| Backend | Python 3.12, FastAPI, async SQLAlchemy |
 | Database | PostgreSQL 16 + PostGIS 3.4 |
 | Scraper | httpx, BeautifulSoup4, APScheduler |
 | Geocoding | OpenStreetMap Nominatim |
-| Push notifications | Expo Push Notifications (FCM / APNs) |
-| Infrastructure | Docker Compose |
+| Push | Expo Push Notifications → FCM (Android) / APNs (iOS) |
+| Infra | Docker Compose |
 
 ---
 
-## Architecture
+## Running locally
 
-```
-ANDE website
-     │
-     ▼
- Scraper (60 min)
-     │  httpx + BeautifulSoup
-     │  Nominatim geocoding
-     ▼
-PostgreSQL + PostGIS
-     │
-     ▼
-FastAPI Backend ◄──── React Native App
- /outages              Map screen
- /reports              Report button
- /users                Device registration + push token
-     │
-     ▼
-Expo Push Service
- (FCM → Android)
- (APNs → iOS)
-```
+**Prerequisites:** Docker, Node.js 18+, Expo Go or a simulator.
 
-**Data flow — official outages:**
-`ANDE site → Scraper → normalize + geocode → DB → API → App`
-
-**Data flow — crowdsourced reports:**
-`App → POST /reports → DB → validate (3+ reports in 500m = confirmed) → API → Map`
-
-**Data flow — push notifications:**
-`Scraper saves new outage → PostGIS finds users within 5 km → Expo Push API → device`
-
----
-
-## Project Structure
-
-```
-├── backend/               # FastAPI REST API
-│   ├── app/
-│   │   ├── main.py        # Entry point, router registration
-│   │   ├── models.py      # SQLAlchemy ORM (users, outages, reports, subscriptions)
-│   │   ├── schemas.py     # Pydantic request/response schemas
-│   │   ├── routers/       # users, outages, reports, subscriptions
-│   │   ├── crowdsource.py    # Confirmation threshold logic
-│   │   ├── geocoding.py      # Nominatim reverse/forward geocoding
-│   │   └── notifications.py  # Expo Push API — notify users near new outages
-│   ├── tests/
-│   └── Dockerfile
-│
-├── scraper/               # ANDE data scraper
-│   ├── ande_parser.py     # Planned outages (ANDE website)
-│   ├── consultas_parser.py# Emergency outages (consultas.ande.gov.py) — WIP
-│   ├── processor.py       # Normalize, geocode, save to DB + 7-day cleanup
-│   ├── main.py            # APScheduler entry point
-│   └── Dockerfile
-│
-├── mobile/                # React Native (Expo) app
-│   ├── app/
-│   │   ├── (tabs)/        # Main tab screens
-│   │   │   ├── index.tsx  # Map with outage markers
-│   │   │   ├── list.tsx   # Outage list
-│   │   │   ├── reports.tsx# Report an outage
-│   │   │   └── settings.tsx# Subscriptions, NIS
-│   │   ├── outage/[id].tsx# Official outage detail
-│   │   └── report/[id].tsx# User report detail
-│   └── src/
-│       ├── api/           # Axios client + TypeScript types
-│       ├── components/    # OutageCard
-│       ├── constants/     # Feature toggles (features.ts)
-│       ├── hooks/         # useDeviceSetup (push token + location registration)
-│       ├── theme/         # Colors, spacing, typography
-│       └── utils/         # Shared utilities
-│
-└── docker-compose.yml     # db + backend + scraper
-```
-
----
-
-## Running Locally
-
-### Prerequisites
-
-- Docker + Docker Compose
-- Node.js 18+ and npm
-- Expo Go app (for mobile testing) or iOS Simulator / Android Emulator
-
-### 1. Start backend + database + scraper
+### 1. Start the backend
 
 ```bash
 docker-compose up --build
 ```
 
-Services:
-- **PostgreSQL** — `localhost:5432` (user: `luz`, pass: `luz`, db: `luzpy`)
-- **Backend API** — `http://localhost:8000` (Swagger docs at `/docs`)
-- **Scraper** — runs immediately on start, then every 60 minutes
+This starts three services:
+
+| Service | URL |
+|---|---|
+| PostgreSQL + PostGIS | `localhost:5432` |
+| FastAPI (REST + Swagger) | `http://localhost:8000/docs` |
+| Scraper | Runs on startup, then every 60 min |
 
 ### 2. Run the mobile app
 
 ```bash
 cd mobile
 npm install
-npx expo start --ios      # iOS Simulator
-npx expo start --android  # Android Emulator
+npx expo start
 ```
 
-### 3. Connect to the database directly
+Scan the QR code with **Expo Go**, or press `i` / `a` for simulators.
 
-```bash
-docker exec -it luzpy_db psql -U luz -d luzpy
+> The app auto-detects the backend: `10.0.2.2:8000` on Android emulator, `localhost:8000` on iOS simulator, and `api.luzparaguay.com` in production.
+
+---
+
+## How it works
+
+```
+ANDE website
+     │
+     ▼
+ Scraper (every 60 min)
+     │  parse HTML → normalize → Nominatim geocoding
+     ▼
+PostgreSQL + PostGIS ──► FastAPI ──► React Native app
+     │                                   │
+     │    push token + GPS location ◄────┘
+     ▼
+Expo Push Service → FCM / APNs → user's phone
+```
+
+**Crowdsourced reports:**
+`User taps "Report" → POST /reports → if 3+ reports within 500 m → area confirmed`
+
+**Push notifications:**
+`New outage saved → PostGIS finds users within 5 km → Expo Push API → notification`
+
+---
+
+## Project layout
+
+```
+├── backend/
+│   └── app/
+│       ├── models.py          # Users, Outages, Reports, Subscriptions
+│       ├── routers/           # REST endpoints
+│       ├── crowdsource.py     # Auto-confirmation logic
+│       ├── geocoding.py       # Nominatim integration
+│       └── notifications.py   # Expo push dispatch
+│
+├── scraper/
+│   ├── ande_parser.py         # Planned outages
+│   ├── consultas_parser.py    # Emergency outages (WIP)
+│   └── processor.py           # Normalize → save → notify
+│
+└── mobile/
+    ├── app/(tabs)/
+    │   ├── index.tsx           # Map
+    │   ├── list.tsx            # Outage list
+    │   └── reports.tsx         # Report form
+    └── src/
+        ├── api/                # Axios client + types
+        ├── hooks/              # useDeviceSetup (push + location)
+        └── theme/              # Colors, spacing
 ```
 
 ---
 
-## API Overview
+## API
+
+Full interactive docs available at `http://localhost:8000/docs` when running locally.
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/outages/` | List outages (filter by status, barrio, radius) |
+|---|---|---|
+| `GET` | `/outages/` | List outages — filter by status, barrio, or GPS radius |
 | `GET` | `/outages/{id}` | Outage detail |
-| `POST` | `/reports/` | Submit a user outage report |
-| `GET` | `/reports/` | Active user reports (optionally by radius) |
-| `GET` | `/reports/{id}` | Report detail |
-| `POST` | `/users/` | Register device |
-| `POST` | `/subscriptions/` | Subscribe to a barrio or feeder |
-| `DELETE` | `/subscriptions/{id}` | Unsubscribe |
-
----
-
-## Feature Flags
-
-Located in `mobile/src/constants/features.ts`:
-
-```typescript
-export const FEATURES = {
-  WHATSAPP_ANDE_BOT: false, // Enable after beta — requires confirmed bot number
-};
-```
+| `POST` | `/reports/` | Submit a user report |
+| `GET` | `/reports/` | Active reports (optional radius filter) |
+| `POST` | `/users/` | Register device (push token + location) |
 
 ---
 
 ## Roadmap
 
-- [x] Push notifications (Expo Push / FCM / APNs)
+- [x] Official ANDE outage scraping
+- [x] Crowdsourced reports with auto-confirmation
+- [x] Push notifications (geo-targeted, 5 km radius)
 - [ ] Emergency outage API (`consultas.ande.gov.py`)
-- [ ] NIS → feeder number mapping
-- [ ] PDF parsing for ANDE outage documents
+- [ ] NIS number → feeder mapping
 - [ ] App Store / Google Play release
+
+---
+
+## Contributing
+
+Pull requests are welcome. For major changes, open an issue first to discuss what you'd like to change.
+
+1. Fork the repo
+2. Create a branch: `git checkout -b feature/your-feature`
+3. Make your changes and commit
+4. Open a PR against `develop`
 
 ---
 
 ## License
 
-Private repository. All rights reserved.
+Private repository — all rights reserved.
