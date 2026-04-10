@@ -36,7 +36,9 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.user)
     nis_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     feeder_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    fcm_token: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    fcm_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     reports: Mapped[list["UserReport"]] = relationship(back_populates="user")
