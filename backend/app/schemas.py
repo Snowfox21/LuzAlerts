@@ -6,9 +6,11 @@ from pydantic import BaseModel, Field
 # ---------- User ----------
 
 class UserCreate(BaseModel):
-    device_id: str = Field(..., description="Уникальный идентификатор устройства (UUID/Instance ID Android/iOS). Берется из API устройства.")
+    device_id: str = Field(..., description="Уникальный идентификатор устройства (UUID). Генерируется один раз и хранится в AsyncStorage.")
     nis_number: str | None = Field(default=None, description="Номер счета абонента (NIS). Пользователь вводит вручную в настройках.")
-    fcm_token: str | None = Field(default=None, description="Токен Firebase Cloud Messaging для отправки Push-уведомлений. Выдается SDK Firebase при старте приложения.")
+    fcm_token: str | None = Field(default=None, description="Expo Push Token устройства для отправки уведомлений.")
+    latitude: float | None = Field(default=None, ge=-90, le=90, description="Широта устройства для геолокационных уведомлений.")
+    longitude: float | None = Field(default=None, ge=-180, le=180, description="Долгота устройства для геолокационных уведомлений.")
 
 
 class UserOut(BaseModel):

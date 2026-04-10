@@ -59,19 +59,22 @@ async def cleanup_old_data(days: int = 7) -> None:
 
 async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
     """
-    Takes raw dictionaries parsed from ANDE, cleans them, applies geocoding, 
+    Takes raw dictionaries parsed from ANDE, cleans them, applies geocoding,
     and saves them to the PostgreSQL database.
     """
     logger.info(f"Received {len(raw_outages)} raw outages to process.")
     if not raw_outages:
         return
-        
+
     from app.database import AsyncSessionLocal
     from app.models import Outage, OutageSource, OutageStatus
     from app.geocoding import forward_geocode
+    from app.notifications import notify_users_near_outage
     from sqlalchemy.future import select
-    
+
     async with AsyncSessionLocal() as session:
+        new_outage_coords: list[tuple[float, float, str]] = []  # (lat, lon, title)
+
         for raw in raw_outages:
             title = raw.get("title", "")
             zona = raw.get("zona", "")
@@ -114,6 +117,8 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             geo_data = await forward_geocode(f"{search_query}, Paraguay")
             
             is_emergency = raw.get("source") == "ande_emergency"
+            outage_lat = geo_data.get("lat")
+            outage_lon = geo_data.get("lon")
             outage = Outage(
                 source=OutageSource.ande_official,
                 status=OutageStatus.active if is_emergency else OutageStatus.planned,
@@ -121,12 +126,19 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
                 description=raw_text,
                 scheduled_start=start_time,
                 scheduled_end=end_time,
-                latitude=geo_data.get("lat"),
-                longitude=geo_data.get("lon"),
-                location=f"POINT({geo_data.get('lon')} {geo_data.get('lat')})" if geo_data.get("lat") else None,
+                latitude=outage_lat,
+                longitude=outage_lon,
+                location=f"POINT({outage_lon} {outage_lat})" if outage_lat else None,
                 barrio=geo_data.get("barrio") or (zona if "ZONA" not in zona.upper() else None)
             )
             session.add(outage)
-            
+
+            if outage_lat and outage_lon:
+                new_outage_coords.append((outage_lat, outage_lon, title))
+
         await session.commit()
+
+        for lat, lon, outage_title in new_outage_coords:
+            await notify_users_near_outage(session, lat, lon, outage_title)
+
     logger.info("Saved outages to DB.")

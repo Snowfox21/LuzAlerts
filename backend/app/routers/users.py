@@ -20,6 +20,8 @@ async def create_or_update_user(payload: UserCreate, db: AsyncSession = Depends(
             device_id=payload.device_id,
             nis_number=payload.nis_number,
             fcm_token=payload.fcm_token,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
         )
         db.add(user)
     else:
@@ -27,6 +29,10 @@ async def create_or_update_user(payload: UserCreate, db: AsyncSession = Depends(
             user.nis_number = payload.nis_number
         if payload.fcm_token is not None:
             user.fcm_token = payload.fcm_token
+        if payload.latitude is not None:
+            user.latitude = payload.latitude
+        if payload.longitude is not None:
+            user.longitude = payload.longitude
 
     await db.commit()
     await db.refresh(user)
