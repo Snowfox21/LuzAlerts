@@ -1,3 +1,5 @@
+🌐 [English](README.md) | [Español](README.es.md)
+
 # ⚡ LuzParaguay
 
 > Real-time power outage tracker for Paraguay — official ANDE data + crowdsourced reports, in your pocket.
