@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
 from geoalchemy2.types import Geography
 from sqlalchemy import select, cast
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crowdsource import check_and_confirm_reports
 from app.database import get_db
 from app.geocoding import reverse_geocode, forward_geocode
+from app.limiter import limiter
 from app.models import User, UserReport
 from app.schemas import ReportCreate, ReportOut, ReportsInAreaQuery
 
@@ -15,7 +16,8 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 @router.post("/", response_model=ReportOut, status_code=201)
-async def create_report(payload: ReportCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/hour")
+async def create_report(request: Request, payload: ReportCreate, db: AsyncSession = Depends(get_db)):
     """Принять геометку 'У меня нет света' от пользователя."""
     # Найти пользователя
     result = await db.execute(select(User).where(User.device_id == payload.device_id))

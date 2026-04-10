@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.limiter import limiter
 from app.models import User, UserRole
 from app.schemas import UserCreate, UserOut
 
@@ -10,7 +11,8 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/", response_model=UserOut, status_code=201)
-async def create_or_update_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("20/hour")
+async def create_or_update_user(request: Request, payload: UserCreate, db: AsyncSession = Depends(get_db)):
     """Регистрация устройства. Если device_id уже есть — обновляем токен / NIS."""
     result = await db.execute(select(User).where(User.device_id == payload.device_id))
     user = result.scalar_one_or_none()
