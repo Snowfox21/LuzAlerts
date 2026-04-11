@@ -80,6 +80,21 @@ class ReportsInAreaQuery(BaseModel):
     radius_m: int = Field(default=1000, ge=100, le=10000)
 
 
+# ---------- OutageComment ----------
+
+class CommentCreate(BaseModel):
+    device_id: str
+    text: str = Field(..., min_length=1, max_length=500)
+
+
+class CommentOut(BaseModel):
+    id: int
+    text: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # ---------- Subscription ----------
 
 class SubscriptionCreate(BaseModel):

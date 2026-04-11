@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
-    View, Text, StyleSheet, FlatList, TouchableOpacity,
-    Dimensions, Platform, useColorScheme,
+    View, Text, StyleSheet, TouchableOpacity,
+    Platform, useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -9,8 +9,6 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Zap, MapPin, BellRing } from 'lucide-react-native';
 import { Colors, Spacing } from '../src/theme/Theme';
-
-const { width } = Dimensions.get('window');
 
 export const ONBOARDING_KEY = '@luzpy_onboarding_done';
 
@@ -47,13 +45,22 @@ const SLIDES = [
 export default function OnboardingScreen() {
     const colorScheme = useColorScheme() ?? 'dark';
     const router = useRouter();
-    const listRef = useRef<FlatList>(null);
-    const [currentIndex, setCurrentIndex] = useState(0);
+    const [index, setIndex] = useState(0);
 
     const bg = Colors[colorScheme].background;
-    const text = Colors[colorScheme].text;
-    const icon = Colors[colorScheme].icon;
+    const textColor = Colors[colorScheme].text;
+    const iconColor = Colors[colorScheme].icon;
     const tint = Colors[colorScheme].tint;
+    const border = Colors[colorScheme].border;
+
+    const slide = SLIDES[index];
+    const touchStartX = useRef(0);
+
+    const handleSwipe = (endX: number) => {
+        const diff = touchStartX.current - endX;
+        if (diff > 50 && index < SLIDES.length - 1) setIndex(index + 1);
+        if (diff < -50 && index > 0) setIndex(index - 1);
+    };
 
     const finish = async () => {
         await Promise.allSettled([
@@ -65,36 +72,27 @@ export default function OnboardingScreen() {
     };
 
     const next = () => {
-        if (currentIndex < SLIDES.length - 1) {
-            listRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
+        if (index < SLIDES.length - 1) {
+            setIndex(index + 1);
         } else {
             finish();
         }
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: bg }]}>
-            <FlatList
-                ref={listRef}
-                data={SLIDES}
-                keyExtractor={s => s.key}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                scrollEnabled={false}
-                onMomentumScrollEnd={e => {
-                    setCurrentIndex(Math.round(e.nativeEvent.contentOffset.x / width));
-                }}
-                renderItem={({ item }) => (
-                    <View style={[styles.slide, { width }]}>
-                        <View style={[styles.iconCircle, { backgroundColor: item.iconBg }]}>
-                            <item.Icon size={52} color={item.iconColor} strokeWidth={1.5} />
-                        </View>
-                        <Text style={[styles.title, { color: text }]}>{item.title}</Text>
-                        <Text style={[styles.body, { color: icon }]}>{item.body}</Text>
-                    </View>
-                )}
-            />
+        <View
+            style={[styles.container, { backgroundColor: bg }]}
+            onTouchStart={e => { touchStartX.current = e.nativeEvent.pageX; }}
+            onTouchEnd={e => handleSwipe(e.nativeEvent.pageX)}
+        >
+            {/* Slide content */}
+            <View style={styles.slide}>
+                <View style={[styles.iconCircle, { backgroundColor: slide.iconBg }]}>
+                    <slide.Icon size={52} color={slide.iconColor} strokeWidth={1.5} />
+                </View>
+                <Text style={[styles.title, { color: textColor }]}>{slide.title}</Text>
+                <Text style={[styles.body, { color: iconColor }]}>{slide.body}</Text>
+            </View>
 
             {/* Dots */}
             <View style={styles.dots}>
@@ -103,26 +101,26 @@ export default function OnboardingScreen() {
                         key={i}
                         style={[
                             styles.dot,
-                            { backgroundColor: i === currentIndex ? tint : Colors[colorScheme].border },
-                            i === currentIndex && styles.dotActive,
+                            { backgroundColor: i === index ? tint : border },
+                            i === index && styles.dotActive,
                         ]}
                     />
                 ))}
             </View>
 
-            {/* CTA */}
+            {/* Buttons */}
             <View style={styles.footer}>
                 <TouchableOpacity
                     style={[styles.button, { backgroundColor: tint }]}
                     onPress={next}
                     activeOpacity={0.85}
                 >
-                    <Text style={styles.buttonText}>{SLIDES[currentIndex].cta}</Text>
+                    <Text style={styles.buttonText}>{slide.cta}</Text>
                 </TouchableOpacity>
 
-                {currentIndex < SLIDES.length - 1 && (
+                {index < SLIDES.length - 1 && (
                     <TouchableOpacity onPress={finish} style={styles.skip}>
-                        <Text style={[styles.skipText, { color: icon }]}>Omitir</Text>
+                        <Text style={[styles.skipText, { color: iconColor }]}>Omitir</Text>
                     </TouchableOpacity>
                 )}
             </View>

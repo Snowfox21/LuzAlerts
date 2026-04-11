@@ -94,6 +94,17 @@ class UserReport(Base):
     user: Mapped["User"] = relationship(back_populates="reports")
 
 
+class OutageComment(Base):
+    """Комментарий пользователя к аутажу (анонимный)."""
+    __tablename__ = "outage_comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    outage_id: Mapped[int] = mapped_column(ForeignKey("outages.id", ondelete="CASCADE"), index=True)
+    device_id: Mapped[str] = mapped_column(String(128))
+    text: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
 class Subscription(Base):
     """Подписка пользователя на уведомления по району или фидеру."""
     __tablename__ = "subscriptions"

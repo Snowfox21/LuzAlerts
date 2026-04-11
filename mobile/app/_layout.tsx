@@ -1,5 +1,6 @@
-import { Stack, useRouter, useNavigationContainerRef } from 'expo-router';
-import { useColorScheme, useEffect, useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';

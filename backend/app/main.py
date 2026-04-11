@@ -5,7 +5,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.database import engine, Base
 from app.limiter import limiter
-from app.routers import users, outages, reports, subscriptions
+from app.routers import users, outages, reports, subscriptions, comments
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ app.include_router(users.router)
 app.include_router(outages.router)
 app.include_router(reports.router)
 app.include_router(subscriptions.router)
+app.include_router(comments.router)
 
 
 @app.get("/", tags=["health"])
