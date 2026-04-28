@@ -63,9 +63,10 @@ node_modules/
 .flutter-plugins
 .flutter-plugins-dependencies
 
-Instructions/DB.md
-
-Instructions/project_documents/
+# === Документация (приватная) ===
+Instructions/
+MVP_Plan.md
+MARKETING.md
 
 # Scraper
 scraper/.env
