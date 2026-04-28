@@ -4,7 +4,7 @@
 
 > Real-time power outage tracker for Paraguay — official ANDE data + crowdsourced reports, in your pocket.
 
-Paraguay has frequent unannounced power cuts. ANDE publishes planned outage notices on their website — but only in Spanish, only as raw HTML, and with no notification system. LuzAlerts scrapes that data every hour, enriches it with GPS coordinates, and puts it on an interactive map. When the official data has gaps, users fill them in by tapping "Report" from wherever they are.
+Paraguay has frequent unannounced power cuts. ANDE publishes planned outage notices on their website — but only as raw HTML you have to scan by eye, with no map and no notification system. LuzAlerts scrapes that data every hour, enriches it with GPS coordinates, and puts it on an interactive map. When the official data has gaps, users fill them in by tapping "Report" from wherever they are.
 
 ---
 
