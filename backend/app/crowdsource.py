@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import UserReport
+from app.notifications import notify_users_near_outage
 
 
 async def check_and_confirm_reports(db: AsyncSession, lat: float, lon: float) -> int:
@@ -42,5 +43,9 @@ async def check_and_confirm_reports(db: AsyncSession, lat: float, lon: float) ->
         for r in reports:
             r.confirmed = True
         await db.commit()
+
+        barrio = reports[0].barrio if reports else None
+        body = f"Corte confirmado en {barrio}" if barrio else "Corte confirmado por usuarios cercanos"
+        await notify_users_near_outage(db, lat, lon, body)
 
     return count

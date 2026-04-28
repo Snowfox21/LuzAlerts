@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "LuzAlerts",
+    "slug": "luzalerts",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,13 +16,14 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.luzalerts.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#151718"
       },
       "edgeToEdgeEnabled": true
     },
-    "scheme": "luzpy",
+    "scheme": "luzalerts",
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"

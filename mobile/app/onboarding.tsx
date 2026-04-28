@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Zap, MapPin, BellRing } from 'lucide-react-native';
 import { Colors, Spacing } from '../src/theme/Theme';
 
-export const ONBOARDING_KEY = '@luzpy_onboarding_done';
+export const ONBOARDING_KEY = '@luzalerts_onboarding_done';
 
 const SLIDES = [
     {

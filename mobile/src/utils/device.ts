@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 
-const DEVICE_ID_KEY = '@luzpy_device_id';
+const DEVICE_ID_KEY = '@luzalerts_device_id';
 
 export const getOrCreateDeviceId = async (): Promise<string> => {
     try {

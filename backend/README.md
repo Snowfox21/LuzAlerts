@@ -1,4 +1,4 @@
-# LuzParaguay Backend — Quick Start
+# LuzAlerts Backend — Quick Start
 
 ## Требования
 - Python 3.10+

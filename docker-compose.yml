@@ -1,17 +1,17 @@
 services:
   db:
     image: postgis/postgis:16-3.4
-    container_name: luzpy_db
+    container_name: luzalerts_db
     environment:
       POSTGRES_USER: luz
       POSTGRES_PASSWORD: luz
-      POSTGRES_DB: luzpy
+      POSTGRES_DB: luzalerts
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U luz -d luzpy" ]
+      test: [ "CMD-SHELL", "pg_isready -U luz -d luzalerts" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -19,15 +19,16 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: luzpy_backend
+    container_name: luzalerts_backend
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzpy
+      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzalerts
       NOMINATIM_URL: https://nominatim.openstreetmap.org
       NOMINATIM_EMAIL: your@email.com
       REPORT_RADIUS_M: 500
       REPORT_THRESHOLD: 3
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -36,9 +37,9 @@ services:
     build:
       context: .
       dockerfile: scraper/Dockerfile
-    container_name: luzpy_scraper
+    container_name: luzalerts_scraper
     environment:
-      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzpy
+      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzalerts
       ANDE_URL: https://www.ande.gov.py/
       POLL_INTERVAL_MINUTES: 60
     depends_on:

@@ -36,6 +36,54 @@ def parse_time_range(horario_str: str, base_date: datetime) -> tuple[datetime | 
         
     return start, end
 
+async def mark_resolved_outages() -> None:
+    """
+    Finds outages whose scheduled_end has passed and status is still active/planned,
+    marks them resolved, and notifies users within 5 km that power has been restored.
+    """
+    from app.database import AsyncSessionLocal
+    from app.models import Outage, OutageStatus
+    from app.notifications import (
+        RESOLVED_PUSH_BODY,
+        RESOLVED_PUSH_TITLE,
+        notify_users_near_outage,
+    )
+    from sqlalchemy import select
+
+    now = datetime.utcnow()
+    async with AsyncSessionLocal() as session:
+        stmt = select(Outage).where(
+            Outage.scheduled_end != None,
+            Outage.scheduled_end < now,
+            Outage.status.in_([OutageStatus.active, OutageStatus.planned]),
+        )
+        candidates = (await session.execute(stmt)).scalars().all()
+
+        if not candidates:
+            return
+
+        notify_targets: list[tuple[float, float, str]] = []
+        for outage in candidates:
+            outage.status = OutageStatus.resolved
+            outage.resolved_at = now
+            if outage.latitude is not None and outage.longitude is not None:
+                notify_targets.append((outage.latitude, outage.longitude, outage.title))
+
+        await session.commit()
+
+        for lat, lon, title in notify_targets:
+            await notify_users_near_outage(
+                session,
+                lat,
+                lon,
+                title=title,
+                body=RESOLVED_PUSH_BODY,
+                push_title=RESOLVED_PUSH_TITLE,
+            )
+
+    logger.info(f"Marked {len(candidates)} outages as resolved.")
+
+
 async def cleanup_old_data(days: int = 7) -> None:
     """Deletes outages and user reports older than `days` days."""
     from app.database import AsyncSessionLocal

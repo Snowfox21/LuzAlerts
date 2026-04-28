@@ -12,7 +12,7 @@ from app.main import app
 from app.models import UserRole, OutageSource, OutageStatus
 
 # Используем тестовую БД, которую мы создали
-TEST_DATABASE_URL = "postgresql+asyncpg://luz:luz@localhost:5432/luzpy_test"
+TEST_DATABASE_URL = "postgresql+asyncpg://luz:luz@localhost:5432/luzalerts_test"
 
 engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool, echo=False)
 TestingSessionLocal = async_sessionmaker(

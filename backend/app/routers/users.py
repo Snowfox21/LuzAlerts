@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import User, UserRole
+from app.models import User
 from app.schemas import UserCreate, UserOut
+from app.security import require_admin_key
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -51,35 +52,21 @@ async def get_user(device_id: str, db: AsyncSession = Depends(get_db)):
     return user
 
 
-@router.get("/", response_model=list[UserOut])
-async def list_all_users(
-    admin_device_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Получить список всех пользователей. 
-    Доступно только пользователям с ролью `admin`.
-    `admin_device_id` передается для проверки прав (в будущем заменить на JWT/Auth).
-    """
-    # Проверка прав администратора
-    admin_result = await db.execute(select(User).where(User.device_id == admin_device_id))
-    admin_user = admin_result.scalar_one_or_none()
-    
-    if admin_user is None or admin_user.role != UserRole.admin:
-        raise HTTPException(status_code=403, detail="Prohibido: Se requiere acceso de administrador")
-
+@router.get("/", response_model=list[UserOut], dependencies=[Depends(require_admin_key)])
+async def list_all_users(db: AsyncSession = Depends(get_db)):
+    """Список всех пользователей. Требуется заголовок `X-Admin-Key`."""
     result = await db.execute(select(User).order_by(User.created_at.desc()))
     return result.scalars().all()
 
 
-@router.delete("/{device_id}", status_code=204)
+@router.delete("/{device_id}", status_code=204, dependencies=[Depends(require_admin_key)])
 async def delete_user(device_id: str, db: AsyncSession = Depends(get_db)):
-    """Удалить устройство и все связанные с ним данные (метрики, подписки удалятся каскадно)."""
+    """Удалить устройство. Требуется заголовок `X-Admin-Key`."""
     result = await db.execute(select(User).where(User.device_id == device_id))
     user = result.scalar_one_or_none()
-    
+
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        
+
     await db.delete(user)
     await db.commit()
