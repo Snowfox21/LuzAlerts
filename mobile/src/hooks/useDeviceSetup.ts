@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../api/client';
 
-const DEVICE_ID_KEY = '@luzpy_device_id';
+const DEVICE_ID_KEY = '@luzalerts_device_id';
 
 async function getOrCreateDeviceId(): Promise<string> {
     let id = await AsyncStorage.getItem(DEVICE_ID_KEY);

@@ -16,7 +16,7 @@ async def reverse_geocode(lat: float, lon: float) -> dict:
         "zoom": 16,
     }
     headers = {
-        "User-Agent": f"LuzParaguay/1.0 ({settings.NOMINATIM_EMAIL})",
+        "User-Agent": f"LuzAlerts/1.0 ({settings.NOMINATIM_EMAIL})",
         "Accept-Language": "es",
     }
 
@@ -58,7 +58,7 @@ async def forward_geocode(address: str) -> dict:
         "addressdetails": 1,
     }
     headers = {
-        "User-Agent": f"LuzParaguay/1.0 ({settings.NOMINATIM_EMAIL})",
+        "User-Agent": f"LuzAlerts/1.0 ({settings.NOMINATIM_EMAIL})",
         "Accept-Language": "es",
     }
 

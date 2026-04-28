@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, useColorScheme, RefreshControl, ActivityIndicator } from 'react-native';
+import { AppState, View, Text, FlatList, StyleSheet, useColorScheme, RefreshControl, ActivityIndicator } from 'react-native';
 import { Colors, Spacing, Typography } from '../../src/theme/Theme';
 import { Outage, OutageStatus, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
@@ -54,6 +54,18 @@ export default function ListScreen() {
 
     useEffect(() => {
         fetchOutages();
+    }, []);
+
+    // Auto-refresh every 5 minutes while app is in foreground
+    useEffect(() => {
+        const interval = setInterval(fetchOutages, 5 * 60 * 1000);
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') fetchOutages();
+        });
+        return () => {
+            clearInterval(interval);
+            subscription.remove();
+        };
     }, []);
 
     const onRefresh = () => {

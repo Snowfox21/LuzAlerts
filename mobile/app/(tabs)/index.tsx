@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, useColorScheme, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, View, Text, StyleSheet, useColorScheme, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Location from 'expo-location';
@@ -84,6 +84,18 @@ export default function MapScreen() {
                 })
                 .catch(() => {}); // keep Asunción fallback
         });
+    }, []);
+
+    // Auto-refresh every 5 minutes while app is in foreground
+    useEffect(() => {
+        const interval = setInterval(fetchOutages, 5 * 60 * 1000);
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') fetchOutages();
+        });
+        return () => {
+            clearInterval(interval);
+            subscription.remove();
+        };
     }, []);
 
     useEffect(() => {

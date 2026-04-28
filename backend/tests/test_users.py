@@ -37,25 +37,41 @@ async def test_get_user_not_found(client: AsyncClient):
     assert response.status_code == 404
     assert response.json()["detail"] == "Usuario no encontrado"
 
-@pytest.mark.asyncio
-async def test_list_all_users_admin(client: AsyncClient, admin_user, normal_user):
-    response = await client.get(f"/users/?admin_device_id={admin_user.device_id}")
-    assert response.status_code == 200
-    assert len(response.json()) >= 2  # Including admin and normal user from fixtures
+ADMIN_HEADERS = {"X-Admin-Key": "test-admin-key"}
+
 
 @pytest.mark.asyncio
-async def test_list_all_users_forbidden(client: AsyncClient, normal_user):
-    response = await client.get(f"/users/?admin_device_id={normal_user.device_id}")
+async def test_list_all_users_admin(client: AsyncClient, admin_user, normal_user):
+    response = await client.get("/users/", headers=ADMIN_HEADERS)
+    assert response.status_code == 200
+    assert len(response.json()) >= 2
+
+@pytest.mark.asyncio
+async def test_list_all_users_forbidden_without_key(client: AsyncClient):
+    response = await client.get("/users/")
     assert response.status_code == 403
     assert response.json()["detail"] == "Prohibido: Se requiere acceso de administrador"
+
+@pytest.mark.asyncio
+async def test_list_all_users_forbidden_wrong_key(client: AsyncClient):
+    response = await client.get("/users/", headers={"X-Admin-Key": "wrong"})
+    assert response.status_code == 403
 
 @pytest.mark.asyncio
 async def test_delete_user(client: AsyncClient):
     payload = {"device_id": "test-device-3"}
     await client.post("/users/", json=payload)
-    
-    response = await client.delete("/users/test-device-3")
+
+    response = await client.delete("/users/test-device-3", headers=ADMIN_HEADERS)
     assert response.status_code == 204
-    
+
     get_response = await client.get("/users/test-device-3")
     assert get_response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_user_forbidden_without_key(client: AsyncClient):
+    payload = {"device_id": "test-device-4"}
+    await client.post("/users/", json=payload)
+
+    response = await client.delete("/users/test-device-4")
+    assert response.status_code == 403

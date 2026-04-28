@@ -2,11 +2,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://luz:luz@localhost:5432/luzpy"
+    DATABASE_URL: str = "postgresql+asyncpg://luz:luz@localhost:5432/luzalerts"
     NOMINATIM_URL: str = "https://nominatim.openstreetmap.org"
-    NOMINATIM_EMAIL: str = "dev@luzpy.local"
+    NOMINATIM_EMAIL: str = "dev@luzalerts.local"
     REPORT_RADIUS_M: int = 500
     REPORT_THRESHOLD: int = 3
+    ADMIN_API_KEY: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

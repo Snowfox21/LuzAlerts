@@ -6,7 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import sys # Trigger import of backend path
 from ande_parser import parse_outages
 from consultas_parser import fetch_emergency_outages
-from processor import normalize_and_save_outages, cleanup_old_data
+from processor import normalize_and_save_outages, cleanup_old_data, mark_resolved_outages
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -23,7 +23,10 @@ async def run_scraper():
         # 3. Normalize, geocode, and save all to DB
         await normalize_and_save_outages(raw_outages + emergency_outages)
 
-        # 3. Remove data older than 7 days
+        # 4. Mark expired outages as resolved + notify users
+        await mark_resolved_outages()
+
+        # 5. Remove data older than 7 days
         await cleanup_old_data(days=7)
 
         logger.info("Scraper run completed.")

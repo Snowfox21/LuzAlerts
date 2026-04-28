@@ -10,12 +10,18 @@ EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 NOTIFY_RADIUS_M = 5000  # 5 km
 
 
+DEFAULT_PUSH_TITLE = "⚡ Corte de luz cercano"
+RESOLVED_PUSH_TITLE = "✅ Luz restaurada en tu zona"
+RESOLVED_PUSH_BODY = "La energía ha sido restaurada en tu área."
+
+
 async def notify_users_near_outage(
     session: AsyncSession,
     lat: float,
     lon: float,
     title: str,
     body: str | None = None,
+    push_title: str = DEFAULT_PUSH_TITLE,
 ) -> None:
     """Find users within NOTIFY_RADIUS_M of (lat, lon) and send them a push notification."""
     result = await session.execute(
@@ -41,14 +47,20 @@ async def notify_users_near_outage(
     logger.info("Sending push to %d users near (%.4f, %.4f)", len(tokens), lat, lon)
     await _send_expo_push(
         tokens=tokens,
-        title="⚡ Corte de luz cercano",
+        title=push_title,
         body=body or title,
+        data={"lat": lat, "lon": lon},
     )
 
 
-async def _send_expo_push(tokens: list[str], title: str, body: str) -> None:
+async def _send_expo_push(
+    tokens: list[str],
+    title: str,
+    body: str,
+    data: dict | None = None,
+) -> None:
     messages = [
-        {"to": token, "title": title, "body": body, "sound": "default"}
+        {"to": token, "title": title, "body": body, "sound": "default", "data": data or {}}
         for token in tokens
         if token.startswith("ExponentPushToken[")
     ]

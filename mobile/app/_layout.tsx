@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
@@ -13,6 +13,8 @@ Notifications.setNotificationHandler({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
     }),
 });
 
@@ -20,6 +22,7 @@ export default function RootLayout() {
     const colorScheme = useColorScheme() ?? 'dark';
     const router = useRouter();
     const [ready, setReady] = useState(false);
+    const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
     useDeviceSetup();
 
@@ -28,6 +31,22 @@ export default function RootLayout() {
             if (!done) router.replace('/onboarding');
             setReady(true);
         });
+    }, []);
+
+    // Navigate to map when user taps a push notification
+    useEffect(() => {
+        responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+            const data = response.notification.request.content.data;
+            if (data?.lat && data?.lon) {
+                router.push(`/(tabs)?focusLat=${data.lat}&focusLon=${data.lon}`);
+            } else {
+                router.push('/(tabs)');
+            }
+        });
+
+        return () => {
+            responseListener.current?.remove();
+        };
     }, []);
 
     return (
@@ -42,6 +61,7 @@ export default function RootLayout() {
                         fontWeight: 'bold',
                     },
                     headerShadowVisible: false,
+                    headerBackTitle: '',
                 }}>
                 <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
