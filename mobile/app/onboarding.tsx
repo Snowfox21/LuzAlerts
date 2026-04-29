@@ -1,14 +1,11 @@
 import React, { useRef, useState } from 'react';
-import {
-    View, Text, StyleSheet, TouchableOpacity,
-    Platform, useColorScheme,
-} from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Zap, MapPin, BellRing } from 'lucide-react-native';
-import { Colors, Spacing } from '../src/theme/Theme';
+import { BellRing, MapPin, Zap } from 'lucide-react-native';
+import { DS, PrimaryButton } from '../src/components/DesignSystem';
 
 export const ONBOARDING_KEY = '@luzalerts_onboarding_done';
 
@@ -16,8 +13,8 @@ const SLIDES = [
     {
         key: 'welcome',
         Icon: Zap,
-        iconColor: '#F59E0B',
-        iconBg: 'rgba(245,158,11,0.12)',
+        iconColor: DS.amberDim,
+        iconBg: 'rgba(245,158,11,0.14)',
         title: 'Cortes de luz\nen tiempo real',
         body: 'Datos oficiales de la ANDE actualizados cada hora, más reportes de usuarios de toda Paraguay.',
         cta: 'Siguiente',
@@ -25,36 +22,28 @@ const SLIDES = [
     {
         key: 'map',
         Icon: MapPin,
-        iconColor: '#EF4444',
-        iconBg: 'rgba(239,68,68,0.12)',
+        iconColor: DS.red,
+        iconBg: 'rgba(239,68,68,0.14)',
         title: 'Tu zona,\nsiempre actualizada',
-        body: 'El mapa muestra cortes planificados y activos cerca de vos. Si hay un corte y no aparece, podés reportarlo en un toque.',
+        body: 'El mapa muestra cortes planificados y activos cerca de vos. Si hay un corte, podés reportarlo en un toque.',
         cta: 'Siguiente',
     },
     {
         key: 'notifications',
         Icon: BellRing,
-        iconColor: '#0A84FF',
-        iconBg: 'rgba(10,132,255,0.12)',
+        iconColor: DS.blue,
+        iconBg: 'rgba(10,132,255,0.14)',
         title: 'Avisamos cuando\nhay un corte',
-        body: 'Activá las notificaciones y la ubicación para recibir alertas cuando haya un corte a menos de 5 km de donde estás.',
+        body: 'Activá las notificaciones y la ubicación para recibir alertas cuando haya un corte a menos de 5 km.',
         cta: 'Activar y empezar',
     },
 ];
 
 export default function OnboardingScreen() {
-    const colorScheme = useColorScheme() ?? 'dark';
     const router = useRouter();
     const [index, setIndex] = useState(0);
-
-    const bg = Colors[colorScheme].background;
-    const textColor = Colors[colorScheme].text;
-    const iconColor = Colors[colorScheme].icon;
-    const tint = Colors[colorScheme].tint;
-    const border = Colors[colorScheme].border;
-
-    const slide = SLIDES[index];
     const touchStartX = useRef(0);
+    const slide = SLIDES[index];
 
     const handleSwipe = (endX: number) => {
         const diff = touchStartX.current - endX;
@@ -81,47 +70,32 @@ export default function OnboardingScreen() {
 
     return (
         <View
-            style={[styles.container, { backgroundColor: bg }]}
+            style={styles.container}
             onTouchStart={e => { touchStartX.current = e.nativeEvent.pageX; }}
             onTouchEnd={e => handleSwipe(e.nativeEvent.pageX)}
         >
-            {/* Slide content */}
-            <View style={styles.slide}>
-                <View style={[styles.iconCircle, { backgroundColor: slide.iconBg }]}>
-                    <slide.Icon size={52} color={slide.iconColor} strokeWidth={1.5} />
-                </View>
-                <Text style={[styles.title, { color: textColor }]}>{slide.title}</Text>
-                <Text style={[styles.body, { color: iconColor }]}>{slide.body}</Text>
-            </View>
-
-            {/* Dots */}
             <View style={styles.dots}>
                 {SLIDES.map((_, i) => (
-                    <View
-                        key={i}
-                        style={[
-                            styles.dot,
-                            { backgroundColor: i === index ? tint : border },
-                            i === index && styles.dotActive,
-                        ]}
-                    />
+                    <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
                 ))}
             </View>
 
-            {/* Buttons */}
-            <View style={styles.footer}>
-                <TouchableOpacity
-                    style={[styles.button, { backgroundColor: tint }]}
-                    onPress={next}
-                    activeOpacity={0.85}
-                >
-                    <Text style={styles.buttonText}>{slide.cta}</Text>
-                </TouchableOpacity>
+            <View style={styles.slide}>
+                <View style={[styles.iconCircle, { backgroundColor: slide.iconBg }]}>
+                    <slide.Icon size={50} color={slide.iconColor} strokeWidth={1.7} />
+                </View>
+                <Text style={styles.title}>{slide.title}</Text>
+                <Text style={styles.body}>{slide.body}</Text>
+            </View>
 
-                {index < SLIDES.length - 1 && (
+            <View style={styles.footer}>
+                <PrimaryButton label={slide.cta} onPress={next} />
+                {index < SLIDES.length - 1 ? (
                     <TouchableOpacity onPress={finish} style={styles.skip}>
-                        <Text style={[styles.skipText, { color: iconColor }]}>Omitir</Text>
+                        <Text style={styles.skipText}>Saltar</Text>
                     </TouchableOpacity>
+                ) : (
+                    <View style={styles.skipPlaceholder} />
                 )}
             </View>
         </View>
@@ -131,71 +105,69 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    },
-    slide: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: Spacing.xl,
-        paddingBottom: 160,
-    },
-    iconCircle: {
-        width: 112,
-        height: 112,
-        borderRadius: 56,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: Spacing.xl,
-    },
-    title: {
-        fontSize: 30,
-        fontWeight: '700',
-        textAlign: 'center',
-        lineHeight: 38,
-        marginBottom: Spacing.md,
-    },
-    body: {
-        fontSize: 16,
-        textAlign: 'center',
-        lineHeight: 24,
-        maxWidth: 300,
+        backgroundColor: DS.bg,
+        paddingTop: Platform.OS === 'ios' ? 60 : 42,
+        paddingHorizontal: 28,
     },
     dots: {
         flexDirection: 'row',
-        justifyContent: 'center',
+        alignSelf: 'center',
         gap: 8,
-        marginBottom: Spacing.lg,
+        paddingTop: 4,
     },
     dot: {
         width: 8,
         height: 8,
         borderRadius: 4,
+        backgroundColor: DS.surfaceVar,
     },
     dotActive: {
-        width: 24,
+        width: 20,
+        backgroundColor: DS.amber,
+    },
+    slide: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingBottom: 84,
+    },
+    iconCircle: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 36,
+    },
+    title: {
+        color: DS.text,
+        fontSize: 32,
+        lineHeight: 40,
+        fontWeight: '800',
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    body: {
+        color: DS.textMid,
+        fontSize: 16,
+        lineHeight: 24,
+        textAlign: 'center',
+        maxWidth: 310,
     },
     footer: {
-        paddingHorizontal: Spacing.xl,
-        paddingBottom: Platform.OS === 'ios' ? 48 : Spacing.xl,
-        gap: Spacing.sm,
+        paddingBottom: Platform.OS === 'ios' ? 46 : 28,
+        gap: 12,
     },
-    button: {
-        height: 52,
-        borderRadius: 14,
+    skip: {
+        minHeight: 28,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    buttonText: {
-        color: '#fff',
-        fontSize: 17,
-        fontWeight: '600',
-    },
-    skip: {
-        alignItems: 'center',
-        paddingVertical: Spacing.sm,
-    },
     skipText: {
-        fontSize: 15,
+        color: DS.textMuted,
+        fontSize: 14,
+    },
+    skipPlaceholder: {
+        height: 28,
     },
 });

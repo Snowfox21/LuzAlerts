@@ -1,13 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    View, Text, StyleSheet, useColorScheme, SectionList, Platform,
-    TouchableOpacity, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Linking,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Spacing } from '../../src/theme/Theme';
-import { Plus, X, Info } from 'lucide-react-native';
+import { Bell, ChevronRight, Info, Map, MapPin, Plus, Shield, Trash2, X, Zap } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId } from '../../src/utils/device';
+import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 
 interface Subscription {
     id: number;
@@ -16,34 +25,29 @@ interface Subscription {
 }
 
 export default function SettingsScreen() {
-    const colorScheme = useColorScheme() ?? 'dark';
-
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [loadingSubs, setLoadingSubs] = useState(true);
     const [addingBarrio, setAddingBarrio] = useState(false);
     const [barrioInput, setBarrioInput] = useState('');
     const [submittingBarrio, setSubmittingBarrio] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
-
-    const bg = Colors[colorScheme].background;
-    const textColor = Colors[colorScheme].text;
-    const iconColor = Colors[colorScheme].icon;
-    const borderColor = Colors[colorScheme].border;
-    const tint = Colors[colorScheme].tint;
-    const inputBg = colorScheme === 'dark' ? '#1c1c1e' : '#f9f9f9';
+    const [alertsEnabled, setAlertsEnabled] = useState(true);
+    const [resolvedEnabled, setResolvedEnabled] = useState(true);
+    const [deviceId, setDeviceId] = useState('');
 
     useEffect(() => {
         fetchSubscriptions();
+        getOrCreateDeviceId().then(id => setDeviceId(id.slice(0, 8).toUpperCase())).catch(() => {});
     }, []);
 
     const fetchSubscriptions = useCallback(async () => {
         setLoadingSubs(true);
         try {
-            const deviceId = await getOrCreateDeviceId();
-            const res = await apiClient.get<Subscription[]>(`/subscriptions/?device_id=${deviceId}`);
+            const id = await getOrCreateDeviceId();
+            const res = await apiClient.get<Subscription[]>(`/subscriptions/?device_id=${id}`);
             setSubscriptions((res.data || []).filter(s => s.barrio));
         } catch {
-            // No subscriptions yet or backend unreachable
+            // No subscriptions yet or backend unreachable.
         } finally {
             setLoadingSubs(false);
         }
@@ -54,9 +58,11 @@ export default function SettingsScreen() {
         if (!barrio) return;
         setSubmittingBarrio(true);
         try {
-            const deviceId = await getOrCreateDeviceId();
-            try { await apiClient.post('/users/', { device_id: deviceId }); } catch {}
-            await apiClient.post('/subscriptions/', { device_id: deviceId, barrio });
+            const id = await getOrCreateDeviceId();
+            try {
+                await apiClient.post('/users/', { device_id: id });
+            } catch {}
+            await apiClient.post('/subscriptions/', { device_id: id, barrio });
             setBarrioInput('');
             setAddingBarrio(false);
             await fetchSubscriptions();
@@ -71,8 +77,8 @@ export default function SettingsScreen() {
     const deleteSubscription = async (id: number) => {
         setDeletingId(id);
         try {
-            const deviceId = await getOrCreateDeviceId();
-            await apiClient.delete(`/subscriptions/${id}?device_id=${deviceId}`);
+            const currentDeviceId = await getOrCreateDeviceId();
+            await apiClient.delete(`/subscriptions/${id}?device_id=${currentDeviceId}`);
             setSubscriptions(prev => prev.filter(s => s.id !== id));
         } catch {
             Alert.alert('Error', 'No se pudo eliminar la suscripción.');
@@ -82,220 +88,352 @@ export default function SettingsScreen() {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={{ flex: 1, backgroundColor: colorScheme === 'dark' ? '#000' : '#F2F2F7' }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-            <SectionList
-                sections={[]}
-                keyExtractor={() => ''}
-                renderItem={() => null}
-                ListHeaderComponent={
-                    <View>
-                        {/* NIS Section */}
-                        <Text style={[styles.sectionHeader, { color: iconColor }]}>CUENTA</Text>
-                        <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
-                            <View style={styles.row}>
-                                <Text style={[styles.label, { color: iconColor }]}>Número de NIS</Text>
-                                <TouchableOpacity
-                                    style={styles.nisValueRow}
-                                    onPress={() => Alert.alert(
-                                        'En desarrollo',
-                                        'La sincronización de datos con ANDE mediante NIS está en proceso de desarrollo. Próximamente podrás vincularlo para recibir alertas específicas de tu línea.'
-                                    )}
-                                >
-                                    <Info size={18} color={iconColor} />
-                                </TouchableOpacity>
-                            </View>
+        <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScreenHeader title="Ajustes" />
+            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                <SettingSection title="Notificaciones">
+                    <SettingRow
+                        icon={<Bell size={20} color={DS.amber} />}
+                        label="Alertas de cortes"
+                        sub="Recibí avisos cuando hay cortes a menos de 5 km."
+                        right={<Switch value={alertsEnabled} onValueChange={setAlertsEnabled} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={alertsEnabled ? DS.ink : DS.textMuted} />}
+                    />
+                    <SettingRow
+                        icon={<Zap size={20} color={DS.greenLight} />}
+                        label="Aviso cuando vuelve la luz"
+                        sub="Te notificamos también cuando un corte cercano se resuelve."
+                        right={<Switch value={resolvedEnabled} onValueChange={setResolvedEnabled} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={resolvedEnabled ? DS.ink : DS.textMuted} />}
+                    />
+                    <View style={styles.radiusRow}>
+                        <Text style={styles.radiusLabel}>Radio de alertas: 5 km</Text>
+                        <View style={styles.slider}>
+                            <View style={styles.sliderFill} />
+                            <View style={styles.sliderKnob} />
                         </View>
-
-                        {/* Barrio Subscriptions */}
-                        <Text style={[styles.sectionHeader, { color: iconColor }]}>MIS BARRIOS</Text>
-                        <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
-                            {loadingSubs ? (
-                                <ActivityIndicator color={tint} style={{ padding: Spacing.md }} />
-                            ) : subscriptions.length === 0 && !addingBarrio ? (
-                                <Text style={[styles.emptyText, { color: iconColor }]}>
-                                    No estás suscripto a ningún barrio todavía.
-                                </Text>
-                            ) : (
-                                subscriptions.map((sub, idx) => (
-                                    <View
-                                        key={sub.id}
-                                        style={[
-                                            styles.row,
-                                            idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: borderColor }
-                                        ]}
-                                    >
-                                        <Text style={[styles.label, { color: textColor }]}>{sub.barrio}</Text>
-                                        {deletingId === sub.id ? (
-                                            <ActivityIndicator size="small" color={iconColor} />
-                                        ) : (
-                                            <TouchableOpacity onPress={() => deleteSubscription(sub.id)}>
-                                                <X size={20} color={iconColor} />
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                ))
-                            )}
-
-                            {addingBarrio && (
-                                <View style={[
-                                    styles.addRow,
-                                    (subscriptions.length > 0 || !loadingSubs) && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: borderColor }
-                                ]}>
-                                    <TextInput
-                                        style={[styles.barrioInput, { borderColor, color: textColor, backgroundColor: inputBg }]}
-                                        value={barrioInput}
-                                        onChangeText={setBarrioInput}
-                                        placeholder="Ej: Villa Morra"
-                                        placeholderTextColor={iconColor}
-                                        autoFocus
-                                        returnKeyType="done"
-                                        onSubmitEditing={addBarrio}
-                                    />
-                                    <TouchableOpacity
-                                        style={[styles.saveBtn, { backgroundColor: tint }, submittingBarrio && { opacity: 0.6 }]}
-                                        onPress={addBarrio}
-                                        disabled={submittingBarrio}
-                                    >
-                                        {submittingBarrio
-                                            ? <ActivityIndicator color="#fff" size="small" />
-                                            : <Text style={styles.saveBtnText}>OK</Text>
-                                        }
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => { setAddingBarrio(false); setBarrioInput(''); }} style={{ marginLeft: 8 }}>
-                                        <X size={20} color={iconColor} />
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-
-                            {!addingBarrio && (
-                                <TouchableOpacity
-                                    style={[
-                                        styles.row,
-                                        (subscriptions.length > 0 || !loadingSubs) && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: borderColor }
-                                    ]}
-                                    onPress={() => setAddingBarrio(true)}
-                                >
-                                    <Plus size={18} color={tint} />
-                                    <Text style={[styles.addLabel, { color: tint }]}>Agregar barrio</Text>
-                                </TouchableOpacity>
-                            )}
+                        <View style={styles.sliderLabels}>
+                            <Text style={styles.sliderLabel}>1km</Text>
+                            <Text style={styles.sliderLabel}>3km</Text>
+                            <Text style={[styles.sliderLabel, styles.sliderLabelActive]}>5km</Text>
+                            <Text style={styles.sliderLabel}>10km</Text>
+                            <Text style={styles.sliderLabel}>20km</Text>
                         </View>
-
-                        {/* App Section */}
-                        <Text style={[styles.sectionHeader, { color: iconColor }]}>APLICACIÓN</Text>
-                        <View style={[styles.card, { backgroundColor: bg, borderColor }]}>
-                            <View style={styles.row}>
-                                <Text style={[styles.label, { color: textColor }]}>Versión</Text>
-                                <Text style={{ color: iconColor }}>1.0.0</Text>
-                            </View>
-                        </View>
-
-                        <View style={{ height: Spacing.xl * 2 }} />
                     </View>
-                }
-                contentContainerStyle={{ paddingBottom: Spacing.xl }}
-            />
+                </SettingSection>
+
+                <SettingSection title="Ubicación">
+                    <SettingRow icon={<MapPin size={20} color={DS.amber} />} label="Mi zona actual" sub="Asunción, Capital" right={<Text style={styles.link}>Cambiar</Text>} />
+                    <SettingRow icon={<Map size={20} color={DS.textMuted} />} label="Zonas adicionales" right={<Badge value={subscriptions.length} />} />
+                </SettingSection>
+
+                <SettingSection title="Mis barrios">
+                    {loadingSubs ? (
+                        <ActivityIndicator color={DS.amber} style={styles.loader} />
+                    ) : subscriptions.length === 0 && !addingBarrio ? (
+                        <Text style={styles.emptyText}>No estás suscripto a ningún barrio todavía.</Text>
+                    ) : (
+                        subscriptions.map(sub => (
+                            <View key={sub.id} style={styles.barrioRow}>
+                                <Text style={styles.barrioText}>{sub.barrio}</Text>
+                                {deletingId === sub.id ? (
+                                    <ActivityIndicator size="small" color={DS.textMuted} />
+                                ) : (
+                                    <TouchableOpacity onPress={() => deleteSubscription(sub.id)}>
+                                        <X size={20} color={DS.textMuted} />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        ))
+                    )}
+
+                    {addingBarrio ? (
+                        <View style={styles.addRow}>
+                            <TextInput
+                                style={styles.barrioInput}
+                                value={barrioInput}
+                                onChangeText={setBarrioInput}
+                                placeholder="Ej: Villa Morra"
+                                placeholderTextColor={DS.textMuted}
+                                autoFocus
+                                returnKeyType="done"
+                                onSubmitEditing={addBarrio}
+                            />
+                            <TouchableOpacity style={[styles.saveButton, submittingBarrio && { opacity: 0.6 }]} onPress={addBarrio} disabled={submittingBarrio}>
+                                {submittingBarrio ? <ActivityIndicator color={DS.ink} size="small" /> : <Text style={styles.saveText}>OK</Text>}
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => { setAddingBarrio(false); setBarrioInput(''); }}>
+                                <X size={20} color={DS.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <TouchableOpacity style={styles.addBarrioButton} onPress={() => setAddingBarrio(true)}>
+                            <Plus size={18} color={DS.amber} />
+                            <Text style={styles.addBarrioText}>Agregar barrio</Text>
+                        </TouchableOpacity>
+                    )}
+                </SettingSection>
+
+                <SettingSection title="Datos y privacidad">
+                    <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Mi ID anónimo" sub={deviceId ? `#${deviceId}` : 'Cargando...'} />
+                    <SettingRow icon={<Trash2 size={20} color={DS.redLight} />} label="Eliminar mis datos" danger right={<ChevronRight size={16} color={DS.textMuted} />} />
+                    <SettingRow icon={<Shield size={20} color={DS.textMuted} />} label="Política de privacidad" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.com.py/privacy')} />
+                    <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Términos de uso" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.com.py/terms')} />
+                </SettingSection>
+
+                <View style={styles.footer}>
+                    <View style={styles.footerBrand}>
+                        <Zap size={14} color={DS.textMuted} />
+                        <Text style={styles.footerTitle}>LuzAlerts v1.0.0</Text>
+                    </View>
+                    <Text style={styles.footerText}>Proyecto independiente. No afiliado a la ANDE.</Text>
+                </View>
+            </ScrollView>
         </KeyboardAvoidingView>
     );
 }
 
+function SettingSection({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            <View style={styles.sectionCard}>{children}</View>
+        </View>
+    );
+}
+
+function SettingRow({
+    icon,
+    label,
+    sub,
+    right,
+    danger,
+    onPress,
+}: {
+    icon?: React.ReactNode;
+    label: string;
+    sub?: string;
+    right?: React.ReactNode;
+    danger?: boolean;
+    onPress?: () => void;
+}) {
+    const Wrapper = onPress ? TouchableOpacity : View;
+    return (
+        <Wrapper style={styles.row} onPress={onPress as any} activeOpacity={0.75}>
+            {icon}
+            <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, danger && { color: DS.redLight }]}>{label}</Text>
+                {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
+            </View>
+            {right}
+        </Wrapper>
+    );
+}
+
+function Badge({ value }: { value: number }) {
+    return (
+        <View style={styles.badgeWrap}>
+            <View style={styles.badge}>
+                <Text style={styles.badgeText}>{value}</Text>
+            </View>
+            <ChevronRight size={16} color={DS.textMuted} />
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
-    sectionHeader: {
-        fontSize: 13,
-        fontWeight: '400',
-        paddingHorizontal: Spacing.md,
-        paddingTop: Spacing.lg,
-        paddingBottom: Spacing.sm,
+    content: {
+        paddingBottom: 24,
     },
-    card: {
-        marginHorizontal: Spacing.md,
-        borderRadius: 10,
-        borderWidth: StyleSheet.hairlineWidth,
+    section: {
+        marginBottom: 4,
+    },
+    sectionTitle: {
+        color: DS.textMuted,
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 8,
+    },
+    sectionCard: {
+        marginHorizontal: 16,
+        borderRadius: 12,
         overflow: 'hidden',
+        backgroundColor: DS.surface,
     },
     row: {
+        minHeight: 56,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: DS.border,
+    },
+    rowText: {
+        flex: 1,
+    },
+    rowLabel: {
+        color: DS.text,
+        fontSize: 15,
+    },
+    rowSub: {
+        color: DS.textMuted,
+        fontSize: 12,
+        lineHeight: 17,
+        marginTop: 2,
+    },
+    radiusRow: {
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    radiusLabel: {
+        color: DS.text,
+        fontSize: 15,
+        marginBottom: 12,
+    },
+    slider: {
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: DS.surfaceVar,
+        marginBottom: 8,
+    },
+    sliderFill: {
+        width: '45%',
+        height: '100%',
+        borderRadius: 2,
+        backgroundColor: DS.amber,
+    },
+    sliderKnob: {
+        position: 'absolute',
+        left: '45%',
+        top: -5,
+        width: 14,
+        height: 14,
+        marginLeft: -7,
+        borderRadius: 7,
+        backgroundColor: DS.amber,
+    },
+    sliderLabels: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 13,
-        minHeight: 48,
     },
-    label: {
-        fontSize: 17,
-        flex: 1,
+    sliderLabel: {
+        color: DS.textMuted,
+        fontSize: 10,
     },
-    hint: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        paddingHorizontal: Spacing.md,
-        paddingBottom: Spacing.sm,
-        paddingTop: Spacing.xs,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        gap: 6,
+    sliderLabelActive: {
+        color: DS.amber,
+        fontWeight: '800',
     },
-    hintText: {
-        fontSize: 12,
-        flex: 1,
-        lineHeight: 16,
+    link: {
+        color: DS.amber,
+        fontSize: 13,
+        fontWeight: '700',
     },
-    nisValueRow: {
+    badgeWrap: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    nisEditRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        justifyContent: 'flex-end',
         gap: 8,
     },
-    nisInput: {
+    badge: {
+        borderRadius: 10,
+        paddingHorizontal: 7,
+        paddingVertical: 2,
+        backgroundColor: DS.amber,
+    },
+    badgeText: {
+        color: DS.ink,
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    loader: {
+        padding: 16,
+    },
+    emptyText: {
+        color: DS.textMuted,
+        fontSize: 14,
+        padding: 16,
+        textAlign: 'center',
+    },
+    barrioRow: {
+        minHeight: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: DS.border,
+    },
+    barrioText: {
         flex: 1,
-        borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: Spacing.sm,
-        paddingVertical: 6,
+        color: DS.text,
         fontSize: 15,
-        maxWidth: 160,
     },
     addRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm,
         gap: 8,
+        padding: 12,
     },
     barrioInput: {
         flex: 1,
+        minHeight: 42,
+        borderRadius: 8,
         borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: Spacing.sm,
-        paddingVertical: 6,
-        fontSize: 15,
+        borderColor: DS.border,
+        color: DS.text,
+        backgroundColor: DS.bg,
+        paddingHorizontal: 10,
+        fontSize: 14,
     },
-    saveBtn: {
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 7,
+    saveButton: {
+        minWidth: 58,
+        height: 38,
         borderRadius: 8,
-        minWidth: 64,
         alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: DS.amber,
     },
-    saveBtnText: {
-        color: '#fff',
-        fontWeight: '600',
-        fontSize: 14,
+    saveText: {
+        color: DS.ink,
+        fontSize: 13,
+        fontWeight: '800',
     },
-    emptyText: {
-        padding: Spacing.md,
-        fontSize: 14,
+    addBarrioButton: {
+        minHeight: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 16,
+    },
+    addBarrioText: {
+        color: DS.amber,
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    footer: {
+        alignItems: 'center',
+        paddingVertical: 20,
+        paddingHorizontal: 16,
+    },
+    footerBrand: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
+    footerTitle: {
+        color: '#64748B',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    footerText: {
+        color: '#64748B',
+        fontSize: 11,
+        lineHeight: 16,
         textAlign: 'center',
-    },
-    addLabel: {
-        fontSize: 17,
-        marginLeft: Spacing.sm,
     },
 });
