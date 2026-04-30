@@ -18,6 +18,7 @@ import apiClient from '../../src/api/client';
 import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
+import { formatDateTime24 } from '../../src/utils/date';
 
 interface Comment {
     id: number;
@@ -31,10 +32,6 @@ function formatRelative(dateStr: string): string {
     if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
     if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
     return `hace ${Math.floor(diff / 86400)} d`;
-}
-
-function formatDate(value?: string) {
-    return value ? new Date(value).toLocaleString('es-PY') : 'No especificado';
 }
 
 export default function OutageDetailScreen() {
@@ -129,8 +126,8 @@ export default function OutageDetailScreen() {
                     {(outage.scheduled_start || outage.scheduled_end) && (
                         <SectionCard>
                             <InfoTitle icon={<Clock3 size={18} color={DS.amber} />} title="Horario" />
-                            <InfoRow label="Inicio" value={formatDate(outage.scheduled_start)} />
-                            <InfoRow label="Fin estimado" value={formatDate(outage.scheduled_end)} />
+                            <InfoRow label="Inicio" value={formatDateTime24(outage.scheduled_start)} />
+                            <InfoRow label="Fin estimado" value={formatDateTime24(outage.scheduled_end)} />
                         </SectionCard>
                     )}
 

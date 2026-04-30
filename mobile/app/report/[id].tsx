@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { DS, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
+import { formatDateTime24 } from '../../src/utils/date';
 
 interface Report {
     id: number;
@@ -32,8 +33,6 @@ export default function ReportDetailScreen() {
             .catch(() => setError('No se pudo cargar el reporte.'))
             .finally(() => setLoading(false));
     }, [id]);
-
-    const formatDate = (dateString: string) => new Date(dateString).toLocaleString('es-PY');
 
     const formatAddress = (r: Report) => {
         const parts = [r.street, r.house, r.barrio, r.city, r.department].filter(Boolean);
@@ -88,7 +87,7 @@ export default function ReportDetailScreen() {
 
                 <SectionCard>
                     <InfoTitle icon={<Clock3 size={18} color={DS.amber} />} title="Momento del reporte" />
-                    <Text style={styles.body}>{formatDate(report.created_at)}</Text>
+                    <Text style={styles.body}>{formatDateTime24(report.created_at)}</Text>
                 </SectionCard>
 
                 <SectionCard>
