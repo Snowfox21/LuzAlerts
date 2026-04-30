@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, Query
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
 from geoalchemy2.types import Geography
 from sqlalchemy import select, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.geocoding import forward_geocode
 from app.models import Outage, OutageStatus
 from app.schemas import OutageOut
 
@@ -13,11 +16,71 @@ router = APIRouter(prefix="/outages", tags=["outages"])
 
 def _extract_coords(outage: Outage) -> tuple[float | None, float | None]:
     """Достаём lat/lon из WKB-геометрии (PostGIS возвращает bytes)."""
+    if outage.latitude is not None and outage.longitude is not None:
+        return outage.latitude, outage.longitude
+
     if outage.location is None:
         return None, None
     from geoalchemy2.shape import to_shape
     point = to_shape(outage.location)
     return point.y, point.x  # lat, lon
+
+
+def _build_geocode_candidates(outage: Outage) -> list[str]:
+    candidates: list[str] = []
+
+    if outage.barrio:
+        candidates.append(outage.barrio.strip())
+
+    if outage.description:
+        zone_match = re.search(r"ZONA\s*\d+\s*[:\-]?\s*(.+?)(?:\n|$)", outage.description, re.IGNORECASE)
+        if zone_match:
+            candidates.append(zone_match.group(1).strip())
+
+    if outage.title:
+        candidates.append(outage.title.strip())
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        cleaned = re.sub(r"\s+", " ", candidate).strip(" ,.-")
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(cleaned)
+
+    return normalized
+
+
+async def _ensure_outage_coords(db: AsyncSession, outage: Outage) -> tuple[float | None, float | None]:
+    lat_v, lon_v = _extract_coords(outage)
+    if lat_v is not None and lon_v is not None:
+        return lat_v, lon_v
+
+    if outage.latitude is not None and outage.longitude is not None:
+        return outage.latitude, outage.longitude
+
+    for candidate in _build_geocode_candidates(outage):
+        geo = await forward_geocode(f"{candidate}, Paraguay")
+        lat = geo.get("lat")
+        lon = geo.get("lon")
+        if lat is None or lon is None:
+            continue
+
+        outage.latitude = lat
+        outage.longitude = lon
+        outage.location = f"SRID=4326;POINT({lon} {lat})"
+        if not outage.barrio and geo.get("barrio"):
+            outage.barrio = geo["barrio"]
+
+        await db.commit()
+        await db.refresh(outage)
+        return lat, lon
+
+    return None, None
 
 
 @router.get("/", response_model=list[OutageOut])
@@ -85,12 +148,11 @@ async def get_outage(
     """Получить информацию о конкретном отключении по ID."""
     result = await db.execute(select(Outage).where(Outage.id == outage_id))
     o = result.scalar_one_or_none()
-    
+
     if o is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Outage no encontrado")
-        
-    lat_v, lon_v = _extract_coords(o)
+
+    lat_v, lon_v = await _ensure_outage_coords(db, o)
     return OutageOut(
         id=o.id,
         source=o.source.value,
