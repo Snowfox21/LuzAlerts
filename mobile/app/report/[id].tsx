@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack } from 'expo-router';
-import { useLocalSearchParams } from 'expo-router';
-import { Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { DS, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
@@ -23,6 +22,8 @@ interface Report {
 
 export default function ReportDetailScreen() {
     const { id } = useLocalSearchParams();
+    const router = useRouter();
+    const navigation = useNavigation();
     const [report, setReport] = useState<Report | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,25 @@ export default function ReportDetailScreen() {
     const formatAddress = (r: Report) => {
         const parts = [r.street, r.house, r.barrio, r.city, r.department].filter(Boolean);
         return parts.length > 0 ? parts.join(', ') : 'Dirección no especificada';
+    };
+
+    const handleBack = () => {
+        if (navigation.canGoBack()) {
+            router.back();
+            return;
+        }
+        router.replace('/(tabs)/reports');
+    };
+
+    const openOnMap = () => {
+        if (!report) return;
+        router.push({
+            pathname: '/(tabs)',
+            params: {
+                focusLat: String(report.latitude),
+                focusLon: String(report.longitude),
+            },
+        });
     };
 
     if (loading) {
@@ -65,6 +85,13 @@ export default function ReportDetailScreen() {
                     headerStyle: { backgroundColor: DS.bg },
                     headerTintColor: DS.text,
                     headerShadowVisible: false,
+                    headerLeft: () => (
+                        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.75}>
+                            <ChevronLeft size={18} color={DS.text} />
+                            <Text style={styles.backButtonText}>Volver</Text>
+                        </TouchableOpacity>
+                    ),
+                    headerBackVisible: false,
                 }}
             />
 
@@ -80,10 +107,13 @@ export default function ReportDetailScreen() {
             </View>
 
             <View style={styles.cards}>
-                <SectionCard>
-                    <InfoTitle icon={<MapPin size={18} color={DS.amber} />} title="Ubicación" />
-                    <Text style={styles.body}>{formatAddress(report)}</Text>
-                </SectionCard>
+                <TouchableOpacity activeOpacity={0.82} onPress={openOnMap}>
+                    <SectionCard>
+                        <InfoTitle icon={<MapPin size={18} color={DS.amber} />} title="Ubicación" />
+                        <Text style={styles.body}>{formatAddress(report)}</Text>
+                        <Text style={styles.locationHint}>Ver en el mapa</Text>
+                    </SectionCard>
+                </TouchableOpacity>
 
                 <SectionCard>
                     <InfoTitle icon={<Clock3 size={18} color={DS.amber} />} title="Momento del reporte" />
@@ -116,6 +146,18 @@ const styles = StyleSheet.create({
     },
     errorText: {
         color: DS.text,
+    },
+    backButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 6,
+        paddingRight: 8,
+    },
+    backButtonText: {
+        color: DS.text,
+        fontSize: 15,
+        fontWeight: '700',
     },
     hero: {
         paddingHorizontal: 16,
@@ -172,6 +214,12 @@ const styles = StyleSheet.create({
         color: DS.text,
         fontSize: 14,
         lineHeight: 20,
+    },
+    locationHint: {
+        color: DS.amber,
+        fontSize: 13,
+        fontWeight: '700',
+        marginTop: 10,
     },
     muted: {
         color: DS.textMuted,
