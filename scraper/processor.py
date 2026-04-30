@@ -10,6 +10,77 @@ MESES = {
     "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
 }
 
+ZONA_PREFIX_RE = re.compile(r"^\s*ZONA\s*\d+\s*[:\-]?\s*", re.IGNORECASE)
+BARRIO_RE = re.compile(r"Barrio\s+([^-–,.]+)(?:[-–,]\s*([^-–,.]+))?", re.IGNORECASE)
+CIUDAD_RE = re.compile(r"Ciudad\s+de\s+([^-–,.]+)", re.IGNORECASE)
+DEPT_PREFIX_RE = re.compile(r"^Departamentos?\s+de\s+", re.IGNORECASE)
+EMDASH_SPLIT_RE = re.compile(r"\s*[–-]\s*")
+MAX_GEOCODE_ATTEMPTS = 3
+
+
+def _clean_segment(s: str) -> str:
+    s = s.strip().strip(".,;:")
+    s = DEPT_PREFIX_RE.sub("", s).strip()
+    if "," in s:
+        s = s.split(",", 1)[0].strip()
+    return s
+
+
+def build_geocode_queries(zona: str) -> list[str]:
+    """
+    Build a priority-ordered list of geocoding search queries for an ANDE zona string.
+    Tries specific (Barrio + City) first, broadest (city only) last. Caller iterates
+    until forward_geocode returns coordinates.
+    """
+    if not zona:
+        return []
+    stripped = ZONA_PREFIX_RE.sub("", zona).strip()
+    if not stripped:
+        return []
+
+    candidates: list[str] = []
+
+    m = BARRIO_RE.search(stripped)
+    if m:
+        b, c = m.groups()
+        b = b.strip()
+        c = c.strip() if c else None
+        candidates.append(f"{b}, {c}" if c else b)
+
+    m = CIUDAD_RE.search(stripped)
+    if m:
+        candidates.append(m.group(1).strip())
+
+    # Many zonas put city + department at the end, after a period or em-dash chain.
+    # Take the tail after the last period (if any) and split by em-dash for City/Dept.
+    tail = stripped.rsplit(".", 1)[-1].strip()
+    tail_segs = [s.strip() for s in EMDASH_SPLIT_RE.split(tail) if s.strip()]
+    if len(tail_segs) >= 2:
+        city_seg = _clean_segment(tail_segs[-2])
+        dept_seg = _clean_segment(tail_segs[-1])
+        if city_seg and dept_seg:
+            candidates.append(f"{city_seg}, {dept_seg}")
+        if city_seg:
+            candidates.append(city_seg)
+    elif len(tail_segs) == 1:
+        only = _clean_segment(tail_segs[0])
+        if only:
+            candidates.append(only)
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for c in candidates:
+        c = c.strip()
+        if not c or len(c) < 3 or len(c) > 80:
+            continue
+        key = c.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(c)
+
+    return result
+
 def parse_spanish_date(title: str) -> datetime | None:
     """Extracts date from 'Trabajos programados en la Región... para el Martes, 24 de febrero de 2026'."""
     match = re.search(r"(\d{1,2})\s+de\s+([a-zA-Z]+)\s+de\s+(\d{4})", title, re.IGNORECASE)
@@ -143,26 +214,14 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             if existing:
                 continue
 
-            # Geocoding: Try to find coordinates for the zone
-            # Clean the string: remove "ZONA XX :" prefix if it exists
-            search_query = re.sub(r"ZONA\s*\d+\s*[:\-]?\s*", "", zona, flags=re.IGNORECASE).strip()
-            
-            # Aggressive cleaning: if it contains "Barrio ... - [City]" or "Ciudad de [City]"
-            # Example: "Barrio San Jorge – Asunción" -> "San Jorge, Asunción"
-            # Example: "Ciudad de San Bernardino" -> "San Bernardino"
-            match_barrio = re.search(r"Barrio\s+([^-–,.]+)(?:[-–,]\s*([^-–,.]+))?", search_query, re.IGNORECASE)
-            match_ciudad = re.search(r"Ciudad\s+de\s+([^-–,.]+)", search_query, re.IGNORECASE)
-            
-            if match_barrio:
-                b, c = match_barrio.groups()
-                search_query = f"{b.strip()}" + (f", {c.strip()}" if c else "")
-            elif match_ciudad:
-                search_query = match_ciudad.group(1).strip()
-                
-            if not search_query: # fallback to original if regex failed or emptied it
-                search_query = zona
-                
-            geo_data = await forward_geocode(f"{search_query}, Paraguay")
+            # Geocoding: try a priority-ordered chain of progressively simpler
+            # queries derived from the zona string, stop at the first hit.
+            queries = build_geocode_queries(zona) or [zona]
+            geo_data: dict[str, Any] = {"lat": None, "lon": None, "display_name": None, "barrio": None}
+            for q in queries[:MAX_GEOCODE_ATTEMPTS]:
+                geo_data = await forward_geocode(f"{q}, Paraguay")
+                if geo_data.get("lat"):
+                    break
             
             is_emergency = raw.get("source") == "ande_emergency"
             outage_lat = geo_data.get("lat")
