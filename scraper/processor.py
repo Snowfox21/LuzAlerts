@@ -84,25 +84,32 @@ async def mark_resolved_outages() -> None:
     logger.info(f"Marked {len(candidates)} outages as resolved.")
 
 
-async def cleanup_old_data(days: int = 7) -> None:
-    """Deletes outages and user reports older than `days` days."""
+async def cleanup_old_data(outage_days: int = 30, report_days: int = 7) -> None:
+    """Deletes old outages and user reports using independent retention windows."""
     from app.database import AsyncSessionLocal
     from app.models import Outage, UserReport
     from sqlalchemy import delete
 
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    outage_cutoff = datetime.utcnow() - timedelta(days=outage_days)
+    report_cutoff = datetime.utcnow() - timedelta(days=report_days)
     async with AsyncSessionLocal() as session:
         r1 = await session.execute(
             delete(Outage).where(
-                (Outage.scheduled_end < cutoff) |
-                ((Outage.scheduled_end == None) & (Outage.created_at < cutoff))
+                (Outage.scheduled_end < outage_cutoff) |
+                ((Outage.scheduled_end == None) & (Outage.created_at < outage_cutoff))
             )
         )
         r2 = await session.execute(
-            delete(UserReport).where(UserReport.created_at < cutoff)
+            delete(UserReport).where(UserReport.created_at < report_cutoff)
         )
         await session.commit()
-    logger.info(f"Cleanup done: removed {r1.rowcount} outages, {r2.rowcount} user reports older than {days} days.")
+    logger.info(
+        "Cleanup done: removed %s outages older than %s days, %s user reports older than %s days.",
+        r1.rowcount,
+        outage_days,
+        r2.rowcount,
+        report_days,
+    )
 
 
 async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:

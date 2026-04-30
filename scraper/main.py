@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 async def run_scraper():
     logger.info("Starting ANDE Scraper run...")
     try:
+        outage_retention_days = int(os.environ.get("OUTAGE_RETENTION_DAYS", "30"))
+        report_retention_days = int(os.environ.get("REPORT_RETENTION_DAYS", "7"))
+
         # 1. Fetch planned outages from ANDE website
         raw_outages = await parse_outages()
 
@@ -26,8 +29,11 @@ async def run_scraper():
         # 4. Mark expired outages as resolved + notify users
         await mark_resolved_outages()
 
-        # 5. Remove data older than 7 days
-        await cleanup_old_data(days=7)
+        # 5. Remove old data while keeping official outages long enough for stale upstream windows
+        await cleanup_old_data(
+            outage_days=outage_retention_days,
+            report_days=report_retention_days,
+        )
 
         logger.info("Scraper run completed.")
     except Exception as e:
