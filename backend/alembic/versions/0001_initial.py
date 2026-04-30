@@ -26,11 +26,6 @@ user_role = sa.Enum("admin", "user", name="userrole")
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
 
-    bind = op.get_bind()
-    outage_source.create(bind, checkfirst=True)
-    outage_status.create(bind, checkfirst=True)
-    user_role.create(bind, checkfirst=True)
-
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), primary_key=True),
