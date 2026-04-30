@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import {
     ActivityIndicator,
     Alert,
@@ -34,6 +35,16 @@ interface Report {
     confirmed: boolean;
     created_at: string;
 }
+
+const PARAGUAY_BOUNDS = {
+    minLat: -27.7,
+    maxLat: -19.0,
+    minLon: -62.9,
+    maxLon: -54.1,
+};
+
+const OUTSIDE_PARAGUAY_MESSAGE =
+    'LuzAlerts por ahora solo registra cortes dentro de Paraguay. Si estas en Clorinda u otra ciudad fuera del pais, no vamos a poder tomar ese reporte todavia.';
 
 export default function ReportsScreen() {
     const router = useRouter();
@@ -105,9 +116,16 @@ export default function ReportsScreen() {
             }
 
             const { latitude, longitude } = location.coords;
-            setCoords({ lat: latitude, lon: longitude });
 
             const geocoded = await Location.reverseGeocodeAsync({ latitude, longitude });
+            if (!isWithinParaguay(latitude, longitude) || !isParaguayGeocode(geocoded[0])) {
+                setCoords(null);
+                setAddress({ department: '', city: '', barrio: '', street: '', house: '' });
+                Alert.alert('Fuera de cobertura', OUTSIDE_PARAGUAY_MESSAGE);
+                return;
+            }
+
+            setCoords({ lat: latitude, lon: longitude });
             if (geocoded.length > 0) {
                 const loc = geocoded[0];
                 setAddress({
@@ -128,6 +146,11 @@ export default function ReportsScreen() {
     const handleSubmit = async () => {
         if (!address.city && !address.street && !coords) {
             Alert.alert('Datos incompletos', 'Usá tu ubicación o ingresá ciudad y calle manualmente.');
+            return;
+        }
+
+        if (coords && !isWithinParaguay(coords.lat, coords.lon)) {
+            Alert.alert('Fuera de cobertura', OUTSIDE_PARAGUAY_MESSAGE);
             return;
         }
 
@@ -153,8 +176,9 @@ export default function ReportsScreen() {
             setSuccess(true);
             setModalVisible(false);
             fetchReports();
-        } catch {
-            Alert.alert('Error', 'Hubo un problema al enviar el reporte. Verificá tu conexión.');
+        } catch (error) {
+            const errorCopy = getReportSubmitError(error);
+            Alert.alert(errorCopy.title, errorCopy.message);
         } finally {
             setSubmitting(false);
         }
@@ -230,7 +254,7 @@ export default function ReportsScreen() {
                             </IconButton>
                         </View>
                         <Text style={styles.sheetBody}>
-                            Usamos tu ubicación actual o una dirección manual para registrar el reporte.
+                            Usamos tu ubicación actual o una dirección manual dentro de Paraguay para registrar el reporte.
                         </Text>
 
                         <TouchableOpacity style={styles.locationCard} activeOpacity={0.8} onPress={handleAutofill} disabled={autofilling}>
@@ -328,6 +352,73 @@ function formatAddress(report: Report): string {
 }
 
 const avatarColors = [DS.violet, DS.blue, DS.green, DS.red];
+
+function isWithinParaguay(lat: number, lon: number): boolean {
+    return lat >= PARAGUAY_BOUNDS.minLat
+        && lat <= PARAGUAY_BOUNDS.maxLat
+        && lon >= PARAGUAY_BOUNDS.minLon
+        && lon <= PARAGUAY_BOUNDS.maxLon;
+}
+
+function isParaguayGeocode(geocode?: Location.LocationGeocodedAddress | null): boolean {
+    if (!geocode) return true;
+
+    const country = geocode.country?.trim().toLowerCase();
+    const isoCode = geocode.isoCountryCode?.trim().toUpperCase();
+
+    return isoCode === 'PY' || country === 'paraguay';
+}
+
+function getReportSubmitError(error: unknown): { title: string; message: string } {
+    if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const detail = getErrorDetail(error.response?.data);
+
+        if (status === 400 && detail?.includes('No se pudo determinar la ubicación')) {
+            return {
+                title: 'Direccion fuera de cobertura',
+                message:
+                    'No pudimos ubicar esa direccion dentro de Paraguay. Revisa ciudad y calle, o usa tu ubicacion actual. Si estas en Clorinda u otra ciudad fuera del pais, por ahora no podemos registrar ese reporte.',
+            };
+        }
+
+        if (status === 429) {
+            return {
+                title: 'Demasiados intentos',
+                message: 'Ya recibimos varios intentos desde este dispositivo. Proba de nuevo en un rato.',
+            };
+        }
+
+        if (!error.response) {
+            return {
+                title: 'Sin conexion',
+                message: 'No pudimos comunicarnos con el servidor. Revisa tu conexion e intenta de nuevo.',
+            };
+        }
+
+        if (detail) {
+            return {
+                title: 'No pudimos enviar el reporte',
+                message: detail,
+            };
+        }
+    }
+
+    return {
+        title: 'Error',
+        message: 'Hubo un problema al enviar el reporte. Intenta de nuevo en unos segundos.',
+    };
+}
+
+function getErrorDetail(data: unknown): string | null {
+    if (typeof data === 'string') return data;
+    if (!data || typeof data !== 'object') return null;
+
+    const detail = (data as { detail?: unknown }).detail;
+    if (typeof detail === 'string') return detail;
+
+    return null;
+}
 
 function FormInput({
     label,
