@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, AppState, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import { Settings } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
@@ -22,7 +23,72 @@ export default function ListScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<Filter>('all');
+    const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [locationStatus, setLocationStatus] = useState<'idle' | 'granted' | 'denied'>('idle');
     const router = useRouter();
+
+    const loadKnownUserLocation = async () => {
+        const current = await Location.getForegroundPermissionsAsync();
+        if (current.status !== 'granted') {
+            setLocationStatus('idle');
+            setUserLocation(null);
+            return null;
+        }
+
+        const pos =
+            (await Location.getLastKnownPositionAsync()) ??
+            (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+
+        if (!pos) {
+            setLocationStatus('denied');
+            setUserLocation(null);
+            return null;
+        }
+
+        const location = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+        };
+
+        setLocationStatus('granted');
+        setUserLocation(location);
+        return location;
+    };
+
+    const ensureUserLocation = async () => {
+        const current = await Location.getForegroundPermissionsAsync();
+        let status = current.status;
+
+        if (status !== 'granted') {
+            const requested = await Location.requestForegroundPermissionsAsync();
+            status = requested.status;
+        }
+
+        if (status !== 'granted') {
+            setLocationStatus('denied');
+            setUserLocation(null);
+            return null;
+        }
+
+        const pos =
+            (await Location.getLastKnownPositionAsync()) ??
+            (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+
+        if (!pos) {
+            setLocationStatus('denied');
+            setUserLocation(null);
+            return null;
+        }
+
+        const location = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+        };
+
+        setLocationStatus('granted');
+        setUserLocation(location);
+        return location;
+    };
 
     const fetchOutages = async () => {
         setLoading(true);
@@ -64,6 +130,7 @@ export default function ListScreen() {
 
     useEffect(() => {
         fetchOutages();
+        loadKnownUserLocation().catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -78,14 +145,29 @@ export default function ListScreen() {
     }, []);
 
     const filtered = useMemo(() => {
-        if (filter === 'all' || filter === 'near') return outages;
+        if (filter === 'all') return outages;
+        if (filter === 'near') {
+            if (!userLocation) return [];
+            return outages.filter(item => {
+                if (item.latitude == null || item.longitude == null) return false;
+                return distanceKm(userLocation.latitude, userLocation.longitude, item.latitude, item.longitude) <= 5;
+            });
+        }
+
         const status = {
             planned: OutageStatus.PLANNED,
             active: OutageStatus.ACTIVE,
             resolved: OutageStatus.RESOLVED,
         }[filter];
         return outages.filter(item => item.status === status);
-    }, [filter, outages]);
+    }, [filter, outages, userLocation]);
+
+    const handleFilterPress = async (nextFilter: Filter) => {
+        setFilter(nextFilter);
+        if (nextFilter === 'near' && !userLocation) {
+            await ensureUserLocation().catch(() => {});
+        }
+    };
 
     if (loading && !refreshing) {
         return (
@@ -115,7 +197,7 @@ export default function ListScreen() {
                             <TouchableOpacity
                                 key={item.key}
                                 activeOpacity={0.8}
-                                onPress={() => setFilter(item.key)}
+                                onPress={() => { void handleFilterPress(item.key); }}
                                 style={[styles.filterChip, active && styles.filterChipActive]}
                             >
                                 <Text style={[styles.filterText, active && styles.filterTextActive]}>{item.label}</Text>
@@ -142,11 +224,29 @@ export default function ListScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOutages(); }} tintColor={DS.amber} />
                 }
                 ListEmptyComponent={
-                    <Text style={styles.emptyText}>No hay cortes reportados actualmente.</Text>
+                    <Text style={styles.emptyText}>
+                        {filter === 'near' && locationStatus !== 'granted'
+                            ? 'Activá tu ubicación para ver cortes cerca tuyo.'
+                            : 'No hay cortes reportados actualmente.'}
+                    </Text>
                 }
             />
         </View>
     );
+}
+
+function distanceKm(fromLat: number, fromLon: number, toLat: number, toLon: number): number {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const dLat = toRad(toLat - fromLat);
+    const dLon = toRad(toLon - fromLon);
+    const lat1 = toRad(fromLat);
+    const lat2 = toRad(toLat);
+
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+
+    return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 const styles = StyleSheet.create({

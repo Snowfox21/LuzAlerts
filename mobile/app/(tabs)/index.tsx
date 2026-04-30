@@ -74,12 +74,14 @@ export default function MapScreen() {
                 .then(pos => pos ?? Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
                 .then(pos => {
                     if (!pos) return;
-                    setInitialRegion({
+                    const region = {
                         latitude: pos.coords.latitude,
                         longitude: pos.coords.longitude,
                         latitudeDelta: 0.1,
                         longitudeDelta: 0.1,
-                    });
+                    };
+                    setInitialRegion(region);
+                    mapRef.current?.animateToRegion(region, 650);
                 })
                 .catch(() => {});
         });

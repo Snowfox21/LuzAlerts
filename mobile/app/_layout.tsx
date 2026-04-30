@@ -24,7 +24,7 @@ export default function RootLayout() {
     const [ready, setReady] = useState(false);
     const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
-    useDeviceSetup();
+    useDeviceSetup(ready);
 
     useEffect(() => {
         AsyncStorage.getItem(ONBOARDING_KEY).then(done => {
@@ -38,9 +38,9 @@ export default function RootLayout() {
         responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
             const data = response.notification.request.content.data;
             if (data?.lat && data?.lon) {
-                router.push(`/(tabs)?focusLat=${data.lat}&focusLon=${data.lon}`);
+                router.push(`/(tabs)/?focusLat=${data.lat}&focusLon=${data.lon}`);
             } else {
-                router.push('/(tabs)');
+                router.push('/(tabs)/');
             }
         });
 
@@ -48,6 +48,10 @@ export default function RootLayout() {
             responseListener.current?.remove();
         };
     }, []);
+
+    if (!ready) {
+        return null;
+    }
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>

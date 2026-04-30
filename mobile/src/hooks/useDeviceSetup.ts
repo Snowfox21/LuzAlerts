@@ -53,8 +53,10 @@ async function getUserLocation(): Promise<{ latitude: number; longitude: number 
     }
 }
 
-export function useDeviceSetup() {
+export function useDeviceSetup(enabled = true) {
     useEffect(() => {
+        if (!enabled) return;
+
         (async () => {
             try {
                 const [deviceId, pushToken, location] = await Promise.all([
@@ -74,5 +76,5 @@ export function useDeviceSetup() {
                 console.warn('Device setup failed:', err);
             }
         })();
-    }, []);
+    }, [enabled]);
 }

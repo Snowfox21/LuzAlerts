@@ -102,7 +102,7 @@ export default function OutageDetailScreen() {
             return;
         }
 
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/');
     };
 
     const handleShare = async () => {

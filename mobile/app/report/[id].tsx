@@ -51,7 +51,7 @@ export default function ReportDetailScreen() {
     const openOnMap = () => {
         if (!report) return;
         router.push({
-            pathname: '/(tabs)',
+            pathname: '/(tabs)/',
             params: {
                 focusLat: String(report.latitude),
                 focusLon: String(report.longitude),

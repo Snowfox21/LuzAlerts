@@ -57,7 +57,7 @@ export default function OnboardingScreen() {
             Location.requestForegroundPermissionsAsync(),
         ]);
         await AsyncStorage.setItem(ONBOARDING_KEY, '1');
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/');
     };
 
     const next = () => {
