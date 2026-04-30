@@ -100,14 +100,21 @@ export default function MapScreen() {
         if (!focusLat || !focusLon) return;
         const lat = parseFloat(focusLat);
         const lon = parseFloat(focusLon);
-        fetchOutages();
+
+        if (Number.isNaN(lat) || Number.isNaN(lon)) return;
+
         mapRef.current?.animateToRegion({
             latitude: lat,
             longitude: lon,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
         }, 800);
-    }, [focusLat, focusLon]);
+
+        const focused = findClosestOutage(outages, lat, lon);
+        if (focused) {
+            setSelectedOutage(focused);
+        }
+    }, [focusLat, focusLon, outages]);
 
     const centerOnUser = async () => {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -212,6 +219,23 @@ export default function MapScreen() {
             )}
         </View>
     );
+}
+
+function findClosestOutage(outages: Outage[], latitude: number, longitude: number): Outage | null {
+    let closest: Outage | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    for (const outage of outages) {
+        if (outage.latitude == null || outage.longitude == null) continue;
+
+        const distance = Math.hypot(outage.latitude - latitude, outage.longitude - longitude);
+        if (distance < closestDistance) {
+            closest = outage;
+            closestDistance = distance;
+        }
+    }
+
+    return closestDistance <= 0.01 ? closest : null;
 }
 
 const styles = StyleSheet.create({

@@ -5,19 +5,21 @@ import {
     Linking,
     Platform,
     ScrollView,
+    Share,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { Building2, Clock3, MapPin, MessageSquare, Send, Share2, UsersRound } from 'lucide-react-native';
+import MapView, { Marker, Region } from 'react-native-maps';
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Building2, ChevronLeft, Clock3, MapPin, MessageSquare, Send, Share2, UsersRound } from 'lucide-react-native';
 import { Outage, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
 import { getOrCreateDeviceId } from '../../src/utils/device';
-import { DS, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
+import { DS, IconButton, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
 
 interface Comment {
@@ -36,6 +38,8 @@ function formatRelative(dateStr: string): string {
 
 export default function OutageDetailScreen() {
     const { id } = useLocalSearchParams();
+    const navigation = useNavigation();
+    const router = useRouter();
     const [outage, setOutage] = useState<Outage | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -89,6 +93,39 @@ export default function OutageDetailScreen() {
     }
 
     const meta = statusMeta(outage.status, outage.source);
+    const mapLabel = outage.barrio || outage.title;
+    const mapRegion = buildRegion(outage.latitude, outage.longitude);
+
+    const handleBack = () => {
+        if (navigation.canGoBack()) {
+            router.back();
+            return;
+        }
+
+        router.replace('/(tabs)');
+    };
+
+    const handleShare = async () => {
+        const mapsUrl = buildWebMapsUrl(outage.latitude, outage.longitude);
+        const parts = [
+            outage.title,
+            outage.barrio ? `Zona: ${outage.barrio}` : null,
+            outage.scheduled_start ? `Inicio: ${formatDateTime24(outage.scheduled_start)}` : null,
+            outage.scheduled_end ? `Fin estimado: ${formatDateTime24(outage.scheduled_end)}` : null,
+            mapsUrl,
+        ].filter(Boolean);
+
+        try {
+            await Share.share({
+                message: parts.join('\n'),
+            });
+        } catch {}
+    };
+
+    const handleOpenInMaps = async () => {
+        if (outage.latitude == null || outage.longitude == null) return;
+        await openSystemMaps(outage.latitude, outage.longitude, mapLabel);
+    };
 
     return (
         <KeyboardAvoidingView
@@ -102,7 +139,18 @@ export default function OutageDetailScreen() {
                     headerStyle: { backgroundColor: DS.bg },
                     headerTintColor: DS.text,
                     headerShadowVisible: false,
-                    headerRight: () => <Share2 size={20} color={DS.textMuted} />,
+                    headerLeft: () => (
+                        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.75}>
+                            <ChevronLeft size={18} color={DS.text} />
+                            <Text style={styles.backButtonText}>Mapa</Text>
+                        </TouchableOpacity>
+                    ),
+                    headerBackVisible: false,
+                    headerRight: () => (
+                        <IconButton style={styles.headerIconButton} onPress={handleShare}>
+                            <Share2 size={19} color={DS.textMuted} />
+                        </IconButton>
+                    ),
                 }}
             />
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -120,7 +168,11 @@ export default function OutageDetailScreen() {
                     </View>
                 </View>
 
-                <MiniMap color={meta.color} />
+                <MiniMap
+                    color={meta.color}
+                    region={mapRegion}
+                    onPress={handleOpenInMaps}
+                />
 
                 <View style={styles.cards}>
                     {(outage.scheduled_start || outage.scheduled_end) && (
@@ -134,7 +186,7 @@ export default function OutageDetailScreen() {
                     <SectionCard>
                         <InfoTitle icon={<MapPin size={18} color={DS.amber} />} title="Zona afectada" />
                         <Text style={styles.cardPrimary}>{outage.barrio || 'Zona no especificada'}</Text>
-                        {outage.description ? <Text style={styles.cardBody}>{outage.description}</Text> : null}
+                        {outage.description ? <AffectedAreaText description={outage.description} /> : null}
                     </SectionCard>
 
                     <SectionCard>
@@ -217,21 +269,120 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     );
 }
 
-function MiniMap({ color }: { color: string }) {
+function MiniMap({
+    color,
+    region,
+    onPress,
+}: {
+    color: string;
+    region: Region | null;
+    onPress: () => void;
+}) {
+    if (!region) {
+        return (
+            <View style={styles.miniMap}>
+                <View style={styles.miniMapFallback}>
+                    <Text style={styles.miniMapFallbackText}>Ubicación exacta no disponible</Text>
+                </View>
+            </View>
+        );
+    }
+
     return (
         <View style={styles.miniMap}>
-            <View style={[styles.mapRoad, { top: 44 }]} />
-            <View style={[styles.mapRoad, { top: 96 }]} />
-            <View style={[styles.mapRoadVertical, { left: '28%' }]} />
-            <View style={[styles.mapRoadVertical, { left: '58%' }]} />
-            <View style={[styles.mapMarkerGlow, { backgroundColor: `${color}24` }]}>
-                <View style={[styles.mapMarker, { backgroundColor: color }]} />
-            </View>
-            <View style={styles.openMapBadge}>
-                <Text style={styles.openMapText}>Abrir en Mapa</Text>
-            </View>
+            <MapView
+                style={StyleSheet.absoluteFillObject}
+                pointerEvents="none"
+                initialRegion={region}
+                customMapStyle={darkMapStyle}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}
+                toolbarEnabled={false}
+            >
+                <Marker coordinate={{ latitude: region.latitude, longitude: region.longitude }}>
+                    <View style={[styles.mapMarkerGlow, { backgroundColor: `${color}24` }]}>
+                        <View style={[styles.mapMarker, { backgroundColor: color }]} />
+                    </View>
+                </Marker>
+            </MapView>
+            <TouchableOpacity style={styles.miniMapPressArea} activeOpacity={0.9} onPress={onPress}>
+                <View style={styles.openMapBadge}>
+                    <Text style={styles.openMapText}>Abrir en Maps</Text>
+                </View>
+            </TouchableOpacity>
         </View>
     );
+}
+
+function AffectedAreaText({ description }: { description: string }) {
+    const blocks = formatAffectedArea(description);
+
+    return (
+        <View style={styles.descriptionBlock}>
+            {blocks.map((block, index) => (
+                <Text key={`${block.heading}-${index}`} style={styles.cardBody}>
+                    {block.heading ? <Text style={styles.cardBodyHeading}>{block.heading}: </Text> : null}
+                    {block.body}
+                </Text>
+            ))}
+        </View>
+    );
+}
+
+function formatAffectedArea(description: string): Array<{ heading: string | null; body: string }> {
+    return description
+        .split(/\n\s*\n/)
+        .map(block => block.replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .map(block => {
+            const match = block.match(/^([^:]{2,40}):\s*(.+)$/);
+            if (!match) {
+                return { heading: null, body: block };
+            }
+
+            return {
+                heading: match[1].trim(),
+                body: match[2].trim(),
+            };
+        });
+}
+
+function buildRegion(latitude?: number, longitude?: number): Region | null {
+    if (latitude == null || longitude == null) {
+        return null;
+    }
+
+    return {
+        latitude,
+        longitude,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+    };
+}
+
+async function openSystemMaps(latitude: number, longitude: number, label: string) {
+    const encodedLabel = encodeURIComponent(label);
+    const platformUrl = Platform.select({
+        ios: `http://maps.apple.com/?ll=${latitude},${longitude}&q=${encodedLabel}`,
+        android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodedLabel})`,
+        default: buildWebMapsUrl(latitude, longitude),
+    })!;
+
+    try {
+        await Linking.openURL(platformUrl);
+    } catch {
+        await Linking.openURL(buildWebMapsUrl(latitude, longitude));
+    }
+}
+
+function buildWebMapsUrl(latitude?: number, longitude?: number): string {
+    if (latitude == null || longitude == null) {
+        return 'https://www.google.com/maps';
+    }
+
+    return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 }
 
 const avatarColors = [DS.violet, DS.green, DS.blue, DS.red];
@@ -245,6 +396,21 @@ const styles = StyleSheet.create({
     },
     errorText: {
         color: DS.text,
+    },
+    backButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 6,
+        paddingRight: 8,
+    },
+    backButtonText: {
+        color: DS.text,
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    headerIconButton: {
+        backgroundColor: DS.surface,
     },
     hero: {
         paddingHorizontal: 16,
@@ -284,28 +450,27 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: '#0D1626',
     },
-    mapRoad: {
+    miniMapPressArea: {
         position: 'absolute',
         left: 0,
         right: 0,
-        height: 6,
-        backgroundColor: '#1A2840',
-    },
-    mapRoadVertical: {
-        position: 'absolute',
         top: 0,
         bottom: 0,
-        width: 6,
-        backgroundColor: '#1A2840',
+    },
+    miniMapFallback: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#0D1626',
+        paddingHorizontal: 20,
+    },
+    miniMapFallbackText: {
+        color: DS.textMuted,
+        fontSize: 13,
     },
     mapMarkerGlow: {
-        position: 'absolute',
-        left: '50%',
-        top: '50%',
         width: 42,
         height: 42,
-        marginLeft: -21,
-        marginTop: -21,
         borderRadius: 21,
         alignItems: 'center',
         justifyContent: 'center',
@@ -327,6 +492,7 @@ const styles = StyleSheet.create({
     openMapText: {
         color: DS.text,
         fontSize: 11,
+        fontWeight: '700',
     },
     cards: {
         padding: 16,
@@ -373,6 +539,13 @@ const styles = StyleSheet.create({
         color: DS.textMid,
         fontSize: 14,
         lineHeight: 20,
+    },
+    descriptionBlock: {
+        gap: 10,
+    },
+    cardBodyHeading: {
+        color: DS.text,
+        fontWeight: '800',
     },
     whatsappButton: {
         minHeight: 50,
@@ -479,3 +652,18 @@ const styles = StyleSheet.create({
         opacity: 0.45,
     },
 });
+
+const darkMapStyle = [
+    { elementType: 'geometry', stylers: [{ color: '#0D1626' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#0D1626' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#7C8DA3' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#CBD5E1' }] },
+    { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#64748B' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#22314D' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#131E30' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#E2E8F0' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#374B6A' }] },
+    { featureType: 'transit', elementType: 'labels.text.fill', stylers: [{ color: '#94A3B8' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0A1520' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#64748B' }] },
+];
