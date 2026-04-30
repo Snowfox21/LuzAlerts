@@ -43,9 +43,6 @@ const PARAGUAY_BOUNDS = {
     maxLon: -54.1,
 };
 
-const OUTSIDE_PARAGUAY_MESSAGE =
-    'LuzAlerts por ahora solo registra cortes dentro de Paraguay. Si estas en Clorinda u otra ciudad fuera del pais, no vamos a poder tomar ese reporte todavia.';
-
 export default function ReportsScreen() {
     const router = useRouter();
     const [reports, setReports] = useState<Report[]>([]);
@@ -121,7 +118,7 @@ export default function ReportsScreen() {
             if (!isWithinParaguay(latitude, longitude) || !isParaguayGeocode(geocoded[0])) {
                 setCoords(null);
                 setAddress({ department: '', city: '', barrio: '', street: '', house: '' });
-                Alert.alert('Fuera de cobertura', OUTSIDE_PARAGUAY_MESSAGE);
+                Alert.alert('Fuera de cobertura', buildOutsideCoverageMessage(geocoded[0]?.city ?? geocoded[0]?.subregion));
                 return;
             }
 
@@ -150,7 +147,7 @@ export default function ReportsScreen() {
         }
 
         if (coords && !isWithinParaguay(coords.lat, coords.lon)) {
-            Alert.alert('Fuera de cobertura', OUTSIDE_PARAGUAY_MESSAGE);
+            Alert.alert('Fuera de cobertura', buildOutsideCoverageMessage(address.city));
             return;
         }
 
@@ -177,7 +174,7 @@ export default function ReportsScreen() {
             setModalVisible(false);
             fetchReports();
         } catch (error) {
-            const errorCopy = getReportSubmitError(error);
+            const errorCopy = getReportSubmitError(error, address.city);
             Alert.alert(errorCopy.title, errorCopy.message);
         } finally {
             setSubmitting(false);
@@ -369,7 +366,17 @@ function isParaguayGeocode(geocode?: Location.LocationGeocodedAddress | null): b
     return isoCode === 'PY' || country === 'paraguay';
 }
 
-function getReportSubmitError(error: unknown): { title: string; message: string } {
+function buildOutsideCoverageMessage(city?: string | null): string {
+    const cityName = city?.trim();
+
+    if (cityName) {
+        return `LuzAlerts por ahora solo registra cortes dentro de Paraguay. ${cityName} queda fuera de cobertura, asi que no podemos tomar ese reporte todavia.`;
+    }
+
+    return 'LuzAlerts por ahora solo registra cortes dentro de Paraguay. La ubicacion que enviaste queda fuera de cobertura, asi que no podemos tomar ese reporte todavia.';
+}
+
+function getReportSubmitError(error: unknown, city?: string | null): { title: string; message: string } {
     if (axios.isAxiosError(error)) {
         const status = error.response?.status;
         const detail = getErrorDetail(error.response?.data);
@@ -377,8 +384,7 @@ function getReportSubmitError(error: unknown): { title: string; message: string 
         if (status === 400 && detail?.includes('No se pudo determinar la ubicación')) {
             return {
                 title: 'Direccion fuera de cobertura',
-                message:
-                    'No pudimos ubicar esa direccion dentro de Paraguay. Revisa ciudad y calle, o usa tu ubicacion actual. Si estas en Clorinda u otra ciudad fuera del pais, por ahora no podemos registrar ese reporte.',
+                message: `${buildOutsideCoverageMessage(city)} Revisa ciudad y calle, o usa tu ubicacion actual.`,
             };
         }
 
