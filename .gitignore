@@ -67,6 +67,8 @@ node_modules/
 Instructions/
 MVP_Plan.md
 MARKETING.md
+docs/design_prompt.md
+docs/mobile_design_prompt.md
 
 # Scraper
 scraper/.env
