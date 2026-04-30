@@ -1,23 +1,24 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, View, Text, StyleSheet, useColorScheme, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { Colors, Spacing } from '../../src/theme/Theme';
-import { Outage, OutageStatus, OutageSource } from '../../src/api/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AlertTriangle, LocateFixed, Settings, Zap } from 'lucide-react-native';
+import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
-import { AlertTriangle } from 'lucide-react-native';
+import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 
 const ASUNCION: Region = {
     latitude: -25.2637,
     longitude: -57.5759,
-    latitudeDelta: 0.2,
-    longitudeDelta: 0.2,
+    latitudeDelta: 0.18,
+    longitudeDelta: 0.18,
 };
 
 export default function MapScreen() {
-    const colorScheme = useColorScheme() ?? 'dark';
+    const insets = useSafeAreaInsets();
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
@@ -35,7 +36,6 @@ export default function MapScreen() {
             try {
                 const outagesRes = await apiClient.get<Outage[]>('/outages/');
                 fetchedOutages = (outagesRes.data || []).filter(o => o.latitude && o.longitude);
-                console.log(`Fetched ${fetchedOutages.length} official outages`);
             } catch (err) {
                 console.error('Error fetching official outages:', err);
             }
@@ -54,7 +54,6 @@ export default function MapScreen() {
                         latitude: r.latitude,
                         longitude: r.longitude,
                     }));
-                console.log(`Fetched ${mappedReports.length} user reports`);
             } catch (err) {
                 console.error('Error fetching user reports:', err);
             }
@@ -82,14 +81,13 @@ export default function MapScreen() {
                         longitudeDelta: 0.1,
                     });
                 })
-                .catch(() => {}); // keep Asunción fallback
+                .catch(() => {});
         });
     }, []);
 
-    // Auto-refresh every 5 minutes while app is in foreground
     useEffect(() => {
         const interval = setInterval(fetchOutages, 5 * 60 * 1000);
-        const subscription = AppState.addEventListener('change', (state) => {
+        const subscription = AppState.addEventListener('change', state => {
             if (state === 'active') fetchOutages();
         });
         return () => {
@@ -111,19 +109,22 @@ export default function MapScreen() {
         }, 800);
     }, [focusLat, focusLon]);
 
-    const getMarkerColor = (status: OutageStatus) => {
-        switch (status) {
-            case OutageStatus.ACTIVE: return '#EF4444';
-            case OutageStatus.PLANNED: return '#F59E0B';
-            case OutageStatus.RESOLVED: return '#10B981';
-            default: return '#6B7280';
-        }
+    const centerOnUser = async () => {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        mapRef.current?.animateToRegion({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            latitudeDelta: 0.06,
+            longitudeDelta: 0.06,
+        }, 650);
     };
 
     if (loading) {
         return (
-            <View style={[styles.center, { backgroundColor: Colors[colorScheme].background }]}>
-                <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+            <View style={sharedStyles.center}>
+                <ActivityIndicator size="large" color={DS.amber} />
             </View>
         );
     }
@@ -134,49 +135,81 @@ export default function MapScreen() {
                 ref={mapRef}
                 style={styles.map}
                 initialRegion={initialRegion}
-                customMapStyle={colorScheme === 'dark' ? darkMapStyle : []}
+                customMapStyle={darkMapStyle}
                 onPress={() => setSelectedOutage(null)}
-                zoomEnabled={true}
+                zoomEnabled
                 zoomControlEnabled={Platform.OS === 'android'}
-                scrollEnabled={true}
-                pitchEnabled={true}
-                rotateEnabled={true}
+                scrollEnabled
+                pitchEnabled
+                rotateEnabled
             >
-                {outages.map((outage) => (
-                    <Marker
-                        key={outage.id}
-                        coordinate={{
-                            latitude: outage.latitude!,
-                            longitude: outage.longitude!,
-                        }}
-                        pinColor={getMarkerColor(outage.status)}
-                        onPress={(e) => {
-                            e.stopPropagation();
-                            setSelectedOutage(outage);
-                        }}
-                    />
-                ))}
+                {outages.map(outage => {
+                    const meta = statusMeta(outage.status, outage.source);
+                    return (
+                        <Marker
+                            key={outage.id}
+                            coordinate={{ latitude: outage.latitude!, longitude: outage.longitude! }}
+                            onPress={e => {
+                                e.stopPropagation();
+                                setSelectedOutage(outage);
+                            }}
+                        >
+                            <View style={[styles.markerPulse, selectedOutage?.id === outage.id && { backgroundColor: `${meta.color}30` }]}>
+                                <View style={[styles.marker, { backgroundColor: meta.color }]}>
+                                    <AlertTriangle size={15} color={DS.ink} strokeWidth={3} />
+                                </View>
+                                <View style={[styles.markerTail, { borderTopColor: meta.color }]} />
+                            </View>
+                        </Marker>
+                    );
+                })}
             </MapView>
 
+            <View style={[styles.topBar, { height: insets.top + 60, paddingTop: insets.top }]}>
+                <View style={styles.brand}>
+                    <Zap size={22} color={DS.amber} fill={DS.amber} />
+                    <Text style={styles.brandText}>LuzAlerts</Text>
+                </View>
+                <IconButton onPress={() => router.push('/(tabs)/settings')}>
+                    <Settings size={22} color={DS.textMuted} />
+                </IconButton>
+            </View>
+
+            <View style={[styles.fabs, selectedOutage && styles.fabsRaised]}>
+                <IconButton style={styles.locateButton} onPress={centerOnUser}>
+                    <LocateFixed size={21} color={DS.text} />
+                </IconButton>
+                <TouchableOpacity
+                    style={styles.reportButton}
+                    onPress={() => router.push('/(tabs)/reports')}
+                    activeOpacity={0.85}
+                >
+                    <AlertTriangle size={20} color={DS.ink} strokeWidth={2.5} />
+                    <Text style={styles.reportButtonText}>Sin luz</Text>
+                </TouchableOpacity>
+            </View>
+
             {selectedOutage && (
-                <View style={styles.cardOverlay}>
+                <View style={styles.sheet}>
+                    <View style={styles.handle} />
                     <OutageCard
                         outage={selectedOutage}
+                        compact
                         onPress={selectedOutage.source === OutageSource.CROWDSOURCE
                             ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
                             : () => router.push(`/outage/${selectedOutage.id}`)}
                     />
+                    <TouchableOpacity
+                        style={styles.sheetAction}
+                        activeOpacity={0.8}
+                        onPress={selectedOutage.source === OutageSource.CROWDSOURCE
+                            ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
+                            : () => router.push(`/outage/${selectedOutage.id}`)}
+                    >
+                        <Text style={styles.sheetActionText}>Ver detalles</Text>
+                    </TouchableOpacity>
                 </View>
             )}
-
-            <TouchableOpacity
-                style={[styles.reportButton, { backgroundColor: Colors[colorScheme].tint }]}
-                onPress={() => router.push('/(tabs)/reports')}
-                activeOpacity={0.85}
-            >
-                <AlertTriangle size={18} color="#fff" />
-                <Text style={styles.reportButtonText}>Reportar</Text>
-            </TouchableOpacity>
         </View>
     );
 }
@@ -184,77 +217,135 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-    },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: DS.bg,
     },
     map: {
         ...StyleSheet.absoluteFillObject,
     },
-    cardOverlay: {
+    topBar: {
         position: 'absolute',
-        bottom: Spacing.xl + 20,
-        left: Spacing.md,
-        right: Spacing.md,
-        borderRadius: 8,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.1,
-                shadowRadius: 8,
-            },
-            android: {
-                elevation: 4,
-            }
-        })
-    },
-    reportButton: {
-        position: 'absolute',
-        top: Spacing.md,
-        right: Spacing.md,
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 68,
+        paddingTop: 8,
+        paddingHorizontal: 8,
+        backgroundColor: DS.bg,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: Spacing.md,
-        borderRadius: 24,
-        gap: 6,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 6,
-            },
-            android: {
-                elevation: 5,
-            }
-        })
+    },
+    brand: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 8,
+    },
+    brandText: {
+        color: DS.text,
+        fontSize: 20,
+        fontWeight: '800',
+    },
+    markerPulse: {
+        width: 42,
+        height: 50,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 21,
+    },
+    marker: {
+        width: 24,
+        height: 28,
+        borderRadius: 7,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    markerTail: {
+        width: 0,
+        height: 0,
+        borderLeftWidth: 7,
+        borderRightWidth: 7,
+        borderTopWidth: 10,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        marginTop: -1,
+    },
+    fabs: {
+        position: 'absolute',
+        right: 16,
+        bottom: 92,
+        alignItems: 'flex-end',
+        gap: 10,
+    },
+    fabsRaised: {
+        bottom: 252,
+    },
+    locateButton: {
+        backgroundColor: DS.surface,
+        elevation: 5,
+    },
+    reportButton: {
+        height: 56,
+        borderRadius: 28,
+        paddingHorizontal: 20,
+        backgroundColor: DS.amber,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        elevation: 7,
     },
     reportButtonText: {
-        color: '#fff',
+        color: DS.ink,
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    sheet: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: DS.surface,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 16,
+        gap: 10,
+    },
+    handle: {
+        alignSelf: 'center',
+        width: 36,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#475569',
+        marginBottom: 2,
+    },
+    sheetAction: {
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#475569',
+        borderRadius: 8,
+    },
+    sheetActionText: {
+        color: DS.text,
+        fontSize: 14,
         fontWeight: '700',
-        fontSize: 15,
     },
 });
 
 const darkMapStyle = [
-    { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
-    { "elementType": "labels.text.stroke", "stylers": [{ "color": "#242f3e" }] },
-    { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
-    { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
-    { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#d59563" }] },
-    { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#263c3f" }] },
-    { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#6b9a76" }] },
-    { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#38414e" }] },
-    { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#212a37" }] },
-    { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca5b3" }] },
-    { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#746855" }] },
-    { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#1f2835" }] },
-    { "featureType": "road.highway", "elementType": "labels.text.fill", "stylers": [{ "color": "#f3d19c" }] },
-    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#17263c" }] },
-    { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#515c6d" }] },
-    { "featureType": "water", "elementType": "labels.text.stroke", "stylers": [{ "color": "#17263c" }] }
+    { elementType: 'geometry', stylers: [{ color: '#0D1626' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#0D1626' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#253348' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#64748B' }] },
+    { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#334155' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0A1520' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1A2840' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#131E30' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#334155' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#22314D' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0A1520' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#253348' }] },
 ];

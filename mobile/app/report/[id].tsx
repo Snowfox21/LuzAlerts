@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, useColorScheme, ActivityIndicator, ScrollView } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
-import { Colors, Spacing, Typography } from '../../src/theme/Theme';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
-import { MapPin, Clock, UserRound, MessageSquare } from 'lucide-react-native';
+import { DS, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
+import { formatDateTime24 } from '../../src/utils/date';
 
 interface Report {
     id: number;
@@ -21,7 +22,8 @@ interface Report {
 
 export default function ReportDetailScreen() {
     const { id } = useLocalSearchParams();
-    const colorScheme = useColorScheme() ?? 'dark';
+    const router = useRouter();
+    const navigation = useNavigation();
     const [report, setReport] = useState<Report | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -33,91 +35,193 @@ export default function ReportDetailScreen() {
             .finally(() => setLoading(false));
     }, [id]);
 
-    const formatDate = (dateString: string) =>
-        new Date(dateString).toLocaleString('es-PY');
-
     const formatAddress = (r: Report) => {
         const parts = [r.street, r.house, r.barrio, r.city, r.department].filter(Boolean);
         return parts.length > 0 ? parts.join(', ') : 'Dirección no especificada';
     };
 
+    const handleBack = () => {
+        if (navigation.canGoBack()) {
+            router.back();
+            return;
+        }
+        router.replace('/(tabs)/reports');
+    };
+
+    const openOnMap = () => {
+        if (!report) return;
+        router.push({
+            pathname: '/(tabs)',
+            params: {
+                focusLat: String(report.latitude),
+                focusLon: String(report.longitude),
+            },
+        });
+    };
+
     if (loading) {
         return (
-            <View style={[styles.center, { backgroundColor: Colors[colorScheme].background }]}>
+            <View style={sharedStyles.center}>
                 <Stack.Screen options={{ title: 'Reporte de usuario' }} />
-                <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+                <ActivityIndicator size="large" color={DS.amber} />
             </View>
         );
     }
 
     if (error || !report) {
         return (
-            <View style={[styles.center, { backgroundColor: Colors[colorScheme].background }]}>
+            <View style={sharedStyles.center}>
                 <Stack.Screen options={{ title: 'Reporte de usuario' }} />
-                <Text style={{ color: Colors[colorScheme].text }}>{error ?? 'Reporte no encontrado'}</Text>
+                <Text style={styles.errorText}>{error ?? 'Reporte no encontrado'}</Text>
             </View>
         );
     }
 
     return (
-        <ScrollView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-            <Stack.Screen options={{ title: 'Reporte de usuario' }} />
+        <ScrollView style={sharedStyles.screen} contentContainerStyle={styles.content}>
+            <Stack.Screen
+                options={{
+                    title: 'Reporte de usuario',
+                    headerStyle: { backgroundColor: DS.bg },
+                    headerTintColor: DS.text,
+                    headerShadowVisible: false,
+                    headerLeft: () => (
+                        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.75}>
+                            <ChevronLeft size={18} color={DS.text} />
+                            <Text style={styles.backButtonText}>Volver</Text>
+                        </TouchableOpacity>
+                    ),
+                    headerBackVisible: false,
+                }}
+            />
 
-            <View style={[styles.header, { borderBottomColor: Colors[colorScheme].border }]}>
-                <View style={styles.statusRow}>
-                    <UserRound size={20} color={report.confirmed ? '#10B981' : Colors[colorScheme].icon} />
-                    <Text style={[styles.statusText, { color: Colors[colorScheme].text }]}>
-                        {report.confirmed ? 'Confirmado por la comunidad' : 'Reporte de usuario'}
+            <View style={styles.hero}>
+                <View style={styles.statusBadge}>
+                    <UsersRound size={13} color={DS.violetLight} />
+                    <Text style={styles.statusBadgeText}>
+                        {report.confirmed ? 'CONFIRMADO' : 'REPORTADO'}
                     </Text>
                 </View>
-                <Text style={[Typography.title, { color: Colors[colorScheme].text, marginTop: Spacing.sm }]}>
-                    Corte reportado
-                </Text>
+                <Text style={styles.title}>Corte reportado</Text>
+                <Text style={styles.subtitle}>{formatAddress(report)}</Text>
             </View>
 
-            <View style={[styles.section, { borderBottomColor: Colors[colorScheme].border }]}>
-                <View style={styles.row}>
-                    <MapPin size={20} color={Colors[colorScheme].icon} />
-                    <Text style={[styles.detailText, { color: Colors[colorScheme].text }]}>
-                        {formatAddress(report)}
-                    </Text>
-                </View>
-                <View style={styles.row}>
-                    <Clock size={20} color={Colors[colorScheme].icon} />
-                    <Text style={[styles.detailText, { color: Colors[colorScheme].text }]}>
-                        {formatDate(report.created_at)}
-                    </Text>
-                </View>
-            </View>
+            <View style={styles.cards}>
+                <TouchableOpacity activeOpacity={0.82} onPress={openOnMap}>
+                    <SectionCard>
+                        <InfoTitle icon={<MapPin size={18} color={DS.amber} />} title="Ubicación" />
+                        <Text style={styles.body}>{formatAddress(report)}</Text>
+                        <Text style={styles.locationHint}>Ver en el mapa</Text>
+                    </SectionCard>
+                </TouchableOpacity>
 
-            <View style={[styles.section, { borderBottomColor: Colors[colorScheme].border }]}>
-                <View style={styles.row}>
-                    <MessageSquare size={20} color={Colors[colorScheme].icon} />
-                    <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Comentario</Text>
-                </View>
-                <Text style={[styles.comment, { color: report.comment ? Colors[colorScheme].text : Colors[colorScheme].icon }]}>
-                    {report.comment ?? 'Información adicional no disponible'}
-                </Text>
+                <SectionCard>
+                    <InfoTitle icon={<Clock3 size={18} color={DS.amber} />} title="Momento del reporte" />
+                    <Text style={styles.body}>{formatDateTime24(report.created_at)}</Text>
+                </SectionCard>
+
+                <SectionCard>
+                    <InfoTitle icon={<MessageSquare size={18} color={DS.violet} />} title="Comentario" />
+                    <Text style={[styles.body, !report.comment && styles.muted]}>
+                        {report.comment ?? 'Información adicional no disponible'}
+                    </Text>
+                </SectionCard>
             </View>
         </ScrollView>
     );
 }
 
+function InfoTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
+    return (
+        <View style={styles.infoTitle}>
+            {icon}
+            <Text style={styles.infoTitleText}>{title}</Text>
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: {
-        padding: Spacing.lg,
-        borderBottomWidth: StyleSheet.hairlineWidth,
+    content: {
+        paddingBottom: 24,
     },
-    statusRow: { flexDirection: 'row', alignItems: 'center' },
-    statusText: { fontSize: 16, fontWeight: '600', marginLeft: Spacing.sm },
-    section: {
-        padding: Spacing.lg,
-        borderBottomWidth: StyleSheet.hairlineWidth,
+    errorText: {
+        color: DS.text,
     },
-    sectionTitle: { fontSize: 16, fontWeight: '600', marginLeft: Spacing.sm },
-    row: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
-    detailText: { fontSize: 16, marginLeft: Spacing.md, flex: 1 },
-    comment: { fontSize: 16, lineHeight: 24, marginTop: Spacing.sm },
+    backButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 6,
+        paddingRight: 8,
+    },
+    backButtonText: {
+        color: DS.text,
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    hero: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 16,
+    },
+    statusBadge: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderRadius: 6,
+        backgroundColor: 'rgba(168,85,247,0.15)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    statusBadgeText: {
+        color: DS.violetLight,
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 0.8,
+    },
+    title: {
+        color: DS.text,
+        fontSize: 22,
+        fontWeight: '800',
+        lineHeight: 30,
+        marginTop: 8,
+    },
+    subtitle: {
+        color: DS.textMid,
+        fontSize: 15,
+        lineHeight: 21,
+        marginTop: 4,
+    },
+    cards: {
+        paddingHorizontal: 16,
+        gap: 10,
+    },
+    infoTitle: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 10,
+    },
+    infoTitleText: {
+        color: DS.textMuted,
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+    },
+    body: {
+        color: DS.text,
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    locationHint: {
+        color: DS.amber,
+        fontSize: 13,
+        fontWeight: '700',
+        marginTop: 10,
+    },
+    muted: {
+        color: DS.textMuted,
+    },
 });

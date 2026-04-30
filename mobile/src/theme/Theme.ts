@@ -1,19 +1,35 @@
-import { Platform } from 'react-native';
-
 export const Colors = {
     light: {
-        text: '#11181C',
-        background: '#fff',
-        tint: Platform.OS === 'ios' ? '#007AFF' : '#2196F3', // iOS blue vs MD blue
-        icon: '#687076',
-        border: '#D1D5DB',
+        text: '#0F172A',
+        background: '#F8FAFC',
+        tint: '#FBBF24',
+        icon: '#64748B',
+        border: '#CBD5E1',
+        surface: '#FFFFFF',
+        surfaceVariant: '#E2E8F0',
+        textMid: '#475569',
+        textMuted: '#64748B',
+        amber: '#FBBF24',
+        red: '#EF4444',
+        green: '#22C55E',
+        violet: '#A855F7',
+        blue: '#0A84FF',
     },
     dark: {
-        text: '#ECEDEE',
-        background: '#151718',
-        tint: Platform.OS === 'ios' ? '#0A84FF' : '#90CAF9',
-        icon: '#9BA1A6',
-        border: '#374151',
+        text: '#F8FAFC',
+        background: '#0F172A',
+        tint: '#FBBF24',
+        icon: '#94A3B8',
+        border: '#334155',
+        surface: '#1E293B',
+        surfaceVariant: '#334155',
+        textMid: '#CBD5E1',
+        textMuted: '#94A3B8',
+        amber: '#FBBF24',
+        red: '#EF4444',
+        green: '#22C55E',
+        violet: '#A855F7',
+        blue: '#0A84FF',
     },
 };
 
@@ -27,9 +43,9 @@ export const Spacing = {
 
 export const Typography = {
     title: {
-        fontSize: Platform.OS === 'ios' ? 28 : 24,
+        fontSize: 28,
         fontWeight: 'bold' as const,
-        lineHeight: Platform.OS === 'ios' ? 34 : 32,
+        lineHeight: 34,
     },
     body: {
         fontSize: 16,

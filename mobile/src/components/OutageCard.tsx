@@ -1,102 +1,148 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, useColorScheme } from 'react-native';
-import { Colors, Spacing, Typography } from '../theme/Theme';
-import { Outage, OutageStatus, OutageSource } from '../api/types';
-import { ChevronRight, Zap, Calendar, UserRound } from 'lucide-react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Clock3, MessageCircle, UsersRound } from 'lucide-react-native';
+import { Outage, OutageSource, OutageStatus } from '../api/types';
+import { DS, StatusChip } from './DesignSystem';
 
 interface Props {
     outage: Outage;
     onPress?: () => void;
+    compact?: boolean;
 }
 
-export const OutageCard = ({ outage, onPress }: Props) => {
-    const colorScheme = useColorScheme() ?? 'dark';
+function formatTime(value?: string) {
+    if (!value) return 'Sin horario';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('es-PY', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
 
-    const getStatusColor = (status: OutageStatus) => {
-        switch (status) {
-            case OutageStatus.ACTIVE: return '#EF4444'; // Red
-            case OutageStatus.PLANNED: return '#F59E0B'; // Amber
-            case OutageStatus.RESOLVED: return '#10B981'; // Green
-            default: return Colors[colorScheme].icon;
-        }
-    };
+function relativeTime(value?: string) {
+    if (!value) return '';
+    const diff = Math.floor((Date.now() - new Date(value).getTime()) / 1000);
+    if (diff < 60) return 'Ahora';
+    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} h`;
+    return `Hace ${Math.floor(diff / 86400)} d`;
+}
 
-    const Icon = outage.source === OutageSource.CROWDSOURCE ? UserRound : (outage.status === OutageStatus.PLANNED ? Calendar : Zap);
+export const OutageCard = ({ outage, onPress, compact = false }: Props) => {
+    const isCrowd = outage.source === OutageSource.CROWDSOURCE;
+    const timeLabel = outage.status === OutageStatus.PLANNED
+        ? formatTime(outage.scheduled_start)
+        : relativeTime(outage.created_at);
 
     return (
         <TouchableOpacity
             onPress={onPress}
-            activeOpacity={0.7}
-            style={[
-                styles.card,
-                {
-                    backgroundColor: Colors[colorScheme].background,
-                    borderBottomColor: Colors[colorScheme].border
-                }
-            ]}
+            activeOpacity={0.75}
+            style={[styles.card, compact && styles.compactCard]}
         >
-            <View style={styles.iconContainer}>
-                <Icon size={20} color={getStatusColor(outage.status)} />
+            <View style={styles.topRow}>
+                <StatusChip status={outage.status} source={outage.source} />
+                <Text style={styles.time}>{timeLabel}</Text>
             </View>
 
-            <View style={styles.content}>
-                <Text style={[styles.title, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                    {outage.title}
-                </Text>
-                <Text style={[styles.subtitle, { color: Colors[colorScheme].icon }]} numberOfLines={1}>
-                    {outage.barrio || 'Zona no especificada'} • {outage.status === OutageStatus.PLANNED ? 'Planificado' : 'Reporte en vivo'}
-                </Text>
-            </View>
+            <Text style={styles.title} numberOfLines={2}>
+                {outage.title || 'Corte reportado'}
+            </Text>
+            <Text style={styles.subtitle} numberOfLines={1}>
+                {outage.barrio || 'Zona no especificada'}
+            </Text>
 
-            {Platform.OS === 'ios' && (
-                <ChevronRight size={20} color={Colors[colorScheme].icon} style={styles.chevron} />
-            )}
+            <View style={styles.metaRow}>
+                {outage.scheduled_start || outage.scheduled_end ? (
+                    <View style={styles.inlineMeta}>
+                        <Clock3 size={13} color={DS.textMuted} />
+                        <Text style={styles.metaText}>
+                            {formatTime(outage.scheduled_start)}{outage.scheduled_end ? ` - ${formatTime(outage.scheduled_end)}` : ''}
+                        </Text>
+                    </View>
+                ) : (
+                    <View />
+                )}
+                {isCrowd ? (
+                    <View style={styles.reportBadge}>
+                        <UsersRound size={12} color={DS.violetLight} />
+                        <Text style={styles.reportBadgeText}>Vecinal</Text>
+                    </View>
+                ) : (
+                    <View style={styles.inlineMeta}>
+                        <MessageCircle size={13} color={DS.textMuted} />
+                        <Text style={styles.metaText}>Comentarios</Text>
+                    </View>
+                )}
+            </View>
         </TouchableOpacity>
     );
 };
 
 const styles = StyleSheet.create({
     card: {
+        backgroundColor: DS.surface,
+        borderRadius: 12,
+        padding: 16,
+        gap: 6,
+    },
+    compactCard: {
+        padding: 14,
+    },
+    topRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.md,
-        ...Platform.select({
-            ios: {
-                borderBottomWidth: StyleSheet.hairlineWidth,
-            },
-            android: {
-                marginHorizontal: Spacing.sm,
-                marginVertical: Spacing.xs,
-                borderRadius: 8,
-                elevation: 2,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 2,
-            },
-        }),
+        justifyContent: 'space-between',
+        gap: 10,
     },
-    iconContainer: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: Spacing.md,
-    },
-    content: {
-        flex: 1,
+    time: {
+        color: DS.textMuted,
+        fontSize: 12,
     },
     title: {
-        fontSize: 16,
-        fontWeight: '600',
+        color: DS.text,
+        fontSize: 15,
+        lineHeight: 21,
+        fontWeight: '800',
     },
     subtitle: {
-        fontSize: 14,
+        color: DS.textMid,
+        fontSize: 13,
+    },
+    metaRow: {
+        minHeight: 22,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
         marginTop: 2,
     },
-    chevron: {
-        marginLeft: Spacing.sm,
+    inlineMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        flexShrink: 1,
+    },
+    metaText: {
+        color: DS.textMuted,
+        fontSize: 12,
+        flexShrink: 1,
+    },
+    reportBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        borderRadius: 8,
+        backgroundColor: 'rgba(168,85,247,0.15)',
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+    },
+    reportBadgeText: {
+        color: DS.violetLight,
+        fontSize: 11,
+        fontWeight: '700',
     },
 });

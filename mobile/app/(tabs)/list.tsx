@@ -1,16 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import { AppState, View, Text, FlatList, StyleSheet, useColorScheme, RefreshControl, ActivityIndicator } from 'react-native';
-import { Colors, Spacing, Typography } from '../../src/theme/Theme';
-import { Outage, OutageStatus, OutageSource } from '../../src/api/types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, AppState, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Settings } from 'lucide-react-native';
+import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
-import { useRouter } from 'expo-router';
+import { DS, IconButton, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
+
+type Filter = 'all' | 'planned' | 'active' | 'resolved' | 'near';
+
+const FILTERS: { key: Filter; label: string }[] = [
+    { key: 'all', label: 'Todos' },
+    { key: 'planned', label: 'Programados' },
+    { key: 'active', label: 'Activos' },
+    { key: 'resolved', label: 'Resueltos' },
+    { key: 'near', label: 'Cerca tuyo' },
+];
 
 export default function ListScreen() {
-    const colorScheme = useColorScheme() ?? 'dark';
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [filter, setFilter] = useState<Filter>('all');
     const router = useRouter();
 
     const fetchOutages = async () => {
@@ -28,17 +39,16 @@ export default function ListScreen() {
 
             try {
                 const reportsRes = await apiClient.get<any[]>('/reports/');
-                mappedReports = (reportsRes.data || [])
-                    .map(r => ({
-                        id: r.id + 1000000,
-                        source: OutageSource.CROWDSOURCE,
-                        status: OutageStatus.ACTIVE,
-                        title: r.comment || 'Corte reportado por usuario',
-                        barrio: r.barrio || r.city || r.street || 'Zona reportada',
-                        created_at: r.created_at,
-                        latitude: r.latitude,
-                        longitude: r.longitude,
-                    }));
+                mappedReports = (reportsRes.data || []).map(r => ({
+                    id: r.id + 1000000,
+                    source: OutageSource.CROWDSOURCE,
+                    status: OutageStatus.ACTIVE,
+                    title: r.comment || 'Corte reportado por usuario',
+                    barrio: r.barrio || r.city || r.street || 'Zona reportada',
+                    created_at: r.created_at,
+                    latitude: r.latitude,
+                    longitude: r.longitude,
+                }));
             } catch (err) {
                 console.error('Error fetching user reports:', err);
             }
@@ -56,10 +66,9 @@ export default function ListScreen() {
         fetchOutages();
     }, []);
 
-    // Auto-refresh every 5 minutes while app is in foreground
     useEffect(() => {
         const interval = setInterval(fetchOutages, 5 * 60 * 1000);
-        const subscription = AppState.addEventListener('change', (state) => {
+        const subscription = AppState.addEventListener('change', state => {
             if (state === 'active') fetchOutages();
         });
         return () => {
@@ -68,24 +77,57 @@ export default function ListScreen() {
         };
     }, []);
 
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchOutages();
-    };
+    const filtered = useMemo(() => {
+        if (filter === 'all' || filter === 'near') return outages;
+        const status = {
+            planned: OutageStatus.PLANNED,
+            active: OutageStatus.ACTIVE,
+            resolved: OutageStatus.RESOLVED,
+        }[filter];
+        return outages.filter(item => item.status === status);
+    }, [filter, outages]);
 
     if (loading && !refreshing) {
         return (
-            <View style={[styles.center, { backgroundColor: Colors[colorScheme].background }]}>
-                <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+            <View style={sharedStyles.center}>
+                <ActivityIndicator size="large" color={DS.amber} />
             </View>
         );
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <View style={sharedStyles.screen}>
+            <ScreenHeader
+                title="Cortes"
+                subtitle={`${filtered.length} incidentes encontrados`}
+                right={
+                    <IconButton onPress={() => router.push('/(tabs)/settings')}>
+                        <Settings size={22} color={DS.textMuted} />
+                    </IconButton>
+                }
+            />
+
+            <View style={styles.filtersWrap}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+                    {FILTERS.map(item => {
+                        const active = item.key === filter;
+                        return (
+                            <TouchableOpacity
+                                key={item.key}
+                                activeOpacity={0.8}
+                                onPress={() => setFilter(item.key)}
+                                style={[styles.filterChip, active && styles.filterChipActive]}
+                            >
+                                <Text style={[styles.filterText, active && styles.filterTextActive]}>{item.label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+            </View>
+
             <FlatList
-                data={outages}
-                keyExtractor={(item) => item.id.toString()}
+                data={filtered}
+                keyExtractor={item => item.id.toString()}
                 renderItem={({ item }) => (
                     <OutageCard
                         outage={item}
@@ -94,20 +136,11 @@ export default function ListScreen() {
                             : () => router.push(`/outage/${item.id}`)}
                     />
                 )}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />
-                }
-                ListHeaderComponent={
-                    <View style={styles.header}>
-                        <Text style={[Typography.title, { color: Colors[colorScheme].text }]}>
-                            Cortes reportados
-                        </Text>
-                        <Text style={{ color: Colors[colorScheme].icon, marginTop: 4 }}>
-                            {outages.length} incidentes encontrados
-                        </Text>
-                    </View>
-                }
+                ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
                 contentContainerStyle={styles.listContent}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOutages(); }} tintColor={DS.amber} />
+                }
                 ListEmptyComponent={
                     <Text style={styles.emptyText}>No hay cortes reportados actualmente.</Text>
                 }
@@ -117,24 +150,42 @@ export default function ListScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    filtersWrap: {
+        paddingBottom: 12,
     },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
+    filters: {
+        paddingHorizontal: 16,
+        gap: 8,
+    },
+    filterChip: {
+        height: 34,
+        borderRadius: 17,
+        borderWidth: 1,
+        borderColor: '#475569',
+        paddingHorizontal: 14,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    header: {
-        padding: Spacing.md,
-        paddingBottom: Spacing.sm,
+    filterChipActive: {
+        borderColor: DS.amber,
+        backgroundColor: DS.amber,
+    },
+    filterText: {
+        color: DS.textMid,
+        fontSize: 13,
+    },
+    filterTextActive: {
+        color: DS.ink,
+        fontWeight: '800',
     },
     listContent: {
-        paddingBottom: Spacing.xl,
+        paddingHorizontal: 16,
+        paddingBottom: 24,
     },
     emptyText: {
+        color: DS.textMuted,
         textAlign: 'center',
-        marginTop: Spacing.xl,
-        color: '#999',
-    }
+        marginTop: 48,
+        fontSize: 14,
+    },
 });
