@@ -3,6 +3,7 @@ import { ActivityIndicator, AppState, Platform, StyleSheet, Text, TouchableOpaci
 import MapView, { Marker, Region } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, LocateFixed, Settings, Zap } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
@@ -17,6 +18,7 @@ const ASUNCION: Region = {
 };
 
 export default function MapScreen() {
+    const insets = useSafeAreaInsets();
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
@@ -163,7 +165,7 @@ export default function MapScreen() {
                 })}
             </MapView>
 
-            <View style={styles.topBar}>
+            <View style={[styles.topBar, { height: insets.top + 60, paddingTop: insets.top }]}>
                 <View style={styles.brand}>
                     <Zap size={22} color={DS.amber} fill={DS.amber} />
                     <Text style={styles.brandText}>LuzAlerts</Text>

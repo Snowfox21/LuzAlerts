@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    AppState,
     KeyboardAvoidingView,
     Modal,
     Platform,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -19,15 +21,25 @@ import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 
-const SAMPLE_REPORTS = [
-    { name: 'Vecino #A1B2', color: DS.violet, time: 'Hace 5 min', address: 'Av. Mariscal López y Brasilia', confirmed: 1, total: 3 },
-    { name: 'Vecino #C3D4', color: DS.blue, time: 'Hace 18 min', address: 'Calle Pitiantuta c/ San Martín', confirmed: 2, total: 3 },
-    { name: 'Vecino #E5F6', color: DS.green, time: 'Hace 31 min', address: 'Av. España esq. Mcal. Estigarribia', confirmed: 3, total: 3 },
-    { name: 'Vecino #G7H8', color: DS.red, time: 'Hace 48 min', address: 'Gral. Santos c/ México', confirmed: 1, total: 3, expiring: true },
-];
+interface Report {
+    id: number;
+    latitude: number;
+    longitude: number;
+    department: string | null;
+    city: string | null;
+    barrio: string | null;
+    street: string | null;
+    house: string | null;
+    comment: string | null;
+    confirmed: boolean;
+    created_at: string;
+}
 
 export default function ReportsScreen() {
     const router = useRouter();
+    const [reports, setReports] = useState<Report[]>([]);
+    const [loadingReports, setLoadingReports] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [autofilling, setAutofilling] = useState(false);
@@ -35,6 +47,34 @@ export default function ReportsScreen() {
     const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
     const [address, setAddress] = useState({ department: '', city: '', barrio: '', street: '', house: '' });
     const [comment, setComment] = useState('');
+
+    const fetchReports = async () => {
+        try {
+            const res = await apiClient.get<Report[]>('/reports/');
+            setReports(res.data || []);
+        } catch (error) {
+            console.error('Error fetching reports:', error);
+            setReports([]);
+        } finally {
+            setLoadingReports(false);
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchReports();
+    }, []);
+
+    useEffect(() => {
+        const interval = setInterval(fetchReports, 5 * 60 * 1000);
+        const subscription = AppState.addEventListener('change', state => {
+            if (state === 'active') fetchReports();
+        });
+        return () => {
+            clearInterval(interval);
+            subscription.remove();
+        };
+    }, []);
 
     const resetForm = () => {
         setAddress({ department: '', city: '', barrio: '', street: '', house: '' });
@@ -112,6 +152,7 @@ export default function ReportsScreen() {
 
             setSuccess(true);
             setModalVisible(false);
+            fetchReports();
         } catch {
             Alert.alert('Error', 'Hubo un problema al enviar el reporte. Verificá tu conexión.');
         } finally {
@@ -153,10 +194,23 @@ export default function ReportsScreen() {
                 </Text>
             </View>
 
-            <ScrollView contentContainerStyle={styles.list}>
-                {SAMPLE_REPORTS.map(report => (
-                    <ReportCard key={report.name} {...report} />
-                ))}
+            <ScrollView
+                contentContainerStyle={styles.list}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReports(); }} tintColor={DS.amber} />}
+            >
+                {loadingReports ? (
+                    <ActivityIndicator color={DS.amber} style={styles.loader} />
+                ) : reports.length === 0 ? (
+                    <Text style={styles.emptyText}>Todavia no hay reportes vecinales.</Text>
+                ) : (
+                    reports.map(report => (
+                        <ReportCard
+                            key={report.id}
+                            report={report}
+                            onPress={() => router.push(`/report/${report.id}`)}
+                        />
+                    ))
+                )}
             </ScrollView>
 
             <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleOpenModal}>
@@ -209,51 +263,71 @@ export default function ReportsScreen() {
 }
 
 function ReportCard({
-    name,
-    color,
-    time,
-    address,
-    confirmed,
-    total,
-    expiring,
+    report,
+    onPress,
 }: {
-    name: string;
-    color: string;
-    time: string;
-    address: string;
-    confirmed: number;
-    total: number;
-    expiring?: boolean;
+    report: Report;
+    onPress: () => void;
 }) {
-    const pct = Math.min(100, (confirmed / total) * 100);
-    const complete = confirmed >= total;
+    const color = avatarColors[report.id % avatarColors.length];
+    const relative = formatRelative(report.created_at);
+    const address = formatAddress(report);
+    const complete = report.confirmed;
+    const confirmations = report.confirmed ? 3 : 1;
+    const pct = report.confirmed ? 100 : 33;
+    const expiring = !report.confirmed && ageMinutes(report.created_at) >= 48;
     const chipColor = complete ? DS.greenLight : expiring ? DS.textMuted : DS.amber;
     const chipBg = complete ? 'rgba(74,222,128,0.15)' : expiring ? 'rgba(100,116,139,0.15)' : 'rgba(251,191,36,0.15)';
 
     return (
-        <SectionCard style={styles.reportCard}>
-            <View style={styles.reportTop}>
-                <View style={[styles.avatar, { backgroundColor: color }]}>
-                    <Text style={styles.avatarText}>{name[0]}</Text>
+        <TouchableOpacity activeOpacity={0.82} onPress={onPress}>
+            <SectionCard style={styles.reportCard}>
+                <View style={styles.reportTop}>
+                    <View style={[styles.avatar, { backgroundColor: color }]}>
+                        <Text style={styles.avatarText}>V</Text>
+                    </View>
+                    <View style={styles.reportIdentity}>
+                        <Text style={styles.reportName}>Vecino #{report.id.toString(16).toUpperCase()}</Text>
+                        <Text style={styles.reportTime}>{relative}</Text>
+                    </View>
+                    {expiring ? <Text style={styles.expiring}>Expira pronto</Text> : null}
                 </View>
-                <View style={styles.reportIdentity}>
-                    <Text style={styles.reportName}>{name}</Text>
-                    <Text style={styles.reportTime}>{time}</Text>
+                <Text style={styles.reportAddress}>{address}</Text>
+                <View style={[styles.confirmChip, { backgroundColor: chipBg }]}>
+                    <Text style={[styles.confirmText, { color: chipColor }]}>
+                        {complete ? 'Confirmado' : `${confirmations} / 3 confirmaciones`}
+                    </Text>
                 </View>
-                {expiring ? <Text style={styles.expiring}>Expira en 12 min</Text> : null}
-            </View>
-            <Text style={styles.reportAddress}>{address}</Text>
-            <View style={[styles.confirmChip, { backgroundColor: chipBg }]}>
-                <Text style={[styles.confirmText, { color: chipColor }]}>
-                    {complete ? 'Confirmado' : `${confirmed} / ${total} confirmaciones`}
-                </Text>
-            </View>
-            <View style={styles.progress}>
-                <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: complete ? DS.greenLight : DS.amber }]} />
-            </View>
-        </SectionCard>
+                <View style={styles.progress}>
+                    <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: complete ? DS.greenLight : DS.amber }]} />
+                </View>
+            </SectionCard>
+        </TouchableOpacity>
     );
 }
+
+function formatRelative(dateStr: string): string {
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (diff < 60) return 'Hace instantes';
+    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} h`;
+    return `Hace ${Math.floor(diff / 86400)} d`;
+}
+
+function ageMinutes(dateStr: string): number {
+    return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+}
+
+function formatAddress(report: Report): string {
+    return [
+        report.street,
+        report.house,
+        report.barrio,
+        report.city,
+    ].filter(Boolean).join(', ') || 'Ubicacion no especificada';
+}
+
+const avatarColors = [DS.violet, DS.blue, DS.green, DS.red];
 
 function FormInput({
     label,
@@ -307,6 +381,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 112,
         gap: 10,
+    },
+    loader: {
+        paddingTop: 24,
+    },
+    emptyText: {
+        color: DS.textMuted,
+        textAlign: 'center',
+        paddingTop: 24,
+        fontSize: 14,
     },
     reportCard: {
         padding: 14,
