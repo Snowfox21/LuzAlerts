@@ -33,7 +33,10 @@ export default function ReportDetailScreen() {
             .finally(() => setLoading(false));
     }, [id]);
 
-    const formatDate = (dateString: string) => new Date(dateString).toLocaleString('es-PY');
+    const formatDate = (dateString: string) => new Date(dateString).toLocaleString('es-PY', {
+        day: 'numeric', month: 'numeric', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+    });
 
     const formatAddress = (r: Report) => {
         const parts = [r.street, r.house, r.barrio, r.city, r.department].filter(Boolean);
@@ -63,6 +66,7 @@ export default function ReportDetailScreen() {
             <Stack.Screen
                 options={{
                     title: 'Reporte de usuario',
+                    headerBackTitle: 'Mapa',
                     headerStyle: { backgroundColor: DS.bg },
                     headerTintColor: DS.text,
                     headerShadowVisible: false,

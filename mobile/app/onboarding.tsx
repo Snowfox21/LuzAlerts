@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
@@ -40,6 +41,7 @@ const SLIDES = [
 ];
 
 export default function OnboardingScreen() {
+    const { top, bottom } = useSafeAreaInsets();
     const router = useRouter();
     const [index, setIndex] = useState(0);
     const touchStartX = useRef(0);
@@ -70,7 +72,7 @@ export default function OnboardingScreen() {
 
     return (
         <View
-            style={styles.container}
+            style={[styles.container, { paddingTop: top + 16, paddingBottom: bottom + 16 }]}
             onTouchStart={e => { touchStartX.current = e.nativeEvent.pageX; }}
             onTouchEnd={e => handleSwipe(e.nativeEvent.pageX)}
         >
@@ -106,7 +108,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: DS.bg,
-        paddingTop: Platform.OS === 'ios' ? 60 : 42,
         paddingHorizontal: 28,
     },
     dots: {
@@ -155,7 +156,6 @@ const styles = StyleSheet.create({
         maxWidth: 310,
     },
     footer: {
-        paddingBottom: Platform.OS === 'ios' ? 46 : 28,
         gap: 12,
     },
     skip: {

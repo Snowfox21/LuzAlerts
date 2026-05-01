@@ -20,8 +20,8 @@ import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 
 const SAMPLE_REPORTS = [
-    { name: 'Vecino #A1B2', color: DS.violet, time: 'Hace 5 min', address: 'Av. Mariscal López y Brasilia', confirmed: 1, total: 3 },
-    { name: 'Vecino #C3D4', color: DS.blue, time: 'Hace 18 min', address: 'Calle Pitiantuta c/ San Martín', confirmed: 2, total: 3 },
+    { name: 'Vecino #A1B2', color: DS.violet, time: 'Hace 5 min', address: 'Av. Mariscal López y Brasilia', confirmed: 0, total: 3 },
+    { name: 'Vecino #C3D4', color: DS.blue, time: 'Hace 18 min', address: 'Calle Pitiantuta c/ San Martín', confirmed: 3, total: 3 },
     { name: 'Vecino #E5F6', color: DS.green, time: 'Hace 31 min', address: 'Av. España esq. Mcal. Estigarribia', confirmed: 3, total: 3 },
     { name: 'Vecino #G7H8', color: DS.red, time: 'Hace 48 min', address: 'Gral. Santos c/ México', confirmed: 1, total: 3, expiring: true },
 ];
@@ -153,16 +153,18 @@ export default function ReportsScreen() {
                 </Text>
             </View>
 
-            <ScrollView contentContainerStyle={styles.list}>
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
                 {SAMPLE_REPORTS.map(report => (
                     <ReportCard key={report.name} {...report} />
                 ))}
             </ScrollView>
 
-            <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleOpenModal}>
+            <View style={styles.fabRow}>
+                <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleOpenModal}>
                 <AlertTriangle size={20} color={DS.ink} strokeWidth={2.5} />
                 <Text style={styles.fabText}>Reportar corte</Text>
-            </TouchableOpacity>
+                </TouchableOpacity>
+            </View>
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
@@ -303,10 +305,20 @@ const styles = StyleSheet.create({
         lineHeight: 19,
         flex: 1,
     },
+    scroll: {
+        flex: 1,
+    },
     list: {
         paddingHorizontal: 16,
-        paddingBottom: 112,
+        paddingTop: 4,
+        paddingBottom: 16,
         gap: 10,
+    },
+    fabRow: {
+        alignItems: 'flex-end',
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 16,
     },
     reportCard: {
         padding: 14,
@@ -378,9 +390,6 @@ const styles = StyleSheet.create({
         borderRadius: 2,
     },
     fab: {
-        position: 'absolute',
-        right: 16,
-        bottom: 88,
         height: 56,
         borderRadius: 28,
         paddingHorizontal: 20,

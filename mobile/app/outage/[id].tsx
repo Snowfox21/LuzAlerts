@@ -11,8 +11,10 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { Building2, Clock3, MapPin, MessageSquare, Send, Share2, UsersRound } from 'lucide-react-native';
+import MapView, { Marker } from 'react-native-maps';
+import axios from 'axios';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Building2, Clock3, MapPin, Send, Share2, UsersRound } from 'lucide-react-native';
 import { Outage, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
@@ -34,7 +36,64 @@ function formatRelative(dateStr: string): string {
 }
 
 function formatDate(value?: string) {
-    return value ? new Date(value).toLocaleString('es-PY') : 'No especificado';
+    if (!value) return 'No especificado';
+    return new Date(value).toLocaleString('es-PY', {
+        day: 'numeric',
+        month: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    });
+}
+
+async function geocodeZona(outage: Outage): Promise<{ latitude: number; longitude: number } | null> {
+    const queries: string[] = [];
+    if (outage.description) {
+        const m = outage.description.match(/ZONA\s*\d+\s*[:\-]\s*(.+?)(?:\r?\n|HORARIO|ACTIVIDAD|UNIDAD|$)/is);
+        if (m) {
+            const addr = m[1].trim().replace(/\.$/, '');
+            const segs = addr.split(/\s*[-–—]\s*/).filter(Boolean);
+            if (segs.length >= 2) queries.push(segs[segs.length - 1].trim());
+            queries.push(addr);
+        }
+    }
+    if (outage.barrio && !/^ZONA/i.test(outage.barrio)) {
+        queries.push(outage.barrio);
+    }
+    for (const q of queries) {
+        try {
+            const res = await axios.get('https://nominatim.openstreetmap.org/search', {
+                params: { q: `${q}, Paraguay`, format: 'json', limit: 1 },
+                headers: { 'User-Agent': 'LuzAlerts/1.0' },
+                timeout: 5000,
+            });
+            if (res.data?.length > 0) {
+                return { latitude: parseFloat(res.data[0].lat), longitude: parseFloat(res.data[0].lon) };
+            }
+        } catch {}
+    }
+    return null;
+}
+
+function FormattedDescription({ text }: { text: string }) {
+    const lines = text.split('\n').filter(l => l.trim());
+    return (
+        <View style={styles.descriptionBlock}>
+            {lines.map((line, i) => {
+                const match = line.match(/^([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9 ]*\s*:)\s*(.*)/s);
+                if (match) {
+                    return (
+                        <Text key={i} style={styles.descriptionLine}>
+                            <Text style={styles.descriptionLabel}>{match[1]}</Text>
+                            {match[2] ? ` ${match[2]}` : ''}
+                        </Text>
+                    );
+                }
+                return <Text key={i} style={styles.descriptionLine}>{line}</Text>;
+            })}
+        </View>
+    );
 }
 
 export default function OutageDetailScreen() {
@@ -45,10 +104,16 @@ export default function OutageDetailScreen() {
     const [comments, setComments] = useState<Comment[]>([]);
     const [commentText, setCommentText] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [geocodedLocation, setGeocodedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
     useEffect(() => {
         apiClient.get<Outage>(`/outages/${id}`)
-            .then(r => setOutage(r.data))
+            .then(r => {
+                setOutage(r.data);
+                if (r.data.latitude == null || r.data.longitude == null) {
+                    geocodeZona(r.data).then(loc => { if (loc) setGeocodedLocation(loc); });
+                }
+            })
             .catch(() => setError('No se pudo cargar la información del corte.'))
             .finally(() => setLoading(false));
 
@@ -92,6 +157,9 @@ export default function OutageDetailScreen() {
     }
 
     const meta = statusMeta(outage.status, outage.source);
+    const effectiveLocation = outage.latitude != null && outage.longitude != null
+        ? { latitude: outage.latitude, longitude: outage.longitude }
+        : geocodedLocation;
 
     return (
         <KeyboardAvoidingView
@@ -102,6 +170,7 @@ export default function OutageDetailScreen() {
             <Stack.Screen
                 options={{
                     title: 'Detalle del corte',
+                    headerBackTitle: 'Mapa',
                     headerStyle: { backgroundColor: DS.bg },
                     headerTintColor: DS.text,
                     headerShadowVisible: false,
@@ -123,7 +192,7 @@ export default function OutageDetailScreen() {
                     </View>
                 </View>
 
-                <MiniMap color={meta.color} />
+                <MiniMap location={effectiveLocation} color={meta.color} />
 
                 <View style={styles.cards}>
                     {(outage.scheduled_start || outage.scheduled_end) && (
@@ -137,7 +206,7 @@ export default function OutageDetailScreen() {
                     <SectionCard>
                         <InfoTitle icon={<MapPin size={18} color={DS.amber} />} title="Zona afectada" />
                         <Text style={styles.cardPrimary}>{outage.barrio || 'Zona no especificada'}</Text>
-                        {outage.description ? <Text style={styles.cardBody}>{outage.description}</Text> : null}
+                        {outage.description ? <FormattedDescription text={outage.description} /> : null}
                     </SectionCard>
 
                     <SectionCard>
@@ -220,20 +289,50 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     );
 }
 
-function MiniMap({ color }: { color: string }) {
+function MiniMap({ location, color }: { location: { latitude: number; longitude: number } | null; color: string }) {
+    const hasLocation = location != null;
+    const router = useRouter();
+    const region = hasLocation
+        ? { latitude: location.latitude, longitude: location.longitude, latitudeDelta: 0.015, longitudeDelta: 0.015 }
+        : { latitude: -25.2867, longitude: -57.647, latitudeDelta: 4, longitudeDelta: 4 };
+
+    const openInMaps = () => {
+        if (!hasLocation) return;
+        router.push({
+            pathname: '/(tabs)/',
+            params: { focusLat: location.latitude.toString(), focusLon: location.longitude.toString() },
+        });
+    };
+
     return (
-        <View style={styles.miniMap}>
-            <View style={[styles.mapRoad, { top: 44 }]} />
-            <View style={[styles.mapRoad, { top: 96 }]} />
-            <View style={[styles.mapRoadVertical, { left: '28%' }]} />
-            <View style={[styles.mapRoadVertical, { left: '58%' }]} />
-            <View style={[styles.mapMarkerGlow, { backgroundColor: `${color}24` }]}>
-                <View style={[styles.mapMarker, { backgroundColor: color }]} />
-            </View>
+        <TouchableOpacity
+            style={styles.miniMap}
+            activeOpacity={0.9}
+            onPress={openInMaps}
+            disabled={!hasLocation}
+        >
+            <MapView
+                style={StyleSheet.absoluteFillObject}
+                region={region}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                pitchEnabled={false}
+                rotateEnabled={false}
+                pointerEvents="none"
+            >
+                {hasLocation && (
+                    <Marker
+                        coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+                        pinColor={color}
+                    />
+                )}
+            </MapView>
             <View style={styles.openMapBadge}>
-                <Text style={styles.openMapText}>Abrir en Mapa</Text>
+                <Text style={styles.openMapText}>
+                    {hasLocation ? 'Abrir en Mapa' : 'Ubicación no disponible'}
+                </Text>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }
 
@@ -287,37 +386,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         backgroundColor: '#0D1626',
     },
-    mapRoad: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        height: 6,
-        backgroundColor: '#1A2840',
-    },
-    mapRoadVertical: {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        width: 6,
-        backgroundColor: '#1A2840',
-    },
-    mapMarkerGlow: {
-        position: 'absolute',
-        left: '50%',
-        top: '50%',
-        width: 42,
-        height: 42,
-        marginLeft: -21,
-        marginTop: -21,
-        borderRadius: 21,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    mapMarker: {
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-    },
     openMapBadge: {
         position: 'absolute',
         right: 8,
@@ -330,6 +398,19 @@ const styles = StyleSheet.create({
     openMapText: {
         color: DS.text,
         fontSize: 11,
+    },
+    descriptionBlock: {
+        marginTop: 6,
+        gap: 5,
+    },
+    descriptionLine: {
+        color: DS.textMid,
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    descriptionLabel: {
+        color: DS.text,
+        fontWeight: '700',
     },
     cards: {
         padding: 16,

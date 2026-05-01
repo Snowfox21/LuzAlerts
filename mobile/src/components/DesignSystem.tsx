@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, CalendarClock, CheckCircle2, UsersRound } from 'lucide-react-native';
 import { OutageSource, OutageStatus } from '../api/types';
 
@@ -81,8 +82,9 @@ export function ScreenHeader({
     subtitle?: string;
     right?: React.ReactNode;
 }) {
+    const { top } = useSafeAreaInsets();
     return (
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: top + 10 }]}>
             <View style={styles.headerText}>
                 <Text style={styles.headerTitle}>{title}</Text>
                 {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
@@ -166,7 +168,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingTop: 10,
         paddingBottom: 14,
         backgroundColor: DS.bg,
     },
