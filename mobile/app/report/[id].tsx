@@ -82,6 +82,7 @@ export default function ReportDetailScreen() {
             <Stack.Screen
                 options={{
                     title: 'Reporte de usuario',
+                    headerBackTitle: 'Mapa',
                     headerStyle: { backgroundColor: DS.bg },
                     headerTintColor: DS.text,
                     headerShadowVisible: false,

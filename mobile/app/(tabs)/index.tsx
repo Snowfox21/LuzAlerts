@@ -18,7 +18,7 @@ const ASUNCION: Region = {
 };
 
 export default function MapScreen() {
-    const insets = useSafeAreaInsets();
+    const { top } = useSafeAreaInsets();
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
@@ -165,7 +165,7 @@ export default function MapScreen() {
                 })}
             </MapView>
 
-            <View style={[styles.topBar, { height: insets.top + 60, paddingTop: insets.top }]}>
+            <View style={[styles.topBar, { paddingTop: top + 4 }]}>
                 <View style={styles.brand}>
                     <Zap size={22} color={DS.amber} fill={DS.amber} />
                     <Text style={styles.brandText}>LuzAlerts</Text>
@@ -227,8 +227,7 @@ const styles = StyleSheet.create({
         top: 0,
         left: 0,
         right: 0,
-        height: 68,
-        paddingTop: 8,
+        paddingBottom: 10,
         paddingHorizontal: 8,
         backgroundColor: DS.bg,
         flexDirection: 'row',

@@ -82,10 +82,9 @@ export function ScreenHeader({
     subtitle?: string;
     right?: React.ReactNode;
 }) {
-    const insets = useSafeAreaInsets();
-
+    const { top } = useSafeAreaInsets();
     return (
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.header, { paddingTop: top + 10 }]}>
             <View style={styles.headerText}>
                 <Text style={styles.headerTitle}>{title}</Text>
                 {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
@@ -169,7 +168,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingTop: 10,
         paddingBottom: 14,
         backgroundColor: DS.bg,
     },

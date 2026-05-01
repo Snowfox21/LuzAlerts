@@ -216,6 +216,7 @@ export default function ReportsScreen() {
             </View>
 
             <ScrollView
+                style={styles.scroll}
                 contentContainerStyle={styles.list}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReports(); }} tintColor={DS.amber} />}
             >
@@ -234,10 +235,12 @@ export default function ReportsScreen() {
                 )}
             </ScrollView>
 
-            <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleOpenModal}>
+            <View style={styles.fabRow}>
+                <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={handleOpenModal}>
                 <AlertTriangle size={20} color={DS.ink} strokeWidth={2.5} />
                 <Text style={styles.fabText}>Reportar corte</Text>
-            </TouchableOpacity>
+                </TouchableOpacity>
+            </View>
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
@@ -474,9 +477,13 @@ const styles = StyleSheet.create({
         lineHeight: 19,
         flex: 1,
     },
+    scroll: {
+        flex: 1,
+    },
     list: {
         paddingHorizontal: 16,
-        paddingBottom: 112,
+        paddingTop: 4,
+        paddingBottom: 16,
         gap: 10,
     },
     loader: {
@@ -487,6 +494,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         paddingTop: 24,
         fontSize: 14,
+    },
+    fabRow: {
+        alignItems: 'flex-end',
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 16,
     },
     reportCard: {
         padding: 14,
@@ -558,9 +571,6 @@ const styles = StyleSheet.create({
         borderRadius: 2,
     },
     fab: {
-        position: 'absolute',
-        right: 16,
-        bottom: 88,
         height: 56,
         borderRadius: 28,
         paddingHorizontal: 20,
