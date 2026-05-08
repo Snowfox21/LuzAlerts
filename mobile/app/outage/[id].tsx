@@ -49,19 +49,47 @@ function formatDate(value?: string) {
 }
 
 async function geocodeZona(outage: Outage): Promise<{ latitude: number; longitude: number } | null> {
+    const seen = new Set<string>();
     const queries: string[] = [];
+
+    const add = (q: string) => {
+        q = q.trim().replace(/[.,;:]+$/, '');
+        if (q.length >= 3 && q.length <= 80 && !seen.has(q.toLowerCase())) {
+            seen.add(q.toLowerCase());
+            queries.push(q);
+        }
+    };
+
     if (outage.description) {
-        const m = outage.description.match(/ZONA\s*\d+\s*[:\-]\s*(.+?)(?:\r?\n|HORARIO|ACTIVIDAD|UNIDAD|$)/is);
-        if (m) {
+        // Extract each ZONA line
+        const zonaLines = [...outage.description.matchAll(/ZONA\s*\d+\s*[:\-]\s*(.+?)(?:\r?\n|HORARIO|ACTIVIDAD|UNIDAD|RECOMENDACI|$)/gis)];
+        for (const m of zonaLines) {
             const addr = m[1].trim().replace(/\.$/, '');
-            const segs = addr.split(/\s*[-–—]\s*/).filter(Boolean);
-            if (segs.length >= 2) queries.push(segs[segs.length - 1].trim());
-            queries.push(addr);
+
+            // 1. "Ciudad de Yaguarón" → "Yaguarón"
+            const ciudadM = addr.match(/Ciudad\s+de\s+([^-–,.]+)/i);
+            if (ciudadM) add(ciudadM[1].trim());
+
+            // 2. "Barrio San Francisco" + optional city after dash
+            const barrioM = addr.match(/Barrio\s+([^-–,.]+)(?:[-–,]\s*([^-–,.]+))?/i);
+            if (barrioM) {
+                if (barrioM[2]) add(`${barrioM[1].trim()}, ${barrioM[2].trim()}`);
+                add(barrioM[1].trim());
+            }
+
+            // 3. Tail after last dash/period → often city
+            const tail = addr.split(/\s*[-–—]\s*/).pop()?.trim() ?? '';
+            if (tail && tail !== addr) add(tail);
+
+            // 4. Full address as last resort
+            if (addr.length <= 80) add(addr);
         }
     }
-    if (outage.barrio && !/^ZONA/i.test(outage.barrio)) {
-        queries.push(outage.barrio);
+
+    if (outage.barrio && !/^ZONA/i.test(outage.barrio) && outage.barrio !== 'Zona no especificada') {
+        add(outage.barrio);
     }
+
     for (const q of queries) {
         try {
             const res = await axios.get('https://nominatim.openstreetmap.org/search', {
@@ -300,7 +328,7 @@ function MiniMap({ location, color }: { location: { latitude: number; longitude:
 
     const openInMaps = () => {
         if (!hasLocation) return;
-        router.push({
+        router.navigate({
             pathname: '/(tabs)/',
             params: { focusLat: location.latitude.toString(), focusLon: location.longitude.toString() },
         });

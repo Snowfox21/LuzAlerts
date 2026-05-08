@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, LocateFixed, Settings, Zap } from 'lucide-react-native';
@@ -37,7 +37,7 @@ export default function MapScreen() {
                 const outagesRes = await apiClient.get<Outage[]>('/outages/');
                 fetchedOutages = (outagesRes.data || []).filter(o => o.latitude && o.longitude);
             } catch (err) {
-                console.error('Error fetching official outages:', err);
+                console.warn('Error fetching official outages:', err);
             }
 
             try {
@@ -55,7 +55,7 @@ export default function MapScreen() {
                         longitude: r.longitude,
                     }));
             } catch (err) {
-                console.error('Error fetching user reports:', err);
+                console.warn('Error fetching user reports:', err);
             }
 
             setOutages([...fetchedOutages, ...mappedReports]);
@@ -96,18 +96,22 @@ export default function MapScreen() {
         };
     }, []);
 
-    useEffect(() => {
-        if (!focusLat || !focusLon) return;
-        const lat = parseFloat(focusLat);
-        const lon = parseFloat(focusLon);
-        fetchOutages();
-        mapRef.current?.animateToRegion({
-            latitude: lat,
-            longitude: lon,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-        }, 800);
-    }, [focusLat, focusLon]);
+    useFocusEffect(
+        useCallback(() => {
+            if (!focusLat || !focusLon) return;
+            const lat = parseFloat(focusLat as string);
+            const lon = parseFloat(focusLon as string);
+            const t = setTimeout(() => {
+                mapRef.current?.animateToRegion({
+                    latitude: lat,
+                    longitude: lon,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                }, 600);
+            }, 350);
+            return () => clearTimeout(t);
+        }, [focusLat, focusLon])
+    );
 
     const centerOnUser = async () => {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -145,6 +149,7 @@ export default function MapScreen() {
             >
                 {outages.map(outage => {
                     const meta = statusMeta(outage.status, outage.source);
+                    const selected = selectedOutage?.id === outage.id;
                     return (
                         <Marker
                             key={outage.id}
@@ -154,11 +159,10 @@ export default function MapScreen() {
                                 setSelectedOutage(outage);
                             }}
                         >
-                            <View style={[styles.markerPulse, selectedOutage?.id === outage.id && { backgroundColor: `${meta.color}30` }]}>
+                            <View style={[styles.markerWrap, selected && { transform: [{ scale: 1.2 }] }]}>
                                 <View style={[styles.marker, { backgroundColor: meta.color }]}>
-                                    <AlertTriangle size={15} color={DS.ink} strokeWidth={3} />
+                                    <AlertTriangle size={14} color={DS.ink} strokeWidth={3} />
                                 </View>
-                                <View style={[styles.markerTail, { borderTopColor: meta.color }]} />
                             </View>
                         </Marker>
                     );
@@ -245,29 +249,17 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '800',
     },
-    markerPulse: {
-        width: 42,
-        height: 50,
+    markerWrap: {
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 21,
     },
     marker: {
-        width: 24,
-        height: 28,
-        borderRadius: 7,
+        width: 30,
+        height: 30,
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    markerTail: {
-        width: 0,
-        height: 0,
-        borderLeftWidth: 7,
-        borderRightWidth: 7,
-        borderTopWidth: 10,
-        borderLeftColor: 'transparent',
-        borderRightColor: 'transparent',
-        marginTop: -1,
+        elevation: 4,
     },
     fabs: {
         position: 'absolute',

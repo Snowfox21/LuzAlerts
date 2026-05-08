@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { LogBox, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,15 +8,23 @@ import { Colors } from '../src/theme/Theme';
 import { useDeviceSetup } from '../src/hooks/useDeviceSetup';
 import { ONBOARDING_KEY } from './onboarding';
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
+LogBox.ignoreLogs([
+    'expo-notifications: Android Push notifications',
+    '`expo-notifications` functionality is not fully supported',
+    'No "projectId" found',
+]);
+
+try {
+    Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+        }),
+    });
+} catch {}
 
 export default function RootLayout() {
     const colorScheme = useColorScheme() ?? 'dark';
@@ -35,14 +43,16 @@ export default function RootLayout() {
 
     // Navigate to map when user taps a push notification
     useEffect(() => {
-        responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-            const data = response.notification.request.content.data;
-            if (data?.lat && data?.lon) {
-                router.push(`/(tabs)?focusLat=${data.lat}&focusLon=${data.lon}`);
-            } else {
-                router.push('/(tabs)');
-            }
-        });
+        try {
+            responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+                const data = response.notification.request.content.data;
+                if (data?.lat && data?.lon) {
+                    router.push(`/(tabs)?focusLat=${data.lat}&focusLon=${data.lon}`);
+                } else {
+                    router.push('/(tabs)');
+                }
+            });
+        } catch {}
 
         return () => {
             responseListener.current?.remove();

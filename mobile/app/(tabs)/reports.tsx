@@ -105,8 +105,10 @@ export default function ReportsScreen() {
                 return;
             }
 
-            const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-                .catch(() => Location.getLastKnownPositionAsync());
+            const location = await Promise.race([
+                Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+                new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 7000)),
+            ]).catch(() => Location.getLastKnownPositionAsync());
             if (!location) {
                 Alert.alert('Ubicación no disponible', 'Asegurate de que el GPS esté encendido.');
                 return;

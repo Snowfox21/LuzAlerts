@@ -34,7 +34,7 @@ export default function ListScreen() {
                 const outagesRes = await apiClient.get<Outage[]>('/outages/');
                 fetchedOutages = outagesRes.data || [];
             } catch (err) {
-                console.error('Error fetching official outages:', err);
+                console.warn('Error fetching official outages:', err);
             }
 
             try {
@@ -50,7 +50,7 @@ export default function ListScreen() {
                     longitude: r.longitude,
                 }));
             } catch (err) {
-                console.error('Error fetching user reports:', err);
+                console.warn('Error fetching user reports:', err);
             }
 
             setOutages([...fetchedOutages, ...mappedReports]);
@@ -111,14 +111,15 @@ export default function ListScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
                     {FILTERS.map(item => {
                         const active = item.key === filter;
+                        const disabled = item.key === 'near';
                         return (
                             <TouchableOpacity
                                 key={item.key}
-                                activeOpacity={0.8}
-                                onPress={() => setFilter(item.key)}
-                                style={[styles.filterChip, active && styles.filterChipActive]}
+                                activeOpacity={disabled ? 1 : 0.8}
+                                onPress={disabled ? undefined : () => setFilter(item.key)}
+                                style={[styles.filterChip, active && styles.filterChipActive, disabled && styles.filterChipDisabled]}
                             >
-                                <Text style={[styles.filterText, active && styles.filterTextActive]}>{item.label}</Text>
+                                <Text style={[styles.filterText, active && styles.filterTextActive, disabled && styles.filterTextDisabled]}>{item.label}</Text>
                             </TouchableOpacity>
                         );
                     })}
@@ -165,6 +166,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    filterChipDisabled: {
+        opacity: 0.35,
+    },
+    filterTextDisabled: {
+        color: DS.textMuted,
     },
     filterChipActive: {
         borderColor: DS.amber,

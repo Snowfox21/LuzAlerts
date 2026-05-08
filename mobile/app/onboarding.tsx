@@ -71,18 +71,18 @@ export default function OnboardingScreen() {
     };
 
     return (
-        <View
-            style={[styles.container, { paddingTop: top + 16, paddingBottom: bottom + 16 }]}
-            onTouchStart={e => { touchStartX.current = e.nativeEvent.pageX; }}
-            onTouchEnd={e => handleSwipe(e.nativeEvent.pageX)}
-        >
+        <View style={[styles.container, { paddingTop: top + 16, paddingBottom: bottom + 16 }]}>
             <View style={styles.dots}>
                 {SLIDES.map((_, i) => (
                     <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
                 ))}
             </View>
 
-            <View style={styles.slide}>
+            <View
+                style={styles.slide}
+                onTouchStart={e => { touchStartX.current = e.nativeEvent.pageX; }}
+                onTouchEnd={e => handleSwipe(e.nativeEvent.pageX)}
+            >
                 <View style={[styles.iconCircle, { backgroundColor: slide.iconBg }]}>
                     <slide.Icon size={50} color={slide.iconColor} strokeWidth={1.7} />
                 </View>
