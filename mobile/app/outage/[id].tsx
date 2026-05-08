@@ -20,7 +20,7 @@ import apiClient from '../../src/api/client';
 import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
-import { formatDateTime24 } from '../../src/utils/date';
+import { setMapFocus } from '../../src/mapFocus';
 
 interface Comment {
     id: number;
@@ -228,8 +228,8 @@ export default function OutageDetailScreen() {
                     {(outage.scheduled_start || outage.scheduled_end) && (
                         <SectionCard>
                             <InfoTitle icon={<Clock3 size={18} color={DS.amber} />} title="Horario" />
-                            <InfoRow label="Inicio" value={formatDateTime24(outage.scheduled_start)} />
-                            <InfoRow label="Fin estimado" value={formatDateTime24(outage.scheduled_end)} />
+                            <InfoRow label="Inicio" value={formatDate(outage.scheduled_start)} />
+                            <InfoRow label="Fin estimado" value={formatDate(outage.scheduled_end)} />
                         </SectionCard>
                     )}
 
@@ -328,10 +328,8 @@ function MiniMap({ location, color }: { location: { latitude: number; longitude:
 
     const openInMaps = () => {
         if (!hasLocation) return;
-        router.navigate({
-            pathname: '/(tabs)/',
-            params: { focusLat: location.latitude.toString(), focusLon: location.longitude.toString() },
-        });
+        setMapFocus(location.latitude, location.longitude);
+        router.navigate('/(tabs)/');
     };
 
     return (

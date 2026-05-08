@@ -55,7 +55,7 @@ export default function ListScreen() {
 
             setOutages([...fetchedOutages, ...mappedReports]);
         } catch (error) {
-            console.error('Error fetching outages:', error);
+            console.warn('Error fetching outages:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);

@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, LocateFixed, Settings, Zap } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
 import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
+import { registerMapFocusCallback, unregisterMapFocusCallback } from '../../src/mapFocus';
 
 const ASUNCION: Region = {
     latitude: -25.2637,
@@ -25,7 +26,6 @@ export default function MapScreen() {
     const [initialRegion, setInitialRegion] = useState<Region>(ASUNCION);
     const router = useRouter();
     const mapRef = useRef<MapView>(null);
-    const { focusLat, focusLon } = useLocalSearchParams<{ focusLat?: string; focusLon?: string }>();
 
     const fetchOutages = async () => {
         setLoading(true);
@@ -96,22 +96,17 @@ export default function MapScreen() {
         };
     }, []);
 
-    useFocusEffect(
-        useCallback(() => {
-            if (!focusLat || !focusLon) return;
-            const lat = parseFloat(focusLat as string);
-            const lon = parseFloat(focusLon as string);
-            const t = setTimeout(() => {
-                mapRef.current?.animateToRegion({
-                    latitude: lat,
-                    longitude: lon,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                }, 600);
-            }, 350);
-            return () => clearTimeout(t);
-        }, [focusLat, focusLon])
-    );
+    useEffect(() => {
+        registerMapFocusCallback((latitude, longitude) => {
+            setTimeout(() => {
+                mapRef.current?.animateToRegion(
+                    { latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+                    600,
+                );
+            }, 800);
+        });
+        return () => unregisterMapFocusCallback();
+    }, []);
 
     const centerOnUser = async () => {
         const { status } = await Location.requestForegroundPermissionsAsync();
