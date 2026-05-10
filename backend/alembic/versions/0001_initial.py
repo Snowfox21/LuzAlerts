@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from geoalchemy2 import Geometry
 
 
@@ -37,7 +38,7 @@ def upgrade() -> None:
         "users",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("device_id", sa.String(length=128), nullable=False),
-        sa.Column("role", sa.Enum(name="userrole", create_type=False), nullable=False, server_default="user"),
+        sa.Column("role", PgEnum("admin", "user", name="userrole", create_type=False), nullable=False, server_default="user"),
         sa.Column("nis_number", sa.String(length=64), nullable=True),
         sa.Column("feeder_number", sa.String(length=64), nullable=True),
         sa.Column("fcm_token", sa.String(length=512), nullable=True),
@@ -50,8 +51,8 @@ def upgrade() -> None:
     op.create_table(
         "outages",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("source", sa.Enum(name="outagesource", create_type=False), nullable=False),
-        sa.Column("status", sa.Enum(name="outagestatus", create_type=False), nullable=False, server_default="active"),
+        sa.Column("source", PgEnum("ande_official", "crowdsource", "twitter", name="outagesource", create_type=False), nullable=False),
+        sa.Column("status", PgEnum("active", "resolved", "planned", name="outagestatus", create_type=False), nullable=False, server_default="active"),
         sa.Column("title", sa.String(length=256), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("barrio", sa.String(length=128), nullable=True),
