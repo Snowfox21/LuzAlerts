@@ -13,11 +13,24 @@ ANDE_URL = "https://www.ande.gov.py/noticias.php?tipo_nota=trabajo_programado"
 BASE_URL = "https://www.ande.gov.py/"
 
 
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "es-PY,es;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+}
+
+
 async def fetch_page(url: str) -> str:
     """Fetches a specific URL."""
     logger.info(f"Fetching {url}...")
-    async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
+    async with httpx.AsyncClient(timeout=30.0, verify=False, follow_redirects=False, headers=_HEADERS) as client:
         response = await client.get(url)
+        if response.status_code == 302 and "perfdrive.com" in response.headers.get("location", ""):
+            logger.warning(f"Bot protection triggered for {url}, retrying with delay...")
+            await asyncio.sleep(5)
+            response = await client.get(url)
         response.raise_for_status()
         return response.text
 
@@ -25,7 +38,7 @@ async def fetch_page(url: str) -> str:
 async def fetch_bytes(url: str) -> bytes:
     """Fetches raw bytes for a URL (used for PDF downloads)."""
     logger.info(f"Fetching binary {url}...")
-    async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
+    async with httpx.AsyncClient(timeout=60.0, verify=False, headers=_HEADERS) as client:
         response = await client.get(url)
         response.raise_for_status()
         return response.content
