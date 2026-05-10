@@ -66,7 +66,7 @@ npx expo start
 
 Scan the QR code with **Expo Go**, or press `i` / `a` for simulators.
 
-> The app always points to `https://luzalerts.lat`. Caddy routes `/outages*`, `/reports*`, `/users*`, `/subscriptions*` to the FastAPI backend and serves the static landing for everything else.
+> The app points to `https://luzalerts.lat` in production.
 
 ---
 
@@ -102,7 +102,7 @@ Expo Push Service → FCM / APNs → user's phone
 │   ├── app/
 │   │   ├── models.py           # Users, Outages, Reports, Subscriptions, Comments
 │   │   ├── routers/            # REST endpoints
-│   │   ├── security.py         # X-Admin-Key dependency
+│   │   ├── security.py         # Admin authentication
 │   │   ├── crowdsource.py      # Auto-confirmation logic
 │   │   ├── geocoding.py        # Nominatim integration
 │   │   └── notifications.py    # Expo push dispatch
@@ -154,8 +154,6 @@ Full interactive docs available at `http://localhost:8000/docs` when running loc
 | `GET` | `/reports/` | Active reports (optional radius filter) |
 | `POST` | `/users/` | Register device (push token + location) |
 | `POST` | `/subscriptions/` | Subscribe to outages near a custom location |
-| `GET` | `/users/` | **Admin** — list all users (`X-Admin-Key` required) |
-| `DELETE` | `/users/{device_id}` | **Admin** — delete a user (`X-Admin-Key` required) |
 
 Database schema is managed by **Alembic** — run `alembic upgrade head` (or just `docker-compose up`, the entrypoint does it). To smoke-test migrations on a temp DB: `./backend/scripts/migration_smoke.sh`.
 
@@ -168,7 +166,7 @@ Database schema is managed by **Alembic** — run `alembic upgrade head` (or jus
 - [x] Push notifications — geo-targeted, 5 km radius, plus a follow-up when power is restored
 - [x] Per-outage comments
 - [x] Onboarding flow (4 slides: welcome, map, marker legend, notifications) + dark mode
-- [x] Alembic migrations + admin endpoints behind `X-Admin-Key`
+- [x] Alembic migrations + protected admin endpoints
 - [x] Tests: parser, comments, REST endpoints, migration smoke
 - [x] Landing page live at [luzalerts.lat](https://luzalerts.lat) — privacy policy, terms, 404, favicon
 - [ ] **Google Play release (Android)** — store listing, screenshots
@@ -191,4 +189,4 @@ Pull requests are welcome. For major changes, open an issue first to discuss wha
 
 ## License
 
-Private repository — all rights reserved.
+© 2026 LuzAlerts. All rights reserved.

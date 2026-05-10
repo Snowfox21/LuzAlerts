@@ -66,7 +66,7 @@ npx expo start
 
 Escaneá el código QR con **Expo Go**, o presioná `i` / `a` para los simuladores.
 
-> La app apunta siempre a `https://luzalerts.lat`. Caddy enruta `/outages*`, `/reports*`, `/users*`, `/subscriptions*` al backend FastAPI y sirve el sitio estático para todo lo demás.
+> La app apunta a `https://luzalerts.lat` en producción.
 
 ---
 
@@ -102,7 +102,7 @@ Expo Push Service → FCM / APNs → teléfono del usuario
 │   ├── app/
 │   │   ├── models.py           # Usuarios, Cortes, Reportes, Suscripciones, Comentarios
 │   │   ├── routers/            # Endpoints REST
-│   │   ├── security.py         # Dependencia X-Admin-Key
+│   │   ├── security.py         # Autenticación de administrador
 │   │   ├── crowdsource.py      # Lógica de auto-confirmación
 │   │   ├── geocoding.py        # Integración con Nominatim
 │   │   └── notifications.py    # Envío de push vía Expo
@@ -154,8 +154,6 @@ Documentación interactiva disponible en `http://localhost:8000/docs` cuando cor
 | `GET` | `/reports/` | Reportes activos (filtro de radio opcional) |
 | `POST` | `/users/` | Registrar dispositivo (token push + ubicación) |
 | `POST` | `/subscriptions/` | Suscribirse a cortes cerca de una ubicación personalizada |
-| `GET` | `/users/` | **Admin** — listar todos los usuarios (requiere `X-Admin-Key`) |
-| `DELETE` | `/users/{device_id}` | **Admin** — eliminar un usuario (requiere `X-Admin-Key`) |
 
 El esquema de la base de datos lo gestiona **Alembic** — corré `alembic upgrade head` (o simplemente `docker-compose up`, el entrypoint lo hace solo). Para probar las migraciones en una BD temporal: `./backend/scripts/migration_smoke.sh`.
 
@@ -168,7 +166,7 @@ El esquema de la base de datos lo gestiona **Alembic** — corré `alembic upgra
 - [x] Notificaciones push — geo-dirigidas (radio 5 km), con aviso de seguimiento cuando vuelve la luz
 - [x] Comentarios por corte
 - [x] Onboarding (4 slides: bienvenida, mapa, leyenda de marcadores, notificaciones) + modo oscuro
-- [x] Migraciones Alembic + endpoints admin protegidos por `X-Admin-Key`
+- [x] Migraciones Alembic + endpoints de administración protegidos
 - [x] Tests: parser, comentarios, endpoints REST, smoke de migraciones
 - [x] Landing page en [luzalerts.lat](https://luzalerts.lat) — política de privacidad, términos, 404, favicon
 - [ ] **Publicación en Google Play (Android)** — ficha de app, capturas de pantalla
@@ -191,4 +189,4 @@ Los pull requests son bienvenidos. Para cambios grandes, abrí un issue primero 
 
 ## Licencia
 
-Repositorio privado — todos los derechos reservados.
+© 2026 LuzAlerts. Todos los derechos reservados.
