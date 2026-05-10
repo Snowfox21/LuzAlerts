@@ -14,13 +14,10 @@ function formatTime(value?: string) {
     if (!value) return 'Sin horario';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString('es-PY', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    });
+    const day = date.toLocaleString('es-PY', { day: '2-digit' });
+    const month = date.toLocaleString('es-PY', { month: 'long' });
+    const time = date.toLocaleString('es-PY', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${day} ${month}, ${time}`;
 }
 
 function relativeTime(value?: string) {
