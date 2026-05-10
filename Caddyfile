@@ -16,7 +16,8 @@ luzalerts.lat {
     }
 
     # Root path → index.html
-    handle =/ {
+    @root path =/
+    handle @root {
         root * /srv/web
         file_server {
             index index.html
