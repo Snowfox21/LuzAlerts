@@ -18,32 +18,26 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-outage_source = sa.Enum("ande_official", "crowdsource", "twitter", name="outagesource", create_type=False)
-outage_status = sa.Enum("active", "resolved", "planned", name="outagestatus", create_type=False)
-user_role = sa.Enum("admin", "user", name="userrole", create_type=False)
-
-
-def _create_enum_if_not_exists(type_name: str, values: str) -> None:
-    op.execute(f"""
-        DO $$ BEGIN
-            CREATE TYPE {type_name} AS ENUM ({values});
-        EXCEPTION WHEN duplicate_object THEN null;
-        END $$
-    """)
-
-
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
-
-    _create_enum_if_not_exists("outagesource", "'ande_official', 'crowdsource', 'twitter'")
-    _create_enum_if_not_exists("outagestatus", "'active', 'resolved', 'planned'")
-    _create_enum_if_not_exists("userrole", "'admin', 'user'")
+    op.execute("""
+        DO $$ BEGIN CREATE TYPE outagesource AS ENUM ('ande_official', 'crowdsource', 'twitter');
+        EXCEPTION WHEN duplicate_object THEN null; END $$
+    """)
+    op.execute("""
+        DO $$ BEGIN CREATE TYPE outagestatus AS ENUM ('active', 'resolved', 'planned');
+        EXCEPTION WHEN duplicate_object THEN null; END $$
+    """)
+    op.execute("""
+        DO $$ BEGIN CREATE TYPE userrole AS ENUM ('admin', 'user');
+        EXCEPTION WHEN duplicate_object THEN null; END $$
+    """)
 
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("device_id", sa.String(length=128), nullable=False),
-        sa.Column("role", user_role, nullable=False, server_default="user"),
+        sa.Column("role", sa.Enum(name="userrole", create_type=False), nullable=False, server_default="user"),
         sa.Column("nis_number", sa.String(length=64), nullable=True),
         sa.Column("feeder_number", sa.String(length=64), nullable=True),
         sa.Column("fcm_token", sa.String(length=512), nullable=True),
@@ -56,8 +50,8 @@ def upgrade() -> None:
     op.create_table(
         "outages",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("source", outage_source, nullable=False),
-        sa.Column("status", outage_status, nullable=False, server_default="active"),
+        sa.Column("source", sa.Enum(name="outagesource", create_type=False), nullable=False),
+        sa.Column("status", sa.Enum(name="outagestatus", create_type=False), nullable=False, server_default="active"),
         sa.Column("title", sa.String(length=256), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("barrio", sa.String(length=128), nullable=True),
@@ -125,7 +119,6 @@ def downgrade() -> None:
     op.drop_index("ix_users_device_id", table_name="users")
     op.drop_table("users")
 
-    bind = op.get_bind()
-    user_role.drop(bind, checkfirst=True)
-    outage_status.drop(bind, checkfirst=True)
-    outage_source.drop(bind, checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS userrole")
+    op.execute("DROP TYPE IF EXISTS outagestatus")
+    op.execute("DROP TYPE IF EXISTS outagesource")
