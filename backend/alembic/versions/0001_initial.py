@@ -18,9 +18,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-outage_source = sa.Enum("ande_official", "crowdsource", "twitter", name="outagesource")
-outage_status = sa.Enum("active", "resolved", "planned", name="outagestatus")
-user_role = sa.Enum("admin", "user", name="userrole")
+outage_source = sa.Enum("ande_official", "crowdsource", "twitter", name="outagesource", create_type=False)
+outage_status = sa.Enum("active", "resolved", "planned", name="outagestatus", create_type=False)
+user_role = sa.Enum("admin", "user", name="userrole", create_type=False)
 
 
 def upgrade() -> None:
