@@ -44,12 +44,6 @@ export default function TabLayout() {
                 options={{
                     title: 'Reportes',
                     tabBarIcon: ({ color }) => <Bell size={23} color={color} />,
-                    tabBarBadge: 3,
-                    tabBarBadgeStyle: {
-                        backgroundColor: DS.red,
-                        color: '#fff',
-                        fontSize: 10,
-                    },
                 }}
             />
             <Tabs.Screen
