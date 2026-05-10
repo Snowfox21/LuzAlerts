@@ -36,7 +36,7 @@
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-    body { font-family: var(--font); color: var(--text-body); background: var(--light); -webkit-font-smoothing: antialiased; }
+    body { font-family: var(--font); color: var(--text-body); background: var(--light); overflow-x: hidden; -webkit-font-smoothing: antialiased; }
     a { color: inherit; text-decoration: none; }
     img, svg { display: block; }
     ul { list-style: none; }
@@ -140,10 +140,9 @@
 
     /* Hero placeholder */
     .hero-placeholder {
-      flex-shrink: 0;
-      width: 300px; height: 540px;
+      width: 100%; max-width: 300px; height: 480px;
       border-radius: 16px; background: transparent;
-      position: relative; overflow: hidden;
+      position: relative; overflow: hidden; align-self: center;
     }
     .hero-disclaimer {
       position: absolute; bottom: 28px; left: 0; right: 0;
@@ -155,7 +154,7 @@
       .hero-text { text-align: left; }
       .hero-sub { margin: 0 0 32px; }
       .hero-actions { align-items: flex-start; }
-      .hero-placeholder { width: 340px; height: 580px; }
+      .hero-placeholder { max-width: 340px; height: 580px; }
     }
 
     /* Screenshot placeholders */
@@ -568,8 +567,10 @@
     // Hero — map with bottom sheet open
     const heroMount = document.getElementById('hero-screen-mount');
     if (heroMount) {
+      const contW = heroMount.clientWidth || 300;
+      const contH = heroMount.clientHeight || 480;
       ReactDOM.createRoot(heroMount).render(
-        <ScaledScreen contW={340} contH={580}>
+        <ScaledScreen contW={contW} contH={contH}>
           <ScreenMap showSheet={true}/>
         </ScaledScreen>
       );
@@ -584,8 +585,10 @@
     carouselScreens.forEach(({ id, el }) => {
       const mount = document.getElementById(id);
       if (mount) {
+        const contW = mount.clientWidth || 220;
+        const contH = mount.clientHeight || 380;
         ReactDOM.createRoot(mount).render(
-          <ScaledScreen contW={240} contH={380}>
+          <ScaledScreen contW={contW} contH={contH}>
             {el}
           </ScaledScreen>
         );
