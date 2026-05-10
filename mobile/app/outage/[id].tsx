@@ -328,8 +328,7 @@ function MiniMap({ location, color }: { location: { latitude: number; longitude:
 
     const openInMaps = () => {
         if (!hasLocation) return;
-        setMapFocus(location.latitude, location.longitude);
-        router.navigate('/(tabs)/');
+        router.navigate(`/(tabs)/?focusLat=${location.latitude}&focusLon=${location.longitude}`);
     };
 
     return (

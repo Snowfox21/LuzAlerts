@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, LocateFixed, Settings, Zap } from 'lucide-react-native';
@@ -25,6 +25,7 @@ export default function MapScreen() {
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
     const [initialRegion, setInitialRegion] = useState<Region>(ASUNCION);
     const router = useRouter();
+    const { focusLat, focusLon } = useLocalSearchParams<{ focusLat?: string; focusLon?: string }>();
     const mapRef = useRef<MapView>(null);
 
     const fetchOutages = async () => {
@@ -107,6 +108,19 @@ export default function MapScreen() {
         });
         return () => unregisterMapFocusCallback();
     }, []);
+
+    useEffect(() => {
+        if (!focusLat || !focusLon) return;
+        const lat = parseFloat(focusLat);
+        const lon = parseFloat(focusLon);
+        if (isNaN(lat) || isNaN(lon)) return;
+        setTimeout(() => {
+            mapRef.current?.animateToRegion(
+                { latitude: lat, longitude: lon, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+                600,
+            );
+        }, 500);
+    }, [focusLat, focusLon]);
 
     const centerOnUser = async () => {
         const { status } = await Location.requestForegroundPermissionsAsync();
