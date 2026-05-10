@@ -188,6 +188,20 @@ export default function MapScreen() {
                 </IconButton>
             </View>
 
+            <View style={styles.legend}>
+                {[
+                    { color: DS.redLight, label: 'Activo' },
+                    { color: DS.amber, label: 'Programado' },
+                    { color: DS.greenLight, label: 'Resuelto' },
+                    { color: DS.violetLight, label: 'Vecinal' },
+                ].map(({ color, label }) => (
+                    <View key={label} style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: color }]} />
+                        <Text style={styles.legendText}>{label}</Text>
+                    </View>
+                ))}
+            </View>
+
             <View style={[styles.fabs, selectedOutage && styles.fabsRaised]}>
                 <IconButton style={styles.locateButton} onPress={centerOnUser}>
                     <LocateFixed size={21} color={DS.text} />
@@ -269,6 +283,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         elevation: 4,
+    },
+    legend: {
+        position: 'absolute',
+        left: 12,
+        bottom: 100,
+        backgroundColor: 'rgba(13,22,38,0.85)',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        gap: 5,
+    },
+    legendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    legendDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    legendText: {
+        color: DS.textMid,
+        fontSize: 11,
+        fontWeight: '600',
     },
     fabs: {
         position: 'absolute',
