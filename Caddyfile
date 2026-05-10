@@ -18,7 +18,7 @@ luzalerts.lat {
     # Landing page static files
     handle {
         root * /srv/web
-        try_files {path} {path}.html /404.html
+        try_files {path} {path}/index.html {path}.html /404.html
         file_server
     }
 }
