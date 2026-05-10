@@ -12,13 +12,14 @@ Paraguay has frequent unannounced power cuts. ANDE publishes planned outage noti
 
 | | |
 |---|---|
-| 🗺 **Live map** | Color-coded markers — planned (yellow), active (red), resolved (green) |
+| 🗺 **Live map** | Color-coded markers — planned (yellow), active (red), resolved (green), crowdsourced (purple) |
 | 📡 **Official data** | Scrapes ANDE's website every 60 minutes, geocodes zones automatically |
 | 👥 **Crowdsourcing** | Users report outages in one tap; 3+ reports in 500 m auto-confirms the area |
 | 🔔 **Push notifications** | Notified when a new outage appears within 5 km — and again when the lights come back |
 | 💬 **Neighbor comments** | Anonymous comments per outage — useful when the official notice is wrong |
-| 🚀 **Onboarding** | Three-slide intro + permission flow on first launch |
+| 🚀 **Onboarding** | Four-slide intro (welcome, map, legend, notifications) + permission flow on first launch |
 | 🌙 **Dark mode** | Default dark UI — useful when the lights are already out |
+| 🌐 **Landing page** | Static marketing site at [luzalerts.lat](https://luzalerts.lat) — privacy policy, terms of use, 404 |
 
 ---
 
@@ -32,7 +33,8 @@ Paraguay has frequent unannounced power cuts. ANDE publishes planned outage noti
 | Scraper | httpx, BeautifulSoup4, pdfplumber, APScheduler |
 | Geocoding | OpenStreetMap Nominatim |
 | Push | Expo Push Notifications → FCM (Android) |
-| Infra | Docker Compose |
+| Infra | Docker Compose, Caddy (reverse proxy + TLS) |
+| Landing | HTML/CSS/JS + React (CDN) — static, served by Caddy |
 
 ---
 
@@ -64,7 +66,7 @@ npx expo start
 
 Scan the QR code with **Expo Go**, or press `i` / `a` for simulators.
 
-> The app auto-detects the backend: `10.0.2.2:8000` on Android emulator, `localhost:8000` on iOS simulator, and the production URL when built via EAS.
+> The app always points to `https://luzalerts.lat`. Caddy routes `/outages*`, `/reports*`, `/users*`, `/subscriptions*` to the FastAPI backend and serves the static landing for everything else.
 
 ---
 
@@ -118,13 +120,22 @@ Expo Push Service → FCM / APNs → user's phone
 │   │   ├── index.tsx           # Map
 │   │   ├── list.tsx            # Outage list
 │   │   └── reports.tsx         # Report form
-│   ├── app/onboarding.tsx      # Three-slide intro + permission requests
+│   ├── app/onboarding.tsx      # Four-slide intro + permission requests
 │   └── src/
 │       ├── api/                # Axios client + types
 │       ├── hooks/              # useDeviceSetup (push + location)
 │       └── theme/              # Colors, spacing
 │
-└── docs/                       # Privacy policy, terms, design prompts
+├── web/                        # Static landing site (served by Caddy at luzalerts.lat)
+│   ├── index.html              # Main landing page
+│   ├── privacy.html            # Privacy policy
+│   ├── terms.html              # Terms of use
+│   ├── 404.html                # Custom 404
+│   ├── luzicons.jsx            # Shared icon components
+│   ├── luzscreens*.jsx         # App screen previews (rendered via React CDN)
+│   └── favicon.*               # Favicons (16, 32, 192, apple-touch)
+│
+└── docs/                       # Design prompts, internal docs
 ```
 
 ---
@@ -156,10 +167,11 @@ Database schema is managed by **Alembic** — run `alembic upgrade head` (or jus
 - [x] Crowdsourced reports with auto-confirmation
 - [x] Push notifications — geo-targeted, 5 km radius, plus a follow-up when power is restored
 - [x] Per-outage comments
-- [x] Onboarding flow + dark mode
+- [x] Onboarding flow (4 slides: welcome, map, marker legend, notifications) + dark mode
 - [x] Alembic migrations + admin endpoints behind `X-Admin-Key`
 - [x] Tests: parser, comments, REST endpoints, migration smoke
-- [ ] **Google Play release (Android)** — landing page, privacy policy, store listing
+- [x] Landing page live at [luzalerts.lat](https://luzalerts.lat) — privacy policy, terms, 404, favicon
+- [ ] **Google Play release (Android)** — store listing, screenshots
 - [ ] iOS / App Store release (post-MVP)
 - [ ] Emergency outage API (`consultas.ande.gov.py`)
 - [ ] NIS number → feeder mapping

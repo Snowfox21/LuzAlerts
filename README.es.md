@@ -12,13 +12,14 @@ Paraguay sufre cortes de luz frecuentes y muchas veces sin aviso. La ANDE public
 
 | | |
 |---|---|
-| 🗺 **Mapa en vivo** | Marcadores por color según estado: programado (amarillo), activo (rojo), resuelto (verde) |
+| 🗺 **Mapa en vivo** | Marcadores por color según estado: programado (amarillo), activo (rojo), resuelto (verde), vecinal (violeta) |
 | 📡 **Datos oficiales** | Scrapea el sitio de la ANDE cada 60 minutos y geocodifica las zonas automáticamente |
 | 👥 **Reportes colaborativos** | Los usuarios reportan cortes con un toque; 3 o más reportes en 500 m confirman la zona automáticamente |
 | 🔔 **Notificaciones push** | Aviso cuando aparece un corte nuevo a menos de 5 km — y otro cuando vuelve la luz |
 | 💬 **Comentarios entre vecinos** | Comentarios anónimos por cada corte — útiles cuando el aviso oficial no coincide con la realidad |
-| 🚀 **Onboarding** | Tres slides de introducción + solicitud de permisos al primer uso |
+| 🚀 **Onboarding** | Cuatro slides de introducción (bienvenida, mapa, leyenda de marcadores, notificaciones) + permisos al primer uso |
 | 🌙 **Modo oscuro** | Interfaz oscura por defecto — útil cuando ya no hay luz |
+| 🌐 **Landing page** | Sitio estático en [luzalerts.lat](https://luzalerts.lat) — política de privacidad, términos de uso, 404 |
 
 ---
 
@@ -32,7 +33,8 @@ Paraguay sufre cortes de luz frecuentes y muchas veces sin aviso. La ANDE public
 | Scraper | httpx, BeautifulSoup4, pdfplumber, APScheduler |
 | Geocodificación | OpenStreetMap Nominatim |
 | Push | Expo Push Notifications → FCM (Android) |
-| Infraestructura | Docker Compose |
+| Infraestructura | Docker Compose, Caddy (proxy inverso + TLS) |
+| Landing | HTML/CSS/JS + React (CDN) — estático, servido por Caddy |
 
 ---
 
@@ -64,7 +66,7 @@ npx expo start
 
 Escaneá el código QR con **Expo Go**, o presioná `i` / `a` para los simuladores.
 
-> La app detecta el backend automáticamente: `10.0.2.2:8000` en emulador Android, `localhost:8000` en simulador iOS, y la URL de producción cuando se compila vía EAS.
+> La app apunta siempre a `https://luzalerts.lat`. Caddy enruta `/outages*`, `/reports*`, `/users*`, `/subscriptions*` al backend FastAPI y sirve el sitio estático para todo lo demás.
 
 ---
 
@@ -118,13 +120,22 @@ Expo Push Service → FCM / APNs → teléfono del usuario
 │   │   ├── index.tsx           # Mapa
 │   │   ├── list.tsx            # Lista de cortes
 │   │   └── reports.tsx         # Formulario de reporte
-│   ├── app/onboarding.tsx      # Tres slides de intro + solicitud de permisos
+│   ├── app/onboarding.tsx      # Cuatro slides de intro + solicitud de permisos
 │   └── src/
 │       ├── api/                # Cliente Axios + tipos
 │       ├── hooks/              # useDeviceSetup (push + ubicación)
 │       └── theme/              # Colores, espaciado
 │
-└── docs/                       # Política de privacidad, términos, design prompts
+├── web/                        # Sitio estático (servido por Caddy en luzalerts.lat)
+│   ├── index.html              # Landing principal
+│   ├── privacy.html            # Política de privacidad
+│   ├── terms.html              # Términos de uso
+│   ├── 404.html                # Página 404 personalizada
+│   ├── luzicons.jsx            # Componentes de íconos compartidos
+│   ├── luzscreens*.jsx         # Previews de pantallas de la app (React vía CDN)
+│   └── favicon.*               # Favicons (16, 32, 192, apple-touch)
+│
+└── docs/                       # Design prompts, documentación interna
 ```
 
 ---
@@ -156,10 +167,11 @@ El esquema de la base de datos lo gestiona **Alembic** — corré `alembic upgra
 - [x] Reportes colaborativos con auto-confirmación
 - [x] Notificaciones push — geo-dirigidas (radio 5 km), con aviso de seguimiento cuando vuelve la luz
 - [x] Comentarios por corte
-- [x] Onboarding + modo oscuro
+- [x] Onboarding (4 slides: bienvenida, mapa, leyenda de marcadores, notificaciones) + modo oscuro
 - [x] Migraciones Alembic + endpoints admin protegidos por `X-Admin-Key`
 - [x] Tests: parser, comentarios, endpoints REST, smoke de migraciones
-- [ ] **Publicación en Google Play (Android)** — landing, política de privacidad, ficha de app
+- [x] Landing page en [luzalerts.lat](https://luzalerts.lat) — política de privacidad, términos, 404, favicon
+- [ ] **Publicación en Google Play (Android)** — ficha de app, capturas de pantalla
 - [ ] iOS / App Store (post-MVP)
 - [ ] API de cortes de emergencia (`consultas.ande.gov.py`)
 - [ ] Mapeo de número NIS → alimentador
