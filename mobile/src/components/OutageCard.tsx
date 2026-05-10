@@ -19,6 +19,7 @@ function formatTime(value?: string) {
         month: 'short',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: false,
     });
 }
 
@@ -129,7 +130,6 @@ const styles = StyleSheet.create({
     metaText: {
         color: DS.textMuted,
         fontSize: 12,
-        flexShrink: 1,
     },
     reportBadge: {
         flexDirection: 'row',
