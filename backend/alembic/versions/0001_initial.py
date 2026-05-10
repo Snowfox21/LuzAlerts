@@ -23,13 +23,21 @@ outage_status = sa.Enum("active", "resolved", "planned", name="outagestatus", cr
 user_role = sa.Enum("admin", "user", name="userrole", create_type=False)
 
 
+def _create_enum_if_not_exists(type_name: str, values: str) -> None:
+    op.execute(f"""
+        DO $$ BEGIN
+            CREATE TYPE {type_name} AS ENUM ({values});
+        EXCEPTION WHEN duplicate_object THEN null;
+        END $$
+    """)
+
+
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
 
-    bind = op.get_bind()
-    outage_source.create(bind, checkfirst=True)
-    outage_status.create(bind, checkfirst=True)
-    user_role.create(bind, checkfirst=True)
+    _create_enum_if_not_exists("outagesource", "'ande_official', 'crowdsource', 'twitter'")
+    _create_enum_if_not_exists("outagestatus", "'active', 'resolved', 'planned'")
+    _create_enum_if_not_exists("userrole", "'admin', 'user'")
 
     op.create_table(
         "users",
