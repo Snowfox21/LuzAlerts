@@ -1,7 +1,8 @@
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { LogBox, useColorScheme } from 'react-native';
+import { LogBox, Platform, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../src/theme/Theme';
@@ -33,6 +34,13 @@ export default function RootLayout() {
     const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
     useDeviceSetup();
+
+    useEffect(() => {
+        if (Platform.OS === 'android') {
+            NavigationBar.setVisibilityAsync('hidden');
+            NavigationBar.setBehaviorAsync('overlay-swipe');
+        }
+    }, []);
 
     useEffect(() => {
         AsyncStorage.getItem(ONBOARDING_KEY).then(done => {
