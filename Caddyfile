@@ -1,4 +1,24 @@
 luzalerts.lat {
-    reverse_proxy backend:8000
     encode gzip
+
+    # API routes → FastAPI backend
+    handle /outages* {
+        reverse_proxy backend:8000
+    }
+    handle /reports* {
+        reverse_proxy backend:8000
+    }
+    handle /users* {
+        reverse_proxy backend:8000
+    }
+    handle /subscriptions* {
+        reverse_proxy backend:8000
+    }
+
+    # Landing page static files
+    handle {
+        root * /srv/web
+        try_files {path} {path}.html /404.html
+        file_server
+    }
 }

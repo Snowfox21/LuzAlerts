@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LuzAlerts — Cortes de luz en Paraguay en tiempo real</title>
+  <meta name="description" content="App gratuita para Android que te avisa cuando hay un corte de luz cerca tuyo. Datos de la ANDE + reportes vecinales.">
+  <meta property="og:title" content="LuzAlerts — Cortes de luz en Paraguay">
+  <meta property="og:description" content="Sabé al instante cuándo y dónde se corta la luz en tu zona.">
+  <meta property="og:image" content="https://luzalerts.lat/og-image.png">
+  <meta property="og:url" content="https://luzalerts.lat">
+  <meta property="og:locale" content="es_PY">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --amber:       #FBBF24;
+      --amber-hover: #F59E0B;
+      --dark:        #0F172A;
+      --dark-2:      #1E293B;
+      --light:       #FFFFFF;
+      --surface:     #F8FAFC;
+      --text-body:   #1F2937;
+      --text-muted:  #64748B;
+      --text-faint:  #94A3B8;
+      --text-light:  #CBD5E1;
+      --border:      #E2E8F0;
+      --font:        'Inter', system-ui, -apple-system, sans-serif;
+      --radius:      8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font); color: var(--text-body); background: var(--light); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    img, svg { display: block; }
+    ul { list-style: none; }
+    :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      transition: background 0.3s, box-shadow 0.3s; padding: 0 24px;
+    }
+    .site-header.scrolled {
+      background: rgba(15,23,42,0.97); backdrop-filter: blur(12px);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .header-inner {
+      max-width: 1200px; margin: 0 auto; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; color: var(--light); letter-spacing: -0.3px; }
+    .logo-icon {
+      width: 28px; height: 28px; background: var(--amber); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .nav-links { display: none; gap: 32px; }
+    .nav-links a { color: var(--text-light); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--amber); }
+    .nav-cta {
+      display: none; align-items: center; gap: 8px; background: var(--amber);
+      color: #000; font-size: 13px; font-weight: 700; padding: 8px 16px;
+      border-radius: var(--radius); transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--amber-hover); }
+    .hamburger { display: flex; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
+    .hamburger span { display: block; width: 22px; height: 2px; background: var(--text-light); border-radius: 2px; transition: transform 0.3s, opacity 0.3s; }
+    .hamburger[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+    .hamburger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .mobile-menu {
+      display: none; position: fixed; top: 64px; left: 0; right: 0;
+      background: rgba(15,23,42,0.98); backdrop-filter: blur(16px);
+      z-index: 99; padding: 24px; flex-direction: column; gap: 4px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a { color: var(--text-light); font-size: 16px; font-weight: 500; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); transition: color 0.2s; }
+    .mobile-menu a:last-child { border-bottom: none; }
+    .mobile-menu a:hover { color: var(--amber); }
+    @media (min-width: 768px) {
+      .nav-links { display: flex; }
+      .nav-cta { display: flex; }
+      .hamburger { display: none; }
+    }
+
+    /* ── HERO ── */
+    .hero {
+      background-color: var(--dark);
+      background-image: linear-gradient(rgba(251,191,36,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(251,191,36,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      min-height: 100vh; display: flex; flex-direction: column; justify-content: center;
+      padding: 96px 24px 64px; position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; top: -20%; left: -10%; width: 60%; height: 80%;
+      background: radial-gradient(ellipse at center, rgba(251,191,36,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-inner {
+      max-width: 1200px; margin: 0 auto; width: 100%;
+      display: flex; flex-direction: column; gap: 48px; align-items: center;
+    }
+    .hero-text { text-align: center; flex: 1 1 0; min-width: 0; }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--amber); margin-bottom: 20px;
+      background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2);
+      padding: 4px 12px; border-radius: 100px;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 5vw, 56px); font-weight: 700; color: var(--light);
+      line-height: 1.1; letter-spacing: -1.5px; margin-bottom: 20px; text-wrap: balance;
+    }
+    .hero h1 em { font-style: normal; color: var(--amber); }
+    .hero-sub {
+      font-size: clamp(16px, 2vw, 20px); color: var(--text-faint); line-height: 1.6;
+      max-width: 520px; margin: 0 auto 32px; text-wrap: pretty;
+    }
+    .hero-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--amber); color: #000; font-weight: 700; font-size: 16px;
+      padding: 14px 28px; border-radius: var(--radius);
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(251,191,36,0.3);
+    }
+    .btn-primary:hover { background: var(--amber-hover); transform: translateY(-1px); box-shadow: 0 6px 32px rgba(251,191,36,0.4); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-hint { font-size: 13px; color: var(--text-muted); }
+    .btn-hint span { margin: 0 4px; opacity: 0.5; }
+    .playstore-icon { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Hero placeholder */
+    .hero-placeholder {
+      flex-shrink: 0;
+      width: 300px; height: 540px;
+      border-radius: 16px; background: transparent;
+      position: relative; overflow: hidden;
+    }
+    .hero-disclaimer {
+      position: absolute; bottom: 28px; left: 0; right: 0;
+      text-align: center; font-size: 12px; color: var(--text-muted); padding: 0 24px;
+    }
+    .hero-disclaimer span { margin: 0 6px; opacity: 0.4; }
+    @media (min-width: 1024px) {
+      .hero-inner { flex-direction: row; justify-content: space-between; align-items: center; gap: 64px; }
+      .hero-text { text-align: left; }
+      .hero-sub { margin: 0 0 32px; }
+      .hero-actions { align-items: flex-start; }
+      .hero-placeholder { width: 340px; height: 580px; }
+    }
+
+    /* Screenshot placeholders */
+    .placeholder-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+    .placeholder-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .placeholder-label span { color: #94A3B8; font-size: 11px; font-family: var(--font); text-align: center; line-height: 1.6; }
+
+    /* ── SECTIONS SHARED ── */
+    .section-title { text-align: center; font-size: clamp(28px, 3.5vw, 40px); font-weight: 700; color: var(--dark); letter-spacing: -0.8px; margin-bottom: 16px; text-wrap: balance; }
+    .section-sub { text-align: center; font-size: 17px; color: var(--text-muted); max-width: 560px; margin: 0 auto 64px; line-height: 1.6; }
+
+    /* ── CÓMO FUNCIONA ── */
+    .how-it-works { background: var(--light); padding: 96px 24px; }
+    .how-inner { max-width: 1100px; margin: 0 auto; }
+    .cards-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+    .feature-card {
+      border: 1px solid var(--border); border-radius: 12px; padding: 36px 32px;
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s; position: relative; overflow: hidden;
+    }
+    .feature-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--amber); transform: scaleX(0); transform-origin: left; transition: transform 0.3s;
+    }
+    .feature-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.08); border-color: rgba(251,191,36,0.3); transform: translateY(-2px); }
+    .feature-card:hover::before { transform: scaleX(1); }
+    .card-icon { width: 52px; height: 52px; background: rgba(251,191,36,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+    .card-icon svg { color: var(--amber); }
+    .card-title { font-size: 19px; font-weight: 700; color: var(--dark); margin-bottom: 10px; letter-spacing: -0.3px; }
+    .card-text { font-size: 15px; color: var(--text-muted); line-height: 1.65; }
+    @media (min-width: 768px) { .cards-grid { grid-template-columns: repeat(3, 1fr); } }
+
+    /* ── SCREENSHOTS ── */
+    .screenshots { background: var(--surface); padding: 96px 24px; }
+    .screenshots-inner { max-width: 1100px; margin: 0 auto; }
+    .screens-scroll {
+      display: flex; gap: 24px; overflow-x: auto;
+      scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+      padding-bottom: 16px; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .screens-scroll::-webkit-scrollbar { height: 4px; }
+    .screens-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .screen-item { flex: 0 0 220px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .ss-placeholder { width: 220px; height: 380px; border-radius: 12px; background: transparent; position: relative; overflow: hidden; }
+    .screen-label { font-size: 13px; font-weight: 600; color: var(--text-muted); text-align: center; letter-spacing: 0.02em; }
+    @media (min-width: 1024px) {
+      .screens-scroll { justify-content: center; overflow-x: visible; }
+      .screen-item { flex: 0 0 240px; }
+      .ss-placeholder { width: 240px; }
+    }
+
+    /* ── FAQ ── */
+    .faq { background: var(--light); padding: 96px 24px; }
+    .faq-inner { max-width: 720px; margin: 0 auto; }
+    .faq-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .faq-item { border-bottom: 1px solid var(--border); }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-question {
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      padding: 20px 24px; background: none; border: none; cursor: pointer;
+      font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--dark);
+      text-align: left; gap: 16px; transition: background 0.2s;
+    }
+    .faq-question:hover { background: var(--surface); }
+    .faq-chevron { width: 20px; height: 20px; flex-shrink: 0; color: var(--text-muted); transition: transform 0.3s; }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); }
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    .faq-item.open .faq-answer { max-height: 400px; }
+    .faq-answer-inner { padding: 0 24px 20px; font-size: 15px; color: var(--text-muted); line-height: 1.7; }
+
+    /* ── CTA FINAL ── */
+    .cta-final {
+      background: var(--dark);
+      background-image: linear-gradient(rgba(251,191,36,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(251,191,36,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      padding: 96px 24px; text-align: center; position: relative; overflow: hidden;
+    }
+    .cta-final-inner { max-width: 640px; margin: 0 auto; position: relative; }
+    .cta-final h2 { font-size: clamp(28px, 4vw, 42px); font-weight: 700; color: var(--light); letter-spacing: -1px; margin-bottom: 36px; line-height: 1.2; text-wrap: balance; }
+
+    /* ── FOOTER ── */
+    .site-footer { background: var(--dark); border-top: 1px solid rgba(255,255,255,0.06); padding: 64px 24px 32px; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 1fr; gap: 40px; margin-bottom: 48px; }
+    .footer-brand .logo { margin-bottom: 12px; }
+    .footer-tagline { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.5; }
+    .footer-disclaimer { font-size: 12px; color: var(--text-muted); opacity: 0.7; }
+    .footer-col h4 { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 16px; }
+    .footer-col ul { display: flex; flex-direction: column; gap: 10px; }
+    .footer-col a { font-size: 14px; color: var(--text-muted); transition: color 0.2s; }
+    .footer-col a:hover { color: var(--amber); }
+    .footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    @media (min-width: 768px) { .footer-grid { grid-template-columns: 2fr 1fr 1fr; } }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header" id="site-header" role="banner">
+    <div class="header-inner">
+      <a href="/" class="logo" aria-label="LuzAlerts — Ir al inicio">
+        <div class="logo-icon" aria-hidden="true">
+          <svg width="14" height="18" viewBox="0 0 14 18" fill="none">
+            <path d="M8 0L0 10h6L4 18l10-12H8L10 0z" fill="#0F172A"/>
+          </svg>
+        </div>
+        LuzAlerts
+      </a>
+      <nav class="nav-links" aria-label="Navegación principal">
+        <a href="#como-funciona">Cómo funciona</a>
+        <a href="#preguntas">Preguntas</a>
+        <a href="/privacy">Privacidad</a>
+      </nav>
+      <a href="#descargar" class="nav-cta" aria-label="Descargar en Google Play">
+        <svg class="playstore-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.18 23.76c.3.18.66.2.98.06l11.76-6.74-2.76-2.78-9.98 9.46zM.56 1.56C.21 1.9 0 2.44 0 3.14v17.72c0 .7.21 1.24.56 1.58l.08.08 9.92-9.92v-.24L.64 1.48l-.08.08zM20.56 10.24l-2.78-1.6-3.1 3.1 3.1 3.1 2.8-1.6c.8-.46.8-1.54-.02-2zM3.18.24l9.98 9.46 2.76-2.78L4.16.18C3.84.04 3.48.06 3.18.24z"/></svg>
+        Descargar
+      </a>
+      <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobile-menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="mobile-menu" id="mobile-menu" aria-label="Menú móvil">
+    <a href="#como-funciona">Cómo funciona</a>
+    <a href="#preguntas">Preguntas</a>
+    <a href="/privacy">Privacidad</a>
+    <a href="#descargar" style="color:var(--amber);font-weight:700;">Descargar en Google Play</a>
+  </nav>
+
+  <main>
+
+    <!-- HERO -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="hero-inner">
+
+        <div class="hero-text">
+          <div class="hero-eyebrow" aria-hidden="true">⚡ Para Android · Gratis</div>
+          <h1 id="hero-heading">Sabé cuándo y dónde<br>se corta la <em>luz.</em></h1>
+          <p class="hero-sub">LuzAlerts te avisa al instante cuando la ANDE programa un corte en tu zona, o cuando los vecinos reportan que se fue la luz cerca tuyo.</p>
+          <div class="hero-actions">
+            <a href="#descargar" class="btn-primary" id="descargar">
+              <svg class="playstore-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.18 23.76c.3.18.66.2.98.06l11.76-6.74-2.76-2.78-9.98 9.46zM.56 1.56C.21 1.9 0 2.44 0 3.14v17.72c0 .7.21 1.24.56 1.58l.08.08 9.92-9.92v-.24L.64 1.48l-.08.08zM20.56 10.24l-2.78-1.6-3.1 3.1 3.1 3.1 2.8-1.6c.8-.46.8-1.54-.02-2zM3.18.24l9.98 9.46 2.76-2.78L4.16.18C3.84.04 3.48.06 3.18.24z"/></svg>
+              Descargar en Google Play
+            </a>
+            <p class="btn-hint">Gratis <span>·</span> Sin anuncios <span>·</span> Próximamente en iOS</p>
+          </div>
+        </div>
+
+        <div class="hero-placeholder" role="img" aria-label="Captura de pantalla de la app" id="hero-screen-mount"></div>
+
+      </div>
+      <p class="hero-disclaimer">Proyecto independiente.<span>·</span>No afiliado a la ANDE.<span>·</span>Datos obtenidos de fuentes públicas oficiales.</p>
+    </section>
+
+    <!-- CÓMO FUNCIONA -->
+    <section class="how-it-works" id="como-funciona" aria-labelledby="how-title">
+      <div class="how-inner">
+        <h2 class="section-title" id="how-title">Tres formas de no quedarte a oscuras</h2>
+        <p class="section-sub">LuzAlerts combina datos oficiales de la ANDE con reportes de la comunidad para que siempre sepas qué está pasando con la energía en tu zona.</p>
+        <div class="cards-grid" role="list">
+
+          <article class="feature-card" role="listitem">
+            <div class="card-icon" aria-hidden="true">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+            </div>
+            <h3 class="card-title">Mapa en tiempo real</h3>
+            <p class="card-text">Visualizá todos los cortes activos y programados en un mapa interactivo. Tocá un corte para ver horario, zona afectada y comentarios.</p>
+          </article>
+
+          <article class="feature-card" role="listitem">
+            <div class="card-icon" aria-hidden="true">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+            </div>
+            <h3 class="card-title">Alertas cercanas</h3>
+            <p class="card-text">Recibí una notificación push cuando hay un corte a menos de 5 km de tu ubicación. Y otra cuando vuelve la luz.</p>
+          </article>
+
+          <article class="feature-card" role="listitem">
+            <div class="card-icon" aria-hidden="true">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <h3 class="card-title">Reportes vecinales</h3>
+            <p class="card-text">¿Se te fue la luz pero la ANDE no avisó? Tocá "Sin luz" — cuando 3 vecinos cercanos hacen lo mismo, el corte se confirma para todos.</p>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CAPTURAS -->
+    <section class="screenshots" id="capturas" aria-labelledby="screens-title">
+      <div class="screenshots-inner">
+        <h2 class="section-title" id="screens-title">Mirá cómo se ve</h2>
+        <p class="section-sub">Simple, rápida y pensada para celulares de gama media.</p>
+        <div class="screens-scroll" role="list" aria-label="Capturas de pantalla de la app">
+
+          <div class="screen-item" role="listitem">
+            <div class="ss-placeholder" id="carousel-screen-1"></div>
+            <p class="screen-label">Mapa en tiempo real</p>
+          </div>
+
+          <div class="screen-item" role="listitem">
+            <div class="ss-placeholder" id="carousel-screen-2"></div>
+            <p class="screen-label">Lista de cortes</p>
+          </div>
+
+          <div class="screen-item" role="listitem">
+            <div class="ss-placeholder" id="carousel-screen-3"></div>
+            <p class="screen-label">Detalle y comentarios</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="preguntas" aria-labelledby="faq-title">
+      <div class="faq-inner">
+        <h2 class="section-title" id="faq-title">Preguntas frecuentes</h2>
+        <p class="section-sub">Todo lo que querés saber antes de descargar la app.</p>
+        <div class="faq-list" role="list">
+
+          <div class="faq-item" role="listitem">
+            <button class="faq-question" aria-expanded="false" aria-controls="faq-a1" id="faq-q1">
+              ¿Es una app oficial de la ANDE?
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer" id="faq-a1" role="region" aria-labelledby="faq-q1">
+              <p class="faq-answer-inner">No. LuzAlerts es un proyecto independiente, sin fines de lucro, no afiliado ni autorizado por la ANDE. Tomamos información publicada en el sitio oficial de la ANDE y la mostramos de forma más cómoda en tu celular. Para reclamos y servicios, comunicate directamente con la ANDE.</p>
+            </div>
+          </div>
+
+          <div class="faq-item" role="listitem">
+            <button class="faq-question" aria-expanded="false" aria-controls="faq-a2" id="faq-q2">
+              ¿Tiene costo?
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer" id="faq-a2" role="region" aria-labelledby="faq-q2">
+              <p class="faq-answer-inner">No. La aplicación es 100% gratuita y no muestra publicidad.</p>
+            </div>
+          </div>
+
+          <div class="faq-item" role="listitem">
+            <button class="faq-question" aria-expanded="false" aria-controls="faq-a3" id="faq-q3">
+              ¿Qué datos recolecta sobre mí?
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer" id="faq-a3" role="region" aria-labelledby="faq-q3">
+              <p class="faq-answer-inner">Solo los mínimos para que funcione: un identificador anónimo de tu dispositivo, tu ubicación aproximada (para avisarte de cortes cercanos) y un token de notificaciones. No pedimos nombre, teléfono ni correo. Más detalles en nuestra <a href="/privacy" style="color:#3B82F6;text-decoration:underline;">Política de Privacidad</a>.</p>
+            </div>
+          </div>
+
+          <div class="faq-item" role="listitem">
+            <button class="faq-question" aria-expanded="false" aria-controls="faq-a4" id="faq-q4">
+              ¿Cómo recibo las notificaciones?
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer" id="faq-a4" role="region" aria-labelledby="faq-q4">
+              <p class="faq-answer-inner">Cuando autorizás las notificaciones y la ubicación durante el primer uso, te avisamos automáticamente cada vez que aparece un corte a menos de 5 km tuyo. También te avisamos cuando la luz vuelve.</p>
+            </div>
+          </div>
+
+          <div class="faq-item" role="listitem">
+            <button class="faq-question" aria-expanded="false" aria-controls="faq-a5" id="faq-q5">
+              ¿Funciona en iPhone?
+              <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer" id="faq-a5" role="region" aria-labelledby="faq-q5">
+              <p class="faq-answer-inner">Por ahora solo en Android. La versión para iPhone está planificada para una próxima etapa.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA FINAL -->
+    <section class="cta-final" aria-labelledby="cta-title">
+      <div class="cta-final-inner">
+        <h2 id="cta-title">Descargá LuzAlerts y dejá de preguntarte si volvió la luz.</h2>
+        <a href="#" class="btn-primary" style="font-size:17px;padding:16px 36px;display:inline-flex;">
+          <svg style="width:22px;height:22px;flex-shrink:0;" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.18 23.76c.3.18.66.2.98.06l11.76-6.74-2.76-2.78-9.98 9.46zM.56 1.56C.21 1.9 0 2.44 0 3.14v17.72c0 .7.21 1.24.56 1.58l.08.08 9.92-9.92v-.24L.64 1.48l-.08.08zM20.56 10.24l-2.78-1.6-3.1 3.1 3.1 3.1 2.8-1.6c.8-.46.8-1.54-.02-2zM3.18.24l9.98 9.46 2.76-2.78L4.16.18C3.84.04 3.48.06 3.18.24z"/></svg>
+          Descargar en Google Play
+        </a>
+        <p style="margin-top:16px;font-size:13px;color:var(--text-muted);">Gratis · Sin anuncios · Android</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="/" class="logo" aria-label="LuzAlerts">
+            <div class="logo-icon" aria-hidden="true">
+              <svg width="14" height="18" viewBox="0 0 14 18" fill="none"><path d="M8 0L0 10h6L4 18l10-12H8L10 0z" fill="#0F172A"/></svg>
+            </div>
+            LuzAlerts
+          </a>
+          <p class="footer-tagline" style="margin-top:12px;">Cortes de luz en Paraguay,<br>en tiempo real.</p>
+          <p class="footer-disclaimer">Proyecto independiente. No afiliado a la ANDE.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Producto</h4>
+          <ul>
+            <li><a href="#">Google Play</a></li>
+            <li><a href="#como-funciona">Cómo funciona</a></li>
+            <li><a href="#preguntas">Preguntas</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="/privacy">Política de Privacidad</a></li>
+            <li><a href="/terms">Términos de Uso</a></li>
+            <li><a href="mailto:admin@luzalerts.lat">admin@luzalerts.lat</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 LuzAlerts · Hecho en Paraguay 🇵🇾</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Header scroll
+    const header = document.getElementById('site-header');
+    window.addEventListener('scroll', () => header.classList.toggle('scrolled', window.scrollY > 20), { passive: true });
+    header.classList.toggle('scrolled', window.scrollY > 20);
+
+    // Hamburger
+    const hamburger = document.getElementById('hamburger');
+    const mobileMenu = document.getElementById('mobile-menu');
+    hamburger.addEventListener('click', () => {
+      const open = mobileMenu.classList.toggle('open');
+      hamburger.setAttribute('aria-expanded', open);
+    });
+    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }));
+
+    // FAQ accordion
+    document.querySelectorAll('.faq-question').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.faq-item');
+        const isOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq-item').forEach(i => {
+          i.classList.remove('open');
+          i.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
+        });
+        if (!isOpen) { item.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
+      });
+    });
+
+    // Tweaks
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"accentColor":"#FBBF24","darkBg":"#0F172A"}/*EDITMODE-END*/;
+    window.addEventListener('message', e => {
+      if (e.data?.type === '__activate_edit_mode') showTweaks();
+      if (e.data?.type === '__deactivate_edit_mode') hideTweaks();
+    });
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    let tweakPanel = null;
+    function showTweaks() {
+      if (tweakPanel) return;
+      tweakPanel = document.createElement('div');
+      tweakPanel.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:#1E293B;border:1px solid #334155;border-radius:12px;padding:20px;width:240px;box-shadow:0 16px 48px rgba(0,0,0,0.5);font-family:Inter,sans-serif;';
+      tweakPanel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="color:#F8FAFC;font-weight:700;font-size:14px;">Tweaks</span><button id="tweaks-close" style="background:none;border:none;color:#64748B;cursor:pointer;font-size:18px;">×</button></div>
+        <label style="display:block;margin-bottom:12px;"><span style="display:block;color:#94A3B8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Color acento</span><input type="color" value="${TWEAK_DEFAULTS.accentColor}" id="tweak-accent" style="width:100%;height:36px;border:1px solid #334155;border-radius:6px;cursor:pointer;"></label>
+        <label style="display:block;"><span style="display:block;color:#94A3B8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Fondo oscuro</span><input type="color" value="${TWEAK_DEFAULTS.darkBg}" id="tweak-dark" style="width:100%;height:36px;border:1px solid #334155;border-radius:6px;cursor:pointer;"></label>`;
+      document.body.appendChild(tweakPanel);
+      document.getElementById('tweaks-close').addEventListener('click', () => { hideTweaks(); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); });
+      document.getElementById('tweak-accent').addEventListener('input', e => { document.documentElement.style.setProperty('--amber', e.target.value); window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { accentColor: e.target.value }}, '*'); });
+      document.getElementById('tweak-dark').addEventListener('input', e => { document.documentElement.style.setProperty('--dark', e.target.value); window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { darkBg: e.target.value }}, '*'); });
+    }
+    function hideTweaks() { if (tweakPanel) { tweakPanel.remove(); tweakPanel = null; } }
+  </script>
+
+  <!-- App screens rendered into placeholders -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="luzicons.jsx"></script>
+  <script type="text/babel" src="luzscreens.jsx"></script>
+  <script type="text/babel" src="luzscreens-a.jsx"></script>
+  <script type="text/babel" src="luzscreens-b.jsx"></script>
+  <script type="text/babel">
+    const ScaledScreen = ({ children, devW = 393, devH = 852, contW, contH }) => {
+      const scale = Math.min(contW / devW, contH / devH);
+      const scaledW = devW * scale;
+      return (
+        <div style={{ width: contW, height: contH, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+          <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', flexShrink: 0, width: devW }}>
+            {children}
+          </div>
+        </div>
+      );
+    };
+
+    // Hero — map with bottom sheet open
+    const heroMount = document.getElementById('hero-screen-mount');
+    if (heroMount) {
+      ReactDOM.createRoot(heroMount).render(
+        <ScaledScreen contW={340} contH={580}>
+          <ScreenMap showSheet={true}/>
+        </ScaledScreen>
+      );
+    }
+
+    // Carousel — map (no sheet), list, detail
+    const carouselScreens = [
+      { id: 'carousel-screen-1', el: <ScreenMap showSheet={false}/> },
+      { id: 'carousel-screen-2', el: <ScreenList/> },
+      { id: 'carousel-screen-3', el: <ScreenDetail crowdsource={false}/> },
+    ];
+    carouselScreens.forEach(({ id, el }) => {
+      const mount = document.getElementById(id);
+      if (mount) {
+        ReactDOM.createRoot(mount).render(
+          <ScaledScreen contW={240} contH={380}>
+            {el}
+          </ScaledScreen>
+        );
+      }
+    });
+  </script>
+</body>
+</html>

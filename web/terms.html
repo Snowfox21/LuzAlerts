@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Términos de Uso — LuzAlerts</title>
+  <meta name="description" content="Términos y condiciones de uso de la aplicación LuzAlerts para Android.">
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --amber:       #FBBF24;
+      --amber-hover: #F59E0B;
+      --dark:        #0F172A;
+      --dark-2:      #1E293B;
+      --light:       #FFFFFF;
+      --surface:     #F8FAFC;
+      --text-body:   #1F2937;
+      --text-muted:  #64748B;
+      --text-faint:  #94A3B8;
+      --text-light:  #CBD5E1;
+      --border:      #E2E8F0;
+      --blue:        #2563EB;
+      --font:        'Inter', system-ui, -apple-system, sans-serif;
+      --radius:      8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font); color: var(--text-body); background: var(--light); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    img, svg { display: block; }
+    ul { list-style: none; }
+    :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(15,23,42,0.97); backdrop-filter: blur(12px);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06); padding: 0 24px;
+    }
+    .header-inner {
+      max-width: 1200px; margin: 0 auto; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; color: var(--light); letter-spacing: -0.3px; }
+    .logo-icon {
+      width: 28px; height: 28px; background: var(--amber); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .nav-links { display: none; gap: 32px; }
+    .nav-links a { color: var(--text-light); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--amber); }
+    .nav-cta {
+      display: none; align-items: center; gap: 8px; background: var(--amber);
+      color: #000; font-size: 13px; font-weight: 700; padding: 8px 16px;
+      border-radius: var(--radius); transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--amber-hover); }
+    .hamburger { display: flex; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
+    .hamburger span { display: block; width: 22px; height: 2px; background: var(--text-light); border-radius: 2px; transition: transform 0.3s, opacity 0.3s; }
+    .hamburger[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+    .hamburger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .mobile-menu {
+      display: none; position: fixed; top: 64px; left: 0; right: 0;
+      background: rgba(15,23,42,0.98); backdrop-filter: blur(16px);
+      z-index: 99; padding: 24px; flex-direction: column; gap: 4px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a { color: var(--text-light); font-size: 16px; font-weight: 500; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); transition: color 0.2s; }
+    .mobile-menu a:last-child { border-bottom: none; }
+    .mobile-menu a:hover { color: var(--amber); }
+    @media (min-width: 768px) {
+      .nav-links { display: flex; }
+      .nav-cta { display: flex; }
+      .hamburger { display: none; }
+    }
+
+    /* ── PAGE HEADER ── */
+    .page-hero {
+      background: var(--surface); padding: 112px 24px 56px; border-bottom: 1px solid var(--border);
+    }
+    .page-hero-inner { max-width: 1200px; margin: 0 auto; }
+    .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+    .breadcrumb a { color: var(--text-muted); transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--blue); }
+    .breadcrumb svg { width: 12px; height: 12px; color: var(--text-faint); flex-shrink: 0; }
+    .page-hero h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 700; color: var(--dark); letter-spacing: -1px; margin-bottom: 8px; }
+    .page-hero .updated { font-size: 14px; color: var(--text-muted); }
+
+    /* ── LAYOUT ── */
+    .doc-layout {
+      max-width: 1200px; margin: 0 auto; padding: 56px 24px 96px;
+      display: grid; grid-template-columns: 1fr; gap: 48px;
+    }
+    @media (min-width: 1024px) {
+      .doc-layout { grid-template-columns: 220px 1fr; gap: 64px; align-items: start; }
+    }
+
+    /* ── SIDEBAR ── */
+    .doc-sidebar { display: none; }
+    @media (min-width: 1024px) {
+      .doc-sidebar {
+        display: block; position: sticky; top: 88px; max-height: calc(100vh - 120px);
+        overflow-y: auto; scrollbar-width: thin;
+      }
+    }
+    .sidebar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 12px; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-nav a {
+      font-size: 13px; color: var(--text-muted); padding: 6px 10px; border-radius: 6px;
+      transition: color 0.2s, background 0.2s; border-left: 2px solid transparent; line-height: 1.4;
+    }
+    .sidebar-nav a:hover { color: var(--dark); background: var(--surface); }
+    .sidebar-nav a.active { color: var(--dark); font-weight: 600; border-left-color: var(--amber); background: rgba(251,191,36,0.06); }
+    .sidebar-nav a.important { font-weight: 600; }
+    .sidebar-nav a.important::after { content: ' ⚠'; font-size: 11px; opacity: 0.7; }
+
+    /* Mobile TOC */
+    .mobile-toc { display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 40px; }
+    @media (min-width: 1024px) { .mobile-toc { display: none; } }
+    .mobile-toc summary {
+      padding: 14px 18px; font-size: 14px; font-weight: 600; color: var(--dark);
+      cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;
+      background: var(--surface);
+    }
+    .mobile-toc summary::-webkit-details-marker { display: none; }
+    .mobile-toc summary svg { width: 16px; height: 16px; color: var(--text-muted); transition: transform 0.3s; }
+    .mobile-toc[open] summary svg { transform: rotate(180deg); }
+    .mobile-toc-list { padding: 12px 18px 16px; display: flex; flex-direction: column; gap: 4px; }
+    .mobile-toc-list a { font-size: 13px; color: var(--blue); padding: 4px 0; }
+    .mobile-toc-list a:hover { text-decoration: underline; }
+
+    /* ── DOCUMENT ── */
+    .doc-article { max-width: 720px; }
+    .doc-intro {
+      font-size: 17px; line-height: 1.75; color: var(--text-body); margin-bottom: 48px;
+      padding: 20px 24px; background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.2);
+      border-radius: 10px;
+    }
+    .doc-section { margin-top: 48px; scroll-margin-top: 88px; }
+    .doc-section h2 {
+      font-size: 20px; font-weight: 700; color: var(--dark); margin-bottom: 16px;
+      padding-bottom: 10px; border-bottom: 1px solid var(--border); letter-spacing: -0.3px;
+    }
+    .doc-section h3 { font-size: 15px; font-weight: 600; color: var(--dark); margin: 20px 0 8px; }
+    .doc-section p { font-size: 17px; line-height: 1.75; color: var(--text-body); margin-bottom: 14px; }
+    .doc-section p:last-child { margin-bottom: 0; }
+    .doc-section ul.doc-list { padding-left: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+    .doc-section ul.doc-list li {
+      font-size: 16px; line-height: 1.65; color: var(--text-body); padding-left: 20px; position: relative;
+    }
+    .doc-section ul.doc-list li::before { content: '–'; position: absolute; left: 0; color: var(--text-faint); }
+    .doc-section a { color: var(--blue); }
+    .doc-section a:hover { text-decoration: underline; }
+    code.email { background: #F1F5F9; color: #0F172A; font-family: 'Courier New', monospace; font-size: 14px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border); }
+
+    /* Callouts */
+    .callout-amber {
+      border-left: 4px solid var(--amber); background: #FEFCE8;
+      padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0;
+    }
+    .callout-amber p { font-size: 16px; line-height: 1.7; color: #78350F; margin-bottom: 10px; }
+    .callout-amber p:last-child { margin-bottom: 0; }
+    .callout-amber strong { color: #92400E; }
+    .callout-red {
+      border-left: 4px solid #EF4444; background: #FEF2F2;
+      padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0;
+    }
+    .callout-red p { font-size: 16px; line-height: 1.7; color: #7F1D1D; margin-bottom: 10px; }
+    .callout-red p:last-child { margin-bottom: 0; }
+    .callout-red strong { color: #991B1B; }
+
+    /* ── FOOTER ── */
+    .site-footer { background: var(--dark); border-top: 1px solid rgba(255,255,255,0.06); padding: 64px 24px 32px; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 1fr; gap: 40px; margin-bottom: 48px; }
+    .footer-brand .logo { margin-bottom: 12px; }
+    .footer-tagline { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.5; }
+    .footer-disclaimer { font-size: 12px; color: var(--text-muted); opacity: 0.7; }
+    .footer-col h4 { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 16px; }
+    .footer-col ul { display: flex; flex-direction: column; gap: 10px; }
+    .footer-col a { font-size: 14px; color: var(--text-muted); transition: color 0.2s; }
+    .footer-col a:hover { color: var(--amber); }
+    .footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    @media (min-width: 768px) { .footer-grid { grid-template-columns: 2fr 1fr 1fr; } }
+
+    /* Print */
+    @media print {
+      .site-header, .site-footer, .doc-sidebar, .mobile-toc, .page-hero .breadcrumb { display: none !important; }
+      .doc-layout { display: block; padding: 0; }
+      .doc-article { max-width: 100%; }
+      .page-hero { padding: 24px 0 16px; background: none; border: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <a href="/" class="logo" aria-label="LuzAlerts — Ir al inicio">
+        <div class="logo-icon" aria-hidden="true">
+          <svg width="14" height="18" viewBox="0 0 14 18" fill="none">
+            <path d="M8 0L0 10h6L4 18l10-12H8L10 0z" fill="#0F172A"/>
+          </svg>
+        </div>
+        LuzAlerts
+      </a>
+      <nav class="nav-links" aria-label="Navegación principal">
+        <a href="/#como-funciona">Cómo funciona</a>
+        <a href="/#preguntas">Preguntas</a>
+        <a href="/privacy">Privacidad</a>
+      </nav>
+      <a href="/#descargar" class="nav-cta" aria-label="Descargar en Google Play">
+        <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.18 23.76c.3.18.66.2.98.06l11.76-6.74-2.76-2.78-9.98 9.46zM.56 1.56C.21 1.9 0 2.44 0 3.14v17.72c0 .7.21 1.24.56 1.58l.08.08 9.92-9.92v-.24L.64 1.48l-.08.08zM20.56 10.24l-2.78-1.6-3.1 3.1 3.1 3.1 2.8-1.6c.8-.46.8-1.54-.02-2zM3.18.24l9.98 9.46 2.76-2.78L4.16.18C3.84.04 3.48.06 3.18.24z"/></svg>
+        Descargar
+      </a>
+      <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobile-menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="mobile-menu" id="mobile-menu" aria-label="Menú móvil">
+    <a href="/#como-funciona">Cómo funciona</a>
+    <a href="/#preguntas">Preguntas</a>
+    <a href="/privacy">Privacidad</a>
+    <a href="/#descargar" style="color:var(--amber);font-weight:700;">Descargar en Google Play</a>
+  </nav>
+
+  <!-- PAGE HEADER -->
+  <div class="page-hero">
+    <div class="page-hero-inner">
+      <nav class="breadcrumb" aria-label="Ruta de navegación">
+        <a href="/">Inicio</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        <span>Términos de Uso</span>
+      </nav>
+      <h1>Términos de Uso</h1>
+      <p class="updated">Última actualización: 27 de abril de 2026</p>
+    </div>
+  </div>
+
+  <main>
+    <div class="doc-layout">
+
+      <!-- SIDEBAR -->
+      <aside class="doc-sidebar" aria-label="Tabla de contenidos">
+        <p class="sidebar-label">Contenidos</p>
+        <nav class="sidebar-nav" id="sidebar-nav">
+          <a href="#seccion-1">1. Descripción del servicio</a>
+          <a href="#seccion-2" class="important">2. Independencia — ANDE</a>
+          <a href="#seccion-3" class="important">3. Carácter informativo</a>
+          <a href="#seccion-4">4. Reportes colaborativos</a>
+          <a href="#seccion-5">5. Uso aceptable</a>
+          <a href="#seccion-6">6. Propiedad intelectual</a>
+          <a href="#seccion-7">7. Limitación de responsabilidad</a>
+          <a href="#seccion-8">8. Modificaciones del servicio</a>
+          <a href="#seccion-9">9. Modificaciones a los términos</a>
+          <a href="#seccion-10">10. Legislación y jurisdicción</a>
+          <a href="#seccion-11">11. Disposiciones generales</a>
+          <a href="#seccion-12">12. Contacto</a>
+        </nav>
+      </aside>
+
+      <!-- DOCUMENT -->
+      <article class="doc-article" aria-label="Términos de Uso de LuzAlerts">
+
+        <!-- Mobile TOC -->
+        <details class="mobile-toc">
+          <summary>
+            Tabla de contenidos
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <nav class="mobile-toc-list">
+            <a href="#seccion-1">1. Descripción del servicio</a>
+            <a href="#seccion-2">2. Independencia respecto a la ANDE ⚠</a>
+            <a href="#seccion-3">3. Carácter informativo y no garantías ⚠</a>
+            <a href="#seccion-4">4. Reportes colaborativos y comentarios</a>
+            <a href="#seccion-5">5. Uso aceptable</a>
+            <a href="#seccion-6">6. Propiedad intelectual</a>
+            <a href="#seccion-7">7. Limitación de responsabilidad</a>
+            <a href="#seccion-8">8. Modificaciones del servicio</a>
+            <a href="#seccion-9">9. Modificaciones a estos términos</a>
+            <a href="#seccion-10">10. Legislación aplicable y jurisdicción</a>
+            <a href="#seccion-11">11. Disposiciones generales</a>
+            <a href="#seccion-12">12. Contacto</a>
+          </nav>
+        </details>
+
+        <p class="doc-intro">
+          Los presentes Términos de Uso regulan el acceso y uso de la aplicación móvil LuzAlerts («la aplicación», «el servicio»), disponible en Google Play. Al descargar, instalar o utilizar la aplicación, usted acepta estos términos en su totalidad. Si no está de acuerdo con alguno de ellos, le pedimos que no utilice el servicio.
+        </p>
+
+        <!-- SECCIÓN 1 -->
+        <section class="doc-section" id="seccion-1" aria-labelledby="h2-1">
+          <h2 id="h2-1">1. Descripción del servicio</h2>
+          <p>LuzAlerts es una aplicación móvil gratuita para Android que permite a los usuarios:</p>
+          <ul class="doc-list">
+            <li>Visualizar en un mapa los cortes de energía eléctrica programados y no programados publicados por la Administración Nacional de Electricidad (ANDE) de la República del Paraguay.</li>
+            <li>Recibir notificaciones push cuando se detecta un corte de luz dentro de un radio configurable de su ubicación.</li>
+            <li>Reportar de forma colaborativa cortes no anunciados y consultar reportes de otros usuarios de la comunidad.</li>
+          </ul>
+          <p>El servicio se ofrece de forma gratuita y sin publicidad. LuzAlerts es un proyecto sin fines de lucro desarrollado y mantenido de forma independiente.</p>
+        </section>
+
+        <!-- SECCIÓN 2 -->
+        <section class="doc-section" id="seccion-2" aria-labelledby="h2-2">
+          <h2 id="h2-2">2. Independencia respecto a la ANDE</h2>
+
+          <div class="callout-amber" role="note" aria-label="Aviso importante">
+            <p><strong>LuzAlerts no es una aplicación oficial de la ANDE.</strong> Este servicio es un proyecto independiente, sin afiliación, asociación, autorización ni respaldo de la Administración Nacional de Electricidad (ANDE) ni de ningún organismo gubernamental paraguayo.</p>
+            <p>Los datos mostrados en la aplicación provienen de fuentes públicas oficiales (sitio web de la ANDE y otros canales de comunicación pública), pero LuzAlerts no tiene acceso directo a los sistemas internos de la ANDE ni recibe información privilegiada.</p>
+            <p>Para realizar reclamos, solicitar reconexiones o comunicarse con la empresa distribuidora de energía, usted debe hacerlo directamente con la ANDE a través de sus canales oficiales.</p>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 3 -->
+        <section class="doc-section" id="seccion-3" aria-labelledby="h2-3">
+          <h2 id="h2-3">3. Carácter informativo y no garantías</h2>
+
+          <div class="callout-red" role="note" aria-label="Limitación de garantías">
+            <p><strong>La información proporcionada por LuzAlerts tiene carácter exclusivamente informativo.</strong> LuzAlerts no garantiza la exactitud, completitud, vigencia ni disponibilidad de los datos mostrados.</p>
+            <p>Los cortes de luz pueden ocurrir sin previo aviso, modificarse o resolverse en momentos distintos a los informados. LuzAlerts no se responsabiliza por decisiones tomadas por el usuario con base en la información de la aplicación.</p>
+            <p>El servicio se ofrece «tal cual» («as is»), sin garantías expresas ni implícitas de ningún tipo, incluyendo disponibilidad ininterrumpida, ausencia de errores o idoneidad para un propósito específico.</p>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 4 -->
+        <section class="doc-section" id="seccion-4" aria-labelledby="h2-4">
+          <h2 id="h2-4">4. Reportes colaborativos y comentarios</h2>
+          <p>LuzAlerts permite a los usuarios reportar cortes de luz no anunciados y dejar comentarios sobre cortes existentes. Al utilizar esta funcionalidad, usted acepta que:</p>
+          <ul class="doc-list">
+            <li>Los reportes deben ser verídicos y realizados de buena fe. No está permitido enviar reportes falsos o malintencionados.</li>
+            <li>LuzAlerts no verifica de forma individual cada reporte. La validación ocurre de forma automática cuando un número mínimo de usuarios cercanos confirman el mismo corte.</li>
+            <li>LuzAlerts se reserva el derecho de eliminar reportes que violen estos términos o que sean técnicamente inválidos.</li>
+            <li>Los reportes son anónimos; no se asocian a ningún dato de identificación personal del usuario.</li>
+          </ul>
+        </section>
+
+        <!-- SECCIÓN 5 -->
+        <section class="doc-section" id="seccion-5" aria-labelledby="h2-5">
+          <h2 id="h2-5">5. Uso aceptable</h2>
+          <p>Usted se compromete a utilizar la aplicación de forma lícita y conforme a estos términos. Queda expresamente prohibido:</p>
+          <ul class="doc-list">
+            <li>Utilizar la aplicación para fines ilegales o que perjudiquen a terceros.</li>
+            <li>Realizar ingeniería inversa, descompilar o desensamblar el código de la aplicación.</li>
+            <li>Intentar acceder de forma no autorizada a los servidores, bases de datos o sistemas de LuzAlerts.</li>
+            <li>Enviar reportes o datos falsos de forma deliberada con el fin de inducir a error a otros usuarios.</li>
+            <li>Automatizar el envío de reportes o solicitudes al servicio (scraping, bots, etc.) sin autorización expresa.</li>
+          </ul>
+        </section>
+
+        <!-- SECCIÓN 6 -->
+        <section class="doc-section" id="seccion-6" aria-labelledby="h2-6">
+          <h2 id="h2-6">6. Propiedad intelectual</h2>
+          <p>El nombre «LuzAlerts», el logotipo, el código fuente de la aplicación y los materiales originales del servicio son propiedad de sus respectivos autores y están protegidos por las leyes de propiedad intelectual de la República del Paraguay.</p>
+          <p>Los datos públicos de la ANDE utilizados por la aplicación pertenecen a la ANDE y se reproducen conforme al principio de datos abiertos y uso informativo sin fines comerciales.</p>
+          <p>LuzAlerts no otorga ninguna licencia sobre su propiedad intelectual más allá del uso personal de la aplicación tal como fue diseñada.</p>
+        </section>
+
+        <!-- SECCIÓN 7 -->
+        <section class="doc-section" id="seccion-7" aria-labelledby="h2-7">
+          <h2 id="h2-7">7. Limitación de responsabilidad</h2>
+          <p>En la máxima medida permitida por la legislación paraguaya aplicable, LuzAlerts no será responsable por:</p>
+          <ul class="doc-list">
+            <li>Daños directos, indirectos, incidentales o consecuentes derivados del uso o la imposibilidad de uso del servicio.</li>
+            <li>Pérdidas económicas, daños a equipos o perjuicios de cualquier índole causados por cortes de luz, independientemente de si la información en la app era o no correcta.</li>
+            <li>Interrupciones del servicio debidas a mantenimiento, fallas técnicas o causas de fuerza mayor.</li>
+            <li>Inexactitudes en los datos provenientes de fuentes de terceros (ANDE u otras).</li>
+          </ul>
+        </section>
+
+        <!-- SECCIÓN 8 -->
+        <section class="doc-section" id="seccion-8" aria-labelledby="h2-8">
+          <h2 id="h2-8">8. Modificaciones del servicio</h2>
+          <p>LuzAlerts se reserva el derecho de modificar, suspender o discontinuar el servicio —o cualquier parte de él— en cualquier momento y sin previo aviso, por razones técnicas, operativas o de cualquier otra índole. LuzAlerts no será responsable ante el usuario ni ante terceros por dicha modificación, suspensión o discontinuación.</p>
+        </section>
+
+        <!-- SECCIÓN 9 -->
+        <section class="doc-section" id="seccion-9" aria-labelledby="h2-9">
+          <h2 id="h2-9">9. Modificaciones a estos términos</h2>
+          <p>LuzAlerts puede actualizar estos Términos de Uso en cualquier momento. Los cambios significativos serán comunicados mediante una notificación en la aplicación o en el sitio web. La fecha de «Última actualización» al inicio del documento refleja siempre la versión vigente.</p>
+          <p>El uso continuado de la aplicación tras la publicación de cambios implica la aceptación de los nuevos términos.</p>
+        </section>
+
+        <!-- SECCIÓN 10 -->
+        <section class="doc-section" id="seccion-10" aria-labelledby="h2-10">
+          <h2 id="h2-10">10. Legislación aplicable y jurisdicción</h2>
+          <p>Estos Términos de Uso se rigen por las leyes vigentes de la República del Paraguay. Cualquier controversia derivada de o relacionada con estos términos se someterá a la jurisdicción exclusiva de los tribunales ordinarios de la ciudad de Asunción, Paraguay, renunciando las partes a cualquier otro fuero que pudiera corresponderles.</p>
+        </section>
+
+        <!-- SECCIÓN 11 -->
+        <section class="doc-section" id="seccion-11" aria-labelledby="h2-11">
+          <h2 id="h2-11">11. Disposiciones generales</h2>
+          <ul class="doc-list">
+            <li><strong>Divisibilidad:</strong> si alguna disposición de estos términos fuera declarada nula o inaplicable, el resto permanecerá en plena vigencia.</li>
+            <li><strong>No renuncia:</strong> el hecho de que LuzAlerts no ejerza algún derecho previsto en estos términos no constituye renuncia a dicho derecho.</li>
+            <li><strong>Acuerdo completo:</strong> estos Términos de Uso, junto con la Política de Privacidad, constituyen el acuerdo completo entre el usuario y LuzAlerts con respecto al uso del servicio.</li>
+          </ul>
+        </section>
+
+        <!-- SECCIÓN 12 -->
+        <section class="doc-section" id="seccion-12" aria-labelledby="h2-12">
+          <h2 id="h2-12">12. Contacto</h2>
+          <p>Para consultas relacionadas con estos Términos de Uso, puede comunicarse con nosotros a:</p>
+          <p><code class="email">admin@luzalerts.com</code></p>
+          <p>Asunto sugerido: «Términos — LuzAlerts». Responderemos en un plazo máximo de 30 días hábiles.</p>
+        </section>
+
+      </article>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="/" class="logo" aria-label="LuzAlerts">
+            <div class="logo-icon" aria-hidden="true">
+              <svg width="14" height="18" viewBox="0 0 14 18" fill="none"><path d="M8 0L0 10h6L4 18l10-12H8L10 0z" fill="#0F172A"/></svg>
+            </div>
+            LuzAlerts
+          </a>
+          <p class="footer-tagline" style="margin-top:12px;">Cortes de luz en Paraguay,<br>en tiempo real.</p>
+          <p class="footer-disclaimer">Proyecto independiente. No afiliado a la ANDE.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Producto</h4>
+          <ul>
+            <li><a href="#">Google Play</a></li>
+            <li><a href="/#como-funciona">Cómo funciona</a></li>
+            <li><a href="/#preguntas">Preguntas</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="/privacy">Política de Privacidad</a></li>
+            <li><a href="/terms" style="color:var(--amber);">Términos de Uso</a></li>
+            <li><a href="mailto:admin@luzalerts.com">admin@luzalerts.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 LuzAlerts · Hecho en Paraguay 🇵🇾</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Hamburger
+    const hamburger = document.getElementById('hamburger');
+    const mobileMenu = document.getElementById('mobile-menu');
+    hamburger.addEventListener('click', () => {
+      const open = mobileMenu.classList.toggle('open');
+      hamburger.setAttribute('aria-expanded', open);
+    });
+    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+      mobileMenu.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }));
+
+    // Active sidebar link on scroll
+    const sections = document.querySelectorAll('.doc-section');
+    const sidebarLinks = document.querySelectorAll('#sidebar-nav a');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          sidebarLinks.forEach(link => link.classList.remove('active'));
+          const active = document.querySelector(`#sidebar-nav a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-80px 0px -60% 0px', threshold: 0 });
+
+    sections.forEach(s => observer.observe(s));
+  </script>
+
+</body>
+</html>
