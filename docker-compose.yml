@@ -4,7 +4,7 @@ services:
     container_name: luzalerts_db
     environment:
       POSTGRES_USER: luz
-      POSTGRES_PASSWORD: luz
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luz}
       POSTGRES_DB: luzalerts
     ports:
       - "5432:5432"
@@ -23,9 +23,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzalerts
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://luz:luz@db:5432/luzalerts}
       NOMINATIM_URL: https://nominatim.openstreetmap.org
-      NOMINATIM_EMAIL: your@email.com
+      NOMINATIM_EMAIL: ${NOMINATIM_EMAIL:-dev@luzalerts.local}
       REPORT_RADIUS_M: 500
       REPORT_THRESHOLD: 3
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
@@ -39,7 +39,7 @@ services:
       dockerfile: scraper/Dockerfile
     container_name: luzalerts_scraper
     environment:
-      DATABASE_URL: postgresql+asyncpg://luz:luz@db:5432/luzalerts
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://luz:luz@db:5432/luzalerts}
       ANDE_URL: https://www.ande.gov.py/
       POLL_INTERVAL_MINUTES: 60
     depends_on:
