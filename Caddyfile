@@ -15,10 +15,17 @@ luzalerts.lat {
         reverse_proxy backend:8000
     }
 
-    # Landing page static files
+    # Root path → index.html
+    handle =/ {
+        root * /srv/web
+        file_server {
+            index index.html
+        }
+    }
+
+    # All other pages (e.g. /privacy → privacy.html)
     handle {
         root * /srv/web
-        rewrite / /index.html
         try_files {path} {path}.html /404.html
         file_server
     }
