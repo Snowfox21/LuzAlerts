@@ -9,7 +9,7 @@ const getBaseUrl = () => {
         }
         return 'http://localhost:8000'; // Works for iOS Simulator
     }
-    return 'https://api.luzalerts.com'; // Production URL placeholder
+    return 'https://luzalerts.lat';
 };
 
 const apiClient = axios.create({
