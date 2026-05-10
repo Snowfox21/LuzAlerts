@@ -130,8 +130,8 @@ export default function ReportsScreen() {
                 setAddress({
                     department: loc.region || loc.subregion || '',
                     city: loc.city || loc.subregion || loc.district || '',
-                    barrio: loc.district || loc.street || loc.name || '',
-                    street: loc.street || loc.name || '',
+                    barrio: cleanGeoField(loc.district) || cleanGeoField(loc.street) || '',
+                    street: cleanGeoField(loc.street) || '',
                     house: loc.streetNumber || '',
                 });
             }
@@ -245,7 +245,7 @@ export default function ReportsScreen() {
             </View>
 
             <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalRoot}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0} style={styles.modalRoot}>
                     <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={() => setModalVisible(false)} />
                     <View style={styles.sheet}>
                         <View style={styles.handle} />
@@ -360,6 +360,12 @@ function isWithinParaguay(lat: number, lon: number): boolean {
         && lat <= PARAGUAY_BOUNDS.maxLat
         && lon >= PARAGUAY_BOUNDS.minLon
         && lon <= PARAGUAY_BOUNDS.maxLon;
+}
+
+const PLUS_CODE_RE = /^[23456789CFGHJMPQRVWX]{4,}\+[23456789CFGHJMPQRVWX]{2,}$/i;
+function cleanGeoField(value: string | null | undefined): string {
+    if (!value) return '';
+    return PLUS_CODE_RE.test(value.trim()) ? '' : value;
 }
 
 function isParaguayGeocode(geocode?: Location.LocationGeocodedAddress | null): boolean {
