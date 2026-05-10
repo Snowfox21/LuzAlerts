@@ -1,7 +1,6 @@
 luzalerts.lat {
     encode gzip
 
-    # API routes → FastAPI backend
     handle /outages* {
         reverse_proxy backend:8000
     }
@@ -15,19 +14,9 @@ luzalerts.lat {
         reverse_proxy backend:8000
     }
 
-    # Root path → index.html
-    @root path =/
-    handle @root {
-        root * /srv/web
-        file_server {
-            index index.html
-        }
-    }
-
-    # All other pages (e.g. /privacy → privacy.html)
     handle {
         root * /srv/web
-        try_files {path} {path}.html /404.html
+        try_files {path} {path}/index.html {path}.html /404.html
         file_server
     }
 }
