@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "com.luzalerts.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#151718"
@@ -37,6 +38,12 @@
           "color": "#F59E0B"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e7df9178-6158-48fd-8075-bd20ec3dc622"
+      }
+    }
   }
 }
