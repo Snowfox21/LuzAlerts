@@ -24,6 +24,11 @@ module.exports = {
         backgroundColor: "#151718",
       },
       edgeToEdgeEnabled: true,
+      config: {
+        googleMaps: {
+          apiKey: process.env.GOOGLE_MAPS_API_KEY,
+        },
+      },
     },
     scheme: "luzalerts",
     web: {
