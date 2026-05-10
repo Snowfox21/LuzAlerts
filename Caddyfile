@@ -1,0 +1,4 @@
+luzalerts.lat {
+    reverse_proxy backend:8000
+    encode gzip
+}
