@@ -136,7 +136,17 @@
     .btn-primary:active { transform: translateY(0); }
     .btn-hint { font-size: 13px; color: var(--text-muted); }
     .btn-hint span { margin: 0 4px; opacity: 0.5; }
-    .playstore-icon { width: 20px; height: 20px; flex-shrink: 0; }
+    .dl-icon { width: 20px; height: 20px; flex-shrink: 0; }
+    .store-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    @media (min-width: 1024px) { .store-row { justify-content: flex-start; } }
+    .store-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.08); color: var(--text-light);
+      border: 1px solid rgba(255,255,255,0.12); font-size: 12px; font-weight: 600;
+      padding: 7px 13px; border-radius: var(--radius); transition: background 0.2s, border-color 0.2s;
+      letter-spacing: 0.01em;
+    }
+    .store-badge:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.22); }
 
     /* Hero placeholder */
     .hero-placeholder {
@@ -267,8 +277,8 @@
         <a href="#preguntas">Preguntas</a>
         <a href="/privacy">Privacidad</a>
       </nav>
-      <a href="#descargar" class="nav-cta" aria-label="Descargar en Google Play">
-        <svg class="playstore-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.18 23.76c.3.18.66.2.98.06l11.76-6.74-2.76-2.78-9.98 9.46zM.56 1.56C.21 1.9 0 2.44 0 3.14v17.72c0 .7.21 1.24.56 1.58l.08.08 9.92-9.92v-.24L.64 1.48l-.08.08zM20.56 10.24l-2.78-1.6-3.1 3.1 3.1 3.1 2.8-1.6c.8-.46.8-1.54-.02-2zM3.18.24l9.98 9.46 2.76-2.78L4.16.18C3.84.04 3.48.06 3.18.24z"/></svg>
+      <a href="/luzalerts.apk" download="luzalerts.apk" class="nav-cta" aria-label="Descargar LuzAlerts para Android">
+        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Descargar
       </a>
       <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobile-menu">
@@ -281,7 +291,7 @@
     <a href="#como-funciona">Cómo funciona</a>
     <a href="#preguntas">Preguntas</a>
     <a href="/privacy">Privacidad</a>
-    <a href="#descargar" style="color:var(--amber);font-weight:700;">Descargar en Google Play</a>
+    <a href="/luzalerts.apk" download="luzalerts.apk" style="color:var(--amber);font-weight:700;">Descargar APK</a>
   </nav>
 
   <main>
@@ -295,10 +305,20 @@
           <h1 id="hero-heading">Sabé cuándo y dónde<br>se corta la <em>luz.</em></h1>
           <p class="hero-sub">LuzAlerts te avisa al instante cuando la ANDE programa un corte en tu zona, o cuando los vecinos reportan que se fue la luz cerca tuyo.</p>
           <div class="hero-actions">
-            <a href="#descargar" class="btn-primary" id="descargar">
-              <svg class="playstore-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.18 23.76c.3.18.66.2.98.06l11.76-6.74-2.76-2.78-9.98 9.46zM.56 1.56C.21 1.9 0 2.44 0 3.14v17.72c0 .7.21 1.24.56 1.58l.08.08 9.92-9.92v-.24L.64 1.48l-.08.08zM20.56 10.24l-2.78-1.6-3.1 3.1 3.1 3.1 2.8-1.6c.8-.46.8-1.54-.02-2zM3.18.24l9.98 9.46 2.76-2.78L4.16.18C3.84.04 3.48.06 3.18.24z"/></svg>
-              Descargar en Google Play
+            <a href="/luzalerts.apk" download="luzalerts.apk" class="btn-primary" id="descargar">
+              <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Descargar APK · Android
             </a>
+            <div class="store-row">
+              <a href="https://www.amazon.com/gp/mas/dl/android?p=com.luzalerts.app" class="store-badge" aria-label="Disponible en Amazon Appstore">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.93 17.09c-.04-.08-.14-.11-.22-.06-3.05 1.72-6.9 1.41-9.44-.73-2.54-2.14-3.23-5.89-1.73-8.77 1.5-2.88 4.74-4.35 7.9-3.62 3.16.73 5.35 3.6 5.35 6.82v.22c0 .09.07.16.16.16h1.27c.09 0 .16-.07.16-.16v-.22C19.38 6.3 16.3 2.84 12.2 2.1 8.1 1.36 4.18 3.64 2.65 7.48 1.12 11.32 2.34 15.72 5.57 18.2c3.23 2.48 7.72 2.61 11.08.32a.15.15 0 0 0 .04-.22l-.76-1.21zm3.44.65c-.43-.33-.77-.75-.77-1.31 0-.77.65-1.34 1.43-1.34.38 0 .74.14 1.02.37l-1.68 2.28z"/><path d="M21.62 15.09c-.19-.15-.4-.23-.62-.23-.56 0-1.04.47-1.04 1.04 0 .3.13.59.35.79l1.31-1.6z"/></svg>
+                Amazon Appstore
+              </a>
+              <a href="https://seller.samsungapps.com" class="store-badge" aria-label="Disponible en Samsung Galaxy Store">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm-1-5h2v2h-2zm0-8h2v6h-2z"/></svg>
+                Samsung Galaxy
+              </a>
+            </div>
             <p class="btn-hint">Gratis <span>·</span> Sin anuncios <span>·</span> Próximamente en iOS</p>
           </div>
         </div>
@@ -442,11 +462,11 @@
     <section class="cta-final" aria-labelledby="cta-title">
       <div class="cta-final-inner">
         <h2 id="cta-title">Descargá LuzAlerts y dejá de preguntarte si volvió la luz.</h2>
-        <a href="#" class="btn-primary" style="font-size:17px;padding:16px 36px;display:inline-flex;">
-          <svg style="width:22px;height:22px;flex-shrink:0;" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.18 23.76c.3.18.66.2.98.06l11.76-6.74-2.76-2.78-9.98 9.46zM.56 1.56C.21 1.9 0 2.44 0 3.14v17.72c0 .7.21 1.24.56 1.58l.08.08 9.92-9.92v-.24L.64 1.48l-.08.08zM20.56 10.24l-2.78-1.6-3.1 3.1 3.1 3.1 2.8-1.6c.8-.46.8-1.54-.02-2zM3.18.24l9.98 9.46 2.76-2.78L4.16.18C3.84.04 3.48.06 3.18.24z"/></svg>
-          Descargar en Google Play
+        <a href="/luzalerts.apk" download="luzalerts.apk" class="btn-primary" style="font-size:17px;padding:16px 36px;display:inline-flex;">
+          <svg style="width:22px;height:22px;flex-shrink:0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Descargar APK · Android
         </a>
-        <p style="margin-top:16px;font-size:13px;color:var(--text-muted);">Gratis · Sin anuncios · Android</p>
+        <p style="margin-top:16px;font-size:13px;color:var(--text-muted);">Gratis · Sin anuncios · También en Amazon Appstore · Samsung Galaxy</p>
       </div>
     </section>
 
@@ -469,7 +489,7 @@
         <div class="footer-col">
           <h4>Producto</h4>
           <ul>
-            <li><a href="#">Google Play</a></li>
+            <li><a href="/luzalerts.apk" download="luzalerts.apk">Descargar APK</a></li>
             <li><a href="#como-funciona">Cómo funciona</a></li>
             <li><a href="#preguntas">Preguntas</a></li>
           </ul>
