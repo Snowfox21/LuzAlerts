@@ -204,7 +204,13 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             start_time, end_time = None, None
             if base_date:
                 start_time, end_time = parse_time_range(horario, base_date)
-            
+
+            # Skip historical outages — ANDE keeps old articles on their site.
+            # Allow 1-day grace period to cover Paraguay's UTC-4 offset.
+            if end_time and end_time < datetime.utcnow() - timedelta(days=1):
+                logger.info("Skipping historical outage '%s' (ended %s)", title, end_time)
+                continue
+
             # Check if this exact outage is already reported (deduplication)
             stmt = select(Outage).where(
                 Outage.source == OutageSource.ande_official,
