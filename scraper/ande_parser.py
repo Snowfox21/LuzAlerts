@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 ANDE_URL = "https://www.ande.gov.py/noticias.php?tipo_nota=trabajo_programado"
 BASE_URL = "https://www.ande.gov.py/"
 
-_CHROME_VERSIONS = ["chrome120", "chrome124", "chrome126", "chrome131"]
+_CHROME_VERSIONS = ["chrome120", "chrome124", "chrome123", "chrome119"]
 
 
 async def _random_delay() -> None:
