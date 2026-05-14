@@ -1,6 +1,7 @@
 import asyncio
 import io
 import logging
+import random
 import re
 
 import httpx
@@ -13,20 +14,26 @@ logger = logging.getLogger(__name__)
 ANDE_URL = "https://www.ande.gov.py/noticias.php?tipo_nota=trabajo_programado"
 BASE_URL = "https://www.ande.gov.py/"
 
+_CHROME_VERSIONS = ["chrome120", "chrome124", "chrome126", "chrome131"]
+
+
+async def _random_delay() -> None:
+    await asyncio.sleep(random.uniform(3.0, 8.0))
+
 
 async def fetch_page(url: str) -> str:
-    """Fetches a URL impersonating Chrome to bypass bot protection."""
     logger.info(f"Fetching {url}...")
-    async with AsyncSession(impersonate="chrome120") as client:
+    impersonate = random.choice(_CHROME_VERSIONS)
+    async with AsyncSession(impersonate=impersonate) as client:
         response = await client.get(url, timeout=30)
         response.raise_for_status()
         return response.text
 
 
 async def fetch_bytes(url: str) -> bytes:
-    """Fetches raw bytes for a URL (used for PDF downloads)."""
     logger.info(f"Fetching binary {url}...")
-    async with AsyncSession(impersonate="chrome120") as client:
+    impersonate = random.choice(_CHROME_VERSIONS)
+    async with AsyncSession(impersonate=impersonate) as client:
         response = await client.get(url, timeout=60)
         response.raise_for_status()
         return response.content
@@ -119,6 +126,7 @@ async def parse_outages() -> list[dict]:
     logger.info(f"Found {len(detail_links)} detail pages to process.")
 
     for link in detail_links:
+        await _random_delay()
         try:
             detail_html = await fetch_page(link)
         except httpx.HTTPError as e:
