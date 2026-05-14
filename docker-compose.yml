@@ -41,7 +41,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://luz:luz@db:5432/luzalerts}
       ANDE_URL: https://www.ande.gov.py/
-      POLL_INTERVAL_MINUTES: 180
+      POLL_INTERVAL_MINUTES: 240
     depends_on:
       db:
         condition: service_healthy
