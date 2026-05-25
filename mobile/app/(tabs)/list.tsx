@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, AppState, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Settings } from 'lucide-react-native';
+import { Inbox, Settings } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
-import { DS, IconButton, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
+import { DS, IconButton, PrimaryButton, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 
 type Filter = 'all' | 'planned' | 'active' | 'resolved' | 'near';
 
@@ -43,11 +43,12 @@ export default function ListScreen() {
                     id: r.id + 1000000,
                     source: OutageSource.CROWDSOURCE,
                     status: OutageStatus.ACTIVE,
-                    title: r.comment || 'Corte reportado por usuario',
+                    title: 'Corte reportado por usuario',
                     barrio: r.barrio || r.city || r.street || 'Zona reportada',
                     created_at: r.created_at,
                     latitude: r.latitude,
                     longitude: r.longitude,
+                    confirmation_count: r.confirmation_count ?? 0,
                 }));
             } catch (err) {
                 console.warn('Error fetching user reports:', err);
@@ -143,7 +144,20 @@ export default function ListScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOutages(); }} tintColor={DS.amber} />
                 }
                 ListEmptyComponent={
-                    <Text style={styles.emptyText}>No hay cortes reportados actualmente.</Text>
+                    <View style={styles.emptyWrap}>
+                        <View style={styles.emptyIconCircle}>
+                            <Inbox size={28} color={DS.textMuted} />
+                        </View>
+                        <Text style={styles.emptyTitle}>Sin cortes reportados</Text>
+                        <Text style={styles.emptyBody}>
+                            Por ahora no tenemos información actualizada sobre cortes. Si notaste uno en tu zona, reportalo y ayudá a tus vecinos.
+                        </Text>
+                        <PrimaryButton
+                            label="Reportar un corte"
+                            onPress={() => router.push('/(tabs)/reports')}
+                            style={styles.emptyCta}
+                        />
+                    </View>
                 }
             />
         </View>
@@ -189,10 +203,37 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 24,
     },
-    emptyText: {
-        color: DS.textMuted,
+    emptyWrap: {
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingTop: 56,
+    },
+    emptyIconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: DS.surface,
+        borderWidth: 1,
+        borderColor: DS.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    emptyTitle: {
+        color: DS.text,
+        fontSize: 17,
+        fontWeight: '700',
+        marginBottom: 8,
         textAlign: 'center',
-        marginTop: 48,
+    },
+    emptyBody: {
+        color: DS.textMuted,
         fontSize: 14,
+        lineHeight: 20,
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    emptyCta: {
+        alignSelf: 'stretch',
     },
 });

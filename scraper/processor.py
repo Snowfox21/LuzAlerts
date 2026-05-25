@@ -255,3 +255,45 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             await notify_users_near_outage(session, lat, lon, outage_title)
 
     logger.info("Saved outages to DB.")
+    await warn_if_no_upcoming_outages()
+
+
+async def warn_if_no_upcoming_outages(stale_after_days: int = 2) -> None:
+    """
+    Emits a WARNING if ANDE has not published any outage scheduled for the future
+    within the last `stale_after_days` days. Helps surface cases where ANDE stops
+    publishing trabajos programados (data gap, not a scraper bug).
+    """
+    from app.database import AsyncSessionLocal
+    from app.models import Outage, OutageSource
+    from sqlalchemy import func, select
+
+    now = datetime.utcnow()
+    async with AsyncSessionLocal() as session:
+        upcoming_stmt = select(func.count()).select_from(Outage).where(
+            Outage.source == OutageSource.ande_official,
+            Outage.scheduled_end > now,
+        )
+        upcoming = (await session.execute(upcoming_stmt)).scalar_one()
+        if upcoming > 0:
+            return
+
+        latest_stmt = select(func.max(Outage.scheduled_start)).where(
+            Outage.source == OutageSource.ande_official,
+        )
+        latest = (await session.execute(latest_stmt)).scalar_one()
+
+    if latest is None:
+        logger.warning(
+            "ANDE staleness alert: no official outages in DB and none upcoming. "
+            "ANDE may have stopped publishing 'trabajos programados' or the page structure changed."
+        )
+        return
+
+    age_days = (now - latest).days
+    if age_days >= stale_after_days:
+        logger.warning(
+            "ANDE staleness alert: no upcoming outages — latest published outage is %d days old (%s). "
+            "ANDE may have stopped publishing 'trabajos programados' or the page structure changed.",
+            age_days, latest.isoformat(timespec="minutes"),
+        )
