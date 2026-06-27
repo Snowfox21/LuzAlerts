@@ -7,6 +7,7 @@ import re
 
 import pdfplumber
 from bs4 import BeautifulSoup
+from playwright.async_api import TimeoutError as PlaywrightTimeout
 from playwright.async_api import async_playwright
 
 logger = logging.getLogger(__name__)
@@ -75,21 +76,24 @@ async def parse_outages() -> list[dict]:
 async def _fetch_page(context, url: str) -> str:
     """Navigates to a page and waits out the Radware JS challenge if present.
 
-    The challenge serves a placeholder page that runs JS, sets a clearance cookie,
-    and reloads into the real content. We poll until real content appears.
+    The challenge serves a placeholder page ("Radware Page") that runs JS, sets a
+    clearance cookie, and reloads into the real content. We wait for the real
+    content's container to appear — div.lista on the news list, div.col-sm-8 on
+    detail pages — which only happens once the challenge has cleared. Waiting on
+    the title alone is not enough: the title flips to the real one a beat before
+    the body finishes loading, so we'd otherwise grab an empty page.
     """
     logger.info(f"Fetching {url}...")
     page = await context.new_page()
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        # The challenge pages are titled "Radware Page" / "Radware Captcha Page";
-        # the real ANDE pages are not. Poll until we leave the challenge.
-        for _ in range(12):
-            title = await page.title()
-            if title and "Radware" not in title:
-                return await page.content()
-            await page.wait_for_timeout(2000)
-        logger.warning(f"Still blocked by Radware challenge on {url} (title={title!r})")
+        try:
+            await page.wait_for_selector("div.lista, div.col-sm-8", timeout=45000)
+        except PlaywrightTimeout:
+            logger.warning(
+                f"Real content never appeared on {url} (title={await page.title()!r}) "
+                "— likely still blocked by Radware."
+            )
         return await page.content()
     finally:
         await page.close()
