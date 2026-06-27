@@ -68,12 +68,13 @@ async def parse_outages() -> list[dict]:
                 user_agent=_USER_AGENT,
                 viewport={"width": 1366, "height": 768},
             )
-            return await _parse_outages_with_context(context)
+            page = await context.new_page()
+            return await _parse_outages_with_context(context, page)
         finally:
             await browser.close()
 
 
-async def _fetch_page(context, url: str) -> str:
+async def _fetch_page(page, url: str, referer: str | None = None) -> str:
     """Navigates to a page and waits out the Radware JS challenge if present.
 
     The challenge serves a placeholder page ("Radware Page") that runs JS, sets a
@@ -82,21 +83,35 @@ async def _fetch_page(context, url: str) -> str:
     detail pages — which only happens once the challenge has cleared. Waiting on
     the title alone is not enough: the title flips to the real one a beat before
     the body finishes loading, so we'd otherwise grab an empty page.
+
+    A single page (tab) is reused across the whole run and a referer is sent on
+    detail navigations so the traffic looks like a human clicking through from the
+    news list rather than a bot opening fresh tabs — Radware otherwise escalates
+    to an unsolvable CAPTCHA. If we still land on a challenge page, we reload a
+    couple of times with backoff before giving up.
     """
     logger.info(f"Fetching {url}...")
-    page = await context.new_page()
-    try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+    goto_kwargs = {"wait_until": "domcontentloaded", "timeout": 60000}
+    if referer:
+        goto_kwargs["referer"] = referer
+    for attempt in range(3):
+        if attempt == 0:
+            await page.goto(url, **goto_kwargs)
+        else:
+            await page.reload(wait_until="domcontentloaded", timeout=60000)
         try:
-            await page.wait_for_selector("div.lista, div.col-sm-8", timeout=45000)
+            await page.wait_for_selector("div.lista, div.col-sm-8", timeout=40000)
+            return await page.content()
         except PlaywrightTimeout:
+            title = await page.title()
+            if "Radware" not in title:
+                # Real page that simply lacks those containers — nothing to retry.
+                return await page.content()
             logger.warning(
-                f"Real content never appeared on {url} (title={await page.title()!r}) "
-                "— likely still blocked by Radware."
+                f"Radware challenge on {url} (attempt {attempt + 1}/3, title={title!r})"
             )
-        return await page.content()
-    finally:
-        await page.close()
+            await asyncio.sleep(random.uniform(6.0, 12.0))
+    return await page.content()
 
 
 async def _fetch_bytes(context, url: str) -> bytes:
@@ -164,8 +179,8 @@ def parse_pdf_bytes(pdf_bytes: bytes, title: str) -> list[dict]:
     return _zones_from_lines(lines, title)
 
 
-async def _parse_outages_with_context(context) -> list[dict]:
-    html_content = await _fetch_page(context, ANDE_URL)
+async def _parse_outages_with_context(context, page) -> list[dict]:
+    html_content = await _fetch_page(page, ANDE_URL)
     soup = BeautifulSoup(html_content, "lxml")
 
     outages: list[dict] = []
@@ -188,7 +203,7 @@ async def _parse_outages_with_context(context) -> list[dict]:
     for link in detail_links:
         await _random_delay()
         try:
-            detail_html = await _fetch_page(context, link)
+            detail_html = await _fetch_page(page, link, referer=ANDE_URL)
         except Exception as e:
             logger.warning(f"Failed to fetch detail page {link}: {e}")
             continue
