@@ -1,55 +1,107 @@
 import asyncio
 import io
 import logging
+import os
 import random
 import re
 
 import pdfplumber
 from bs4 import BeautifulSoup
-from curl_cffi.requests import AsyncSession
+from playwright.async_api import async_playwright
 
 logger = logging.getLogger(__name__)
 
 ANDE_URL = "https://www.ande.gov.py/noticias.php?tipo_nota=trabajo_programado"
 BASE_URL = "https://www.ande.gov.py/"
 
-_CHROME_VERSIONS = ["chrome120", "chrome124", "chrome123", "chrome119"]
+# ande.gov.py sits behind Radware Bot Manager, which serves a JS challenge page
+# (title "Radware Page", validate.perfdrive). TLS impersonation alone (curl_cffi)
+# can't pass it because it never executes the challenge JS — so we drive a real
+# headless Chromium via Playwright, which runs the JS, gets the clearance cookie,
+# and then sees the real content. The same browser context (cookies) is reused to
+# download the linked PDFs.
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
-
-_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "es-PY,es;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-}
+# --- Webshare residential proxy (enable if Radware also blocks the VPS IP) ---
+# The block is currently a JS challenge (handled by Playwright), NOT an IP block,
+# so a proxy is usually unnecessary. Only enable if ANDE starts banning the
+# datacenter IP outright. Set in docker-compose.yml (or .env):
+#   WEBSHARE_PROXY=http://<user>:<password>@p.webshare.io:80
+_PROXY = os.environ.get("WEBSHARE_PROXY")  # None → no proxy
+# -----------------------------------------------------------------
 
 
 async def _random_delay() -> None:
-    await asyncio.sleep(random.uniform(5.0, 12.0))
+    await asyncio.sleep(random.uniform(2.0, 5.0))
 
 
 async def parse_outages() -> list[dict]:
     """
-    Uses a single persistent session so Radware cookies are retained across all page fetches.
+    Drives a single Chromium context so the Radware clearance cookie is obtained
+    once (via the JS challenge) and reused across all page/PDF fetches.
+
+    Chromium runs *headed* (headless=False): Radware reliably detects headless
+    Chromium and escalates to an unsolvable CAPTCHA, but a real GUI browser passes
+    the JS challenge. On a headless server this requires a virtual display — the
+    container starts Chromium under Xvfb (see Dockerfile).
     """
-    impersonate = random.choice(_CHROME_VERSIONS)
-    async with AsyncSession(impersonate=impersonate, headers=_HEADERS) as session:
-        return await _parse_outages_with_session(session)
+    launch_kwargs: dict = {
+        "headless": False,
+        "args": [
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+        ],
+    }
+    if _PROXY:
+        launch_kwargs["proxy"] = {"server": _PROXY}
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(**launch_kwargs)
+        try:
+            context = await browser.new_context(
+                locale="es-PY",
+                user_agent=_USER_AGENT,
+                viewport={"width": 1366, "height": 768},
+            )
+            return await _parse_outages_with_context(context)
+        finally:
+            await browser.close()
 
 
-async def _fetch_page(session: AsyncSession, url: str) -> str:
+async def _fetch_page(context, url: str) -> str:
+    """Navigates to a page and waits out the Radware JS challenge if present.
+
+    The challenge serves a placeholder page that runs JS, sets a clearance cookie,
+    and reloads into the real content. We poll until real content appears.
+    """
     logger.info(f"Fetching {url}...")
-    response = await session.get(url, timeout=30)
-    response.raise_for_status()
-    return response.text
+    page = await context.new_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        # The challenge pages are titled "Radware Page" / "Radware Captcha Page";
+        # the real ANDE pages are not. Poll until we leave the challenge.
+        for _ in range(12):
+            title = await page.title()
+            if title and "Radware" not in title:
+                return await page.content()
+            await page.wait_for_timeout(2000)
+        logger.warning(f"Still blocked by Radware challenge on {url} (title={title!r})")
+        return await page.content()
+    finally:
+        await page.close()
 
 
-async def _fetch_bytes(session: AsyncSession, url: str) -> bytes:
+async def _fetch_bytes(context, url: str) -> bytes:
+    """Downloads a binary (PDF) reusing the context's Radware clearance cookies."""
     logger.info(f"Fetching binary {url}...")
-    response = await session.get(url, timeout=60)
-    response.raise_for_status()
-    return response.content
+    response = await context.request.get(url, timeout=60000)
+    if not response.ok:
+        raise RuntimeError(f"HTTP {response.status} for {url}")
+    return await response.body()
 
 
 _ZONA_RE = re.compile(r"^\s*ZONA\s*\d+", re.IGNORECASE)
@@ -108,8 +160,8 @@ def parse_pdf_bytes(pdf_bytes: bytes, title: str) -> list[dict]:
     return _zones_from_lines(lines, title)
 
 
-async def _parse_outages_with_session(session: AsyncSession) -> list[dict]:
-    html_content = await _fetch_page(session, ANDE_URL)
+async def _parse_outages_with_context(context) -> list[dict]:
+    html_content = await _fetch_page(context, ANDE_URL)
     soup = BeautifulSoup(html_content, "lxml")
 
     outages: list[dict] = []
@@ -132,7 +184,7 @@ async def _parse_outages_with_session(session: AsyncSession) -> list[dict]:
     for link in detail_links:
         await _random_delay()
         try:
-            detail_html = await _fetch_page(session, link)
+            detail_html = await _fetch_page(context, link)
         except Exception as e:
             logger.warning(f"Failed to fetch detail page {link}: {e}")
             continue
@@ -152,7 +204,7 @@ async def _parse_outages_with_session(session: AsyncSession) -> list[dict]:
         for pdf_href in [a["href"] for a in main_col.find_all("a", href=True) if a["href"].lower().endswith(".pdf")]:
             pdf_url = pdf_href if pdf_href.startswith("http") else BASE_URL + pdf_href
             try:
-                pdf_bytes = await _fetch_bytes(session, pdf_url)
+                pdf_bytes = await _fetch_bytes(context, pdf_url)
             except Exception as e:
                 logger.warning(f"Failed to download PDF {pdf_url}: {e}")
                 continue
