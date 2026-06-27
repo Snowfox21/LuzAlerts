@@ -43,6 +43,10 @@ services:
       ANDE_URL: https://www.ande.gov.py/
       POLL_INTERVAL_MINUTES: 240
       PYTHONUNBUFFERED: "1"
+      # SOCKS proxy for ANDE requests. ande.gov.py (Radware) blocks the datacenter
+      # IP with a CAPTCHA, so the scraper egresses through a residential reverse-SSH
+      # tunnel bound to the docker bridge gateway. Empty → no proxy (direct).
+      WEBSHARE_PROXY: ${WEBSHARE_PROXY:-}
     depends_on:
       db:
         condition: service_healthy
