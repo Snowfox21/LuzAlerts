@@ -18,12 +18,11 @@ COPY backend/ /project/backend/
 COPY scraper/requirements.txt /project/scraper/requirements.txt
 RUN pip install --no-cache-dir -r /project/scraper/requirements.txt
 
-# Chromium is preinstalled in the base image, but ensure the matching build is
-# present. patchright (in requirements.txt) drives this same full Chromium binary
-# via executable_path — it ships its own patched driver, no separate browser
-# download is needed. ande_parser._chromium_path() locates the headed-capable
-# `chrome` binary under /ms-playwright.
-RUN python -m playwright install chromium
+# Install the full (headed-capable) Chromium that patchright's patched driver
+# expects. patchright replaces the playwright package, so we use its CLI here.
+# ande_parser._chromium_path() then locates the `chrome` binary under
+# /ms-playwright (skipping the headless-shell build).
+RUN python -m patchright install chromium
 
 COPY scraper/ /project/scraper/
 

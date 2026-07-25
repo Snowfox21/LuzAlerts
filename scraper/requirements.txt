@@ -14,9 +14,11 @@ httpx==0.28.1
 idna==3.11
 lxml==6.0.2
 packaging==26.0
+# patchright is a drop-in Playwright fork with anti-detection patches; it fully
+# replaces the `playwright` package (they cannot coexist — conflicting pyee pins).
+# ande_parser.py imports from patchright.async_api.
 patchright==1.61.2
 pdfplumber==0.11.4
-playwright==1.49.1
 pydantic==2.12.5
 pydantic-settings==2.13.1
 pydantic_core==2.41.5
