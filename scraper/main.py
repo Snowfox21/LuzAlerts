@@ -6,7 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import sys # Trigger import of backend path
 from ande_parser import parse_outages
-from consultas_parser import fetch_emergency_outages
+from news_sources import fetch_news_outages, merge_with_ande
 from processor import normalize_and_save_outages, cleanup_old_data, mark_resolved_outages
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -21,14 +21,17 @@ HEARTBEAT_FILE = os.environ.get("SCRAPER_HEARTBEAT", "/tmp/scraper_heartbeat")
 async def run_scraper():
     logger.info("Starting ANDE Scraper run...")
     try:
-        # 1. Fetch planned outages from ANDE website
+        # 1. Fetch planned outages from ANDE (authoritative, structured source)
         raw_outages = await parse_outages()
 
-        # 2. Fetch emergency outages from consultas.ande.gov.py
-        emergency_outages = await fetch_emergency_outages()
+        # 2. Fetch outages reported by Paraguayan news outlets (RSS). Redundancy:
+        #    surfaces outages that ANDE missed or is down for. merge_with_ande drops
+        #    media stories ANDE already covers and keeps only the media-only ones.
+        news_outages = await fetch_news_outages()
+        all_outages = merge_with_ande(raw_outages, news_outages)
 
         # 3. Normalize, geocode, and save all to DB
-        await normalize_and_save_outages(raw_outages + emergency_outages)
+        await normalize_and_save_outages(all_outages)
 
         # 4. Mark expired outages as resolved + notify users
         await mark_resolved_outages()

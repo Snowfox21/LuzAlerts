@@ -211,12 +211,31 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
                 logger.info("Skipping historical outage '%s' (ended %s)", title, end_time)
                 continue
 
-            # Check if this exact outage is already reported (deduplication)
-            stmt = select(Outage).where(
-                Outage.source == OutageSource.ande_official,
-                Outage.description == raw_text
-            )
-            existing = (await session.execute(stmt)).scalars().first()
+            # Resolve the storage source/status. Media (news) outages are stored as
+            # OutageSource.twitter — the existing 'external / non-official' value —
+            # to avoid a DB enum migration; the outlet name is inside the title.
+            src = raw.get("source", "")
+            if src == "media":
+                outage_source, outage_status = OutageSource.twitter, OutageStatus.active
+            elif src == "ande_emergency":
+                outage_source, outage_status = OutageSource.ande_official, OutageStatus.active
+            else:
+                outage_source, outage_status = OutageSource.ande_official, OutageStatus.planned
+
+            # Deduplication. ANDE items are identified by their exact raw text; media
+            # items (whose raw summary can be empty/volatile) by their title, which
+            # carries the outlet + headline and is stable per article.
+            if outage_source == OutageSource.twitter:
+                dedup_stmt = select(Outage).where(
+                    Outage.source == OutageSource.twitter,
+                    Outage.title == title,
+                )
+            else:
+                dedup_stmt = select(Outage).where(
+                    Outage.source == OutageSource.ande_official,
+                    Outage.description == raw_text,
+                )
+            existing = (await session.execute(dedup_stmt)).scalars().first()
             if existing:
                 continue
 
@@ -225,16 +244,17 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             queries = build_geocode_queries(zona) or [zona]
             geo_data: dict[str, Any] = {"lat": None, "lon": None, "display_name": None, "barrio": None}
             for q in queries[:MAX_GEOCODE_ATTEMPTS]:
+                if not q:
+                    continue
                 geo_data = await forward_geocode(f"{q}, Paraguay")
                 if geo_data.get("lat"):
                     break
-            
-            is_emergency = raw.get("source") == "ande_emergency"
+
             outage_lat = geo_data.get("lat")
             outage_lon = geo_data.get("lon")
             outage = Outage(
-                source=OutageSource.ande_official,
-                status=OutageStatus.active if is_emergency else OutageStatus.planned,
+                source=outage_source,
+                status=outage_status,
                 title=title,
                 description=raw_text,
                 scheduled_start=start_time,
