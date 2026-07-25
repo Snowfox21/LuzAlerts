@@ -60,11 +60,20 @@ services:
       ANDE_URL: https://www.ande.gov.py/
       POLL_INTERVAL_MINUTES: 240
       PYTHONUNBUFFERED: "1"
-      # SOCKS proxy for ANDE egress. ande.gov.py (Radware) fingerprints the
-      # datacenter IP and challenges harder, so the scraper egresses through a
-      # residential SOCKS tunnel bound to the docker bridge gateway. patchright
-      # passes the JS challenge itself (see ande_parser.py). Empty → direct.
+      # Primary ANDE egress. patchright passes the Radware JS challenge from the
+      # plain datacenter IP, so this is normally empty (direct) — no tunnel
+      # dependency in steady state. Set only to force all egress through a proxy.
       WEBSHARE_PROXY: ${WEBSHARE_PROXY:-}
+      # Fallback egress: a residential SOCKS tunnel (reverse-SSH on the docker
+      # bridge gateway, Paraguay IP). Used ONLY when direct egress returns nothing
+      # because Radware flagged the datacenter IP (happens under bursty load).
+      # This keeps the tunnel a safety net, not a single point of failure.
+      ANDE_FALLBACK_PROXY: ${ANDE_FALLBACK_PROXY:-socks5://172.18.0.1:1080}
+      # Persisted browser profile dir (see volume below) so the Radware clearance
+      # cookie survives container restarts and most runs skip the cold challenge.
+      ANDE_PROFILE_DIR: /profiles/ande
+    volumes:
+      - ande_profiles:/profiles
     depends_on:
       db:
         condition: service_healthy
@@ -83,3 +92,4 @@ services:
 
 volumes:
   pgdata:
+  ande_profiles:

@@ -4,6 +4,12 @@ import os
 import time
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+# Residential SOCKS tunnel used only as a fallback when direct (datacenter) egress
+# gets flagged by Radware — parse_outages returns [] in that case. Empty → no
+# fallback. Keeps direct egress as the primary path (no tunnel dependency in normal
+# operation) while surviving an IP flag.
+ANDE_FALLBACK_PROXY = os.environ.get("ANDE_FALLBACK_PROXY") or None
+
 from config import sys # Trigger import of backend path
 from ande_parser import parse_outages
 from news_sources import fetch_news_outages, merge_with_ande
@@ -21,8 +27,13 @@ HEARTBEAT_FILE = os.environ.get("SCRAPER_HEARTBEAT", "/tmp/scraper_heartbeat")
 async def run_scraper():
     logger.info("Starting ANDE Scraper run...")
     try:
-        # 1. Fetch planned outages from ANDE (authoritative, structured source)
+        # 1. Fetch planned outages from ANDE (authoritative, structured source).
+        #    parse_outages returns [] when Radware blocks the egress IP; if that
+        #    happens and a fallback tunnel is configured, retry through it.
         raw_outages = await parse_outages()
+        if not raw_outages and ANDE_FALLBACK_PROXY:
+            logger.warning("ANDE returned nothing on direct egress (Radware block?) — retrying via fallback proxy")
+            raw_outages = await parse_outages(proxy_override=ANDE_FALLBACK_PROXY)
 
         # 2. Fetch outages reported by Paraguayan news outlets (RSS). Redundancy:
         #    surfaces outages that ANDE missed or is down for. merge_with_ande drops

@@ -53,13 +53,21 @@ async def _random_delay() -> None:
     await asyncio.sleep(random.uniform(2.0, 5.0))
 
 
-async def parse_outages() -> list[dict]:
+async def parse_outages(proxy_override: str | None = None) -> list[dict]:
     """
     Drives a single persistent Chromium context so the Radware clearance cookie is
     obtained once (via the JS challenge) and reused across all page/PDF fetches.
+
+    proxy_override lets the caller force egress through a specific proxy (the
+    residential-tunnel fallback) when the default (direct) egress gets flagged by
+    Radware. Each egress keeps its own browser profile because Radware clearance
+    cookies are bound to the originating IP — mixing them in one profile would
+    invalidate the cookie on every switch.
     """
+    proxy = proxy_override or _PROXY
+    user_data_dir = f"{_USER_DATA_DIR}_fallback" if proxy_override else _USER_DATA_DIR
     launch_kwargs: dict = {
-        "user_data_dir": _USER_DATA_DIR,
+        "user_data_dir": user_data_dir,
         "headless": False,
         # No fixed viewport / spoofed user-agent: patchright presents the real
         # Chromium fingerprint, and a mismatched UA is itself a detection vector.
@@ -72,8 +80,8 @@ async def parse_outages() -> list[dict]:
         launch_kwargs["executable_path"] = exe
     else:
         launch_kwargs["channel"] = "chromium"
-    if _PROXY:
-        launch_kwargs["proxy"] = {"server": _PROXY}
+    if proxy:
+        launch_kwargs["proxy"] = {"server": proxy}
 
     async with async_playwright() as pw:
         context = await pw.chromium.launch_persistent_context(**launch_kwargs)
