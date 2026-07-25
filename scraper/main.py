@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import sys # Trigger import of backend path
@@ -10,6 +11,12 @@ from processor import normalize_and_save_outages, cleanup_old_data, mark_resolve
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+# Heartbeat file touched at the end of every run (success or failure). The
+# container healthcheck reads its mtime to detect a silently dead/hung scraper —
+# the process once died while the xvfb-run wrapper kept the container "Up", so a
+# plain restart policy never triggered. See docker-compose.yml healthcheck.
+HEARTBEAT_FILE = os.environ.get("SCRAPER_HEARTBEAT", "/tmp/scraper_heartbeat")
 
 async def run_scraper():
     logger.info("Starting ANDE Scraper run...")
@@ -32,6 +39,12 @@ async def run_scraper():
         logger.info("Scraper run completed.")
     except Exception as e:
         logger.error(f"Error during scraper run: {e}", exc_info=True)
+    finally:
+        try:
+            with open(HEARTBEAT_FILE, "w") as f:
+                f.write(str(int(time.time())))
+        except OSError as e:
+            logger.warning(f"Could not write heartbeat file: {e}")
 
 async def main():
     logger.info("Initializing Scraper Scheduler...")

@@ -18,12 +18,25 @@ COPY backend/ /project/backend/
 COPY scraper/requirements.txt /project/scraper/requirements.txt
 RUN pip install --no-cache-dir -r /project/scraper/requirements.txt
 
-# Chromium is preinstalled in the base image, but ensure the matching build is present
+# Chromium is preinstalled in the base image, but ensure the matching build is
+# present. patchright (in requirements.txt) drives this same full Chromium binary
+# via executable_path — it ships its own patched driver, no separate browser
+# download is needed. ande_parser._chromium_path() locates the headed-capable
+# `chrome` binary under /ms-playwright.
 RUN python -m playwright install chromium
 
 COPY scraper/ /project/scraper/
 
 WORKDIR /project/scraper
+
+# Liveness: the scraper touches /tmp/scraper_heartbeat at the end of every run
+# (poll interval is 4h). If it goes stale (>5h) the process has silently died or
+# hung — the container is marked unhealthy and the autoheal sidecar restarts it
+# (see docker-compose.yml). start-period covers the first, challenge-heavy run.
+HEALTHCHECK --interval=5m --timeout=10s --start-period=8m --retries=2 \
+    CMD test -f /tmp/scraper_heartbeat \
+        && [ $(( $(date +%s) - $(cat /tmp/scraper_heartbeat) )) -lt 18000 ] \
+        || exit 1
 
 # Run under a virtual display so Chromium can launch headed (see note above).
 CMD ["xvfb-run", "-a", "--server-args=-screen 0 1366x768x24", "python", "main.py"]

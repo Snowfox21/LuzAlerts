@@ -2,6 +2,7 @@ services:
   db:
     image: postgis/postgis:16-3.4
     container_name: luzalerts_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: luz
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luz}
@@ -20,6 +21,7 @@ services:
     build:
       context: ./backend
     container_name: luzalerts_backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
@@ -38,18 +40,39 @@ services:
       context: .
       dockerfile: scraper/Dockerfile
     container_name: luzalerts_scraper
+    restart: unless-stopped
+    labels:
+      # Watched by the autoheal sidecar: when the healthcheck (heartbeat
+      # freshness, see scraper/Dockerfile) reports unhealthy, autoheal restarts
+      # this container. Needed because the scraper once died while its xvfb-run
+      # wrapper kept the container "Up", so restart:unless-stopped alone never
+      # fired.
+      autoheal: "true"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://luz:luz@db:5432/luzalerts}
       ANDE_URL: https://www.ande.gov.py/
       POLL_INTERVAL_MINUTES: 240
       PYTHONUNBUFFERED: "1"
-      # SOCKS proxy for ANDE requests. ande.gov.py (Radware) blocks the datacenter
-      # IP with a CAPTCHA, so the scraper egresses through a residential reverse-SSH
-      # tunnel bound to the docker bridge gateway. Empty → no proxy (direct).
+      # SOCKS proxy for ANDE egress. ande.gov.py (Radware) fingerprints the
+      # datacenter IP and challenges harder, so the scraper egresses through a
+      # residential SOCKS tunnel bound to the docker bridge gateway. patchright
+      # passes the JS challenge itself (see ande_parser.py). Empty → direct.
       WEBSHARE_PROXY: ${WEBSHARE_PROXY:-}
     depends_on:
       db:
         condition: service_healthy
+
+  # Restarts any container marked `autoheal: "true"` when Docker reports it
+  # unhealthy. Tiny (~10MB); only needs the Docker socket to issue restarts.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: luzalerts_autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "60"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   pgdata:
