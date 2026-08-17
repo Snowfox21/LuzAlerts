@@ -20,7 +20,6 @@ import apiClient from '../../src/api/client';
 import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
-import { setMapFocus } from '../../src/mapFocus';
 
 interface Comment {
     id: number;
@@ -328,8 +327,11 @@ function MiniMap({ location, color }: { location: { latitude: number; longitude:
 
     const openInMaps = () => {
         if (!hasLocation) return;
-        router.navigate('/(tabs)/');
-        setTimeout(() => setMapFocus(location.latitude, location.longitude), 300);
+        // центрирование карты — через параметры навигации, как и в report/[id].tsx
+        router.navigate({
+            pathname: '/(tabs)/',
+            params: { focusLat: String(location.latitude), focusLon: String(location.longitude) },
+        });
     };
 
     return (

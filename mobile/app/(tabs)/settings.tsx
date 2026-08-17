@@ -175,8 +175,8 @@ export default function SettingsScreen() {
                 <SettingSection title="Datos y privacidad">
                     <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Mi ID anónimo" sub={deviceId ? `#${deviceId}` : 'Cargando...'} />
                     <SettingRow icon={<Trash2 size={20} color={DS.redLight} />} label="Eliminar mis datos" danger right={<ChevronRight size={16} color={DS.textMuted} />} />
-                    <SettingRow icon={<Shield size={20} color={DS.textMuted} />} label="Política de privacidad" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.com.py/privacy')} />
-                    <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Términos de uso" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.com.py/terms')} />
+                    <SettingRow icon={<Shield size={20} color={DS.textMuted} />} label="Política de privacidad" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.lat/privacy')} />
+                    <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Términos de uso" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.lat/terms')} />
                 </SettingSection>
 
                 <View style={styles.footer}>

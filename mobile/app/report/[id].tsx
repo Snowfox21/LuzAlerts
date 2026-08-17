@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
+import { CheckCircle2, ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
-import { DS, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
+import { confirmAndResolveReport } from '../../src/api/reports';
+import { DS, PrimaryButton, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
+import { isMyReport } from '../../src/utils/myReports';
 
 interface Report {
     id: number;
@@ -18,6 +20,8 @@ interface Report {
     comment: string | null;
     confirmed: boolean;
     created_at: string;
+    resolved: boolean;
+    resolved_at: string | null;
 }
 
 export default function ReportDetailScreen() {
@@ -27,6 +31,8 @@ export default function ReportDetailScreen() {
     const [report, setReport] = useState<Report | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [mine, setMine] = useState(false);
+    const [resolving, setResolving] = useState(false);
 
     useEffect(() => {
         apiClient.get<Report>(`/reports/${id}`)
@@ -34,6 +40,35 @@ export default function ReportDetailScreen() {
             .catch(() => setError('No se pudo cargar el reporte.'))
             .finally(() => setLoading(false));
     }, [id]);
+
+    // "Свой" репорт определяем по локальному реестру: device_id наружу не отдается
+    useEffect(() => {
+        let active = true;
+        const reportId = Number(id);
+        if (!Number.isFinite(reportId)) return;
+        isMyReport(reportId).then(value => {
+            if (active) setMine(value);
+        });
+        return () => { active = false; };
+    }, [id]);
+
+    const handleResolve = () => {
+        if (!report || resolving) return;
+        confirmAndResolveReport({
+            reportId: report.id,
+            onStart: () => setResolving(true),
+            onResolved: resolved => setReport(prev => (prev ? {
+                ...prev,
+                resolved: true,
+                resolved_at: resolved.resolved_at ?? new Date().toISOString(),
+            } : prev)),
+            onFinish: () => {
+                setResolving(false);
+                // после 403 реестр мог обновиться — перечитываем принадлежность
+                isMyReport(report.id).then(setMine);
+            },
+        });
+    };
 
     const formatAddress = (r: Report) => {
         const parts = [r.street, r.house, r.barrio, r.city, r.department].filter(Boolean);
@@ -97,11 +132,19 @@ export default function ReportDetailScreen() {
             />
 
             <View style={styles.hero}>
-                <View style={styles.statusBadge}>
-                    <UsersRound size={13} color={DS.violetLight} />
-                    <Text style={styles.statusBadgeText}>
-                        {report.confirmed ? 'CONFIRMADO' : 'REPORTADO'}
-                    </Text>
+                <View style={styles.badgeRow}>
+                    <View style={styles.statusBadge}>
+                        <UsersRound size={13} color={DS.violetLight} />
+                        <Text style={styles.statusBadgeText}>
+                            {report.confirmed ? 'CONFIRMADO' : 'REPORTADO'}
+                        </Text>
+                    </View>
+                    {report.resolved ? (
+                        <View style={[styles.statusBadge, styles.closedBadge]}>
+                            <CheckCircle2 size={13} color={DS.greenLight} />
+                            <Text style={[styles.statusBadgeText, styles.closedBadgeText]}>CERRADO</Text>
+                        </View>
+                    ) : null}
                 </View>
                 <Text style={styles.title}>Corte reportado</Text>
                 <Text style={styles.subtitle}>{formatAddress(report)}</Text>
@@ -127,6 +170,24 @@ export default function ReportDetailScreen() {
                         {report.comment ?? 'Información adicional no disponible'}
                     </Text>
                 </SectionCard>
+
+                {report.resolved ? (
+                    <View style={styles.closedNotice}>
+                        <View style={[styles.statusBadge, styles.closedBadge]}>
+                            <CheckCircle2 size={13} color={DS.greenLight} />
+                            <Text style={[styles.statusBadgeText, styles.closedBadgeText]}>CERRADO</Text>
+                        </View>
+                        <Text style={styles.closedNoticeText}>
+                            La luz volvio el {formatDateTime24(report.resolved_at ?? undefined)}
+                        </Text>
+                    </View>
+                ) : mine ? (
+                    <PrimaryButton onPress={handleResolve} disabled={resolving} style={styles.resolveButton}>
+                        {resolving
+                            ? <ActivityIndicator color={DS.ink} />
+                            : <Text style={styles.resolveButtonText}>Ya volvio la luz</Text>}
+                    </PrimaryButton>
+                ) : null}
             </View>
         </ScrollView>
     );
@@ -164,6 +225,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingTop: 8,
         paddingBottom: 16,
+    },
+    badgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
     },
     statusBadge: {
         alignSelf: 'flex-start',
@@ -224,5 +291,29 @@ const styles = StyleSheet.create({
     },
     muted: {
         color: DS.textMuted,
+    },
+    closedBadge: {
+        backgroundColor: 'rgba(74,222,128,0.15)',
+    },
+    closedBadgeText: {
+        color: DS.greenLight,
+    },
+    closedNotice: {
+        alignItems: 'flex-start',
+        gap: 8,
+        marginTop: 4,
+    },
+    closedNoticeText: {
+        color: DS.textMid,
+        fontSize: 13,
+        lineHeight: 19,
+    },
+    resolveButton: {
+        marginTop: 4,
+    },
+    resolveButtonText: {
+        color: DS.ink,
+        fontSize: 16,
+        fontWeight: '800',
     },
 });

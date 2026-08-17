@@ -1,0 +1,4 @@
+# Build artifacts and caches — not needed by EAS Build
+*.aab
+*.apk
+.npm-cache/

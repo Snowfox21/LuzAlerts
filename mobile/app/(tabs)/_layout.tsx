@@ -8,6 +8,8 @@ export default function TabLayout() {
         <Tabs
             screenOptions={{
                 headerShown: false,
+                // отсоединяем неактивные табы, чтобы SurfaceView карты не просвечивал поверх других экранов
+                freezeOnBlur: true,
                 tabBarActiveTintColor: DS.amber,
                 tabBarInactiveTintColor: DS.textMuted,
                 tabBarLabelStyle: {

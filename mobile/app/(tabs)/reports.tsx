@@ -19,7 +19,10 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { AlertTriangle, CheckCircle2, Info, LocateFixed, MapPin, RefreshCw, X } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
+import { confirmAndResolveReport } from '../../src/api/reports';
 import { getOrCreateDeviceId } from '../../src/utils/device';
+import { addMyReportId, getMyReportIds } from '../../src/utils/myReports';
+import { ageMinutes, relativeTime } from '../../src/utils/date';
 import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 
 interface Report {
@@ -34,6 +37,8 @@ interface Report {
     comment: string | null;
     confirmed: boolean;
     created_at: string;
+    resolved: boolean;
+    resolved_at: string | null;
 }
 
 const PARAGUAY_BOUNDS = {
@@ -55,11 +60,18 @@ export default function ReportsScreen() {
     const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
     const [address, setAddress] = useState({ department: '', city: '', barrio: '', street: '', house: '' });
     const [comment, setComment] = useState('');
+    const [myReportIds, setMyReportIds] = useState<Set<number>>(new Set());
+    const [resolvingId, setResolvingId] = useState<number | null>(null);
+
+    const refreshMyReportIds = async () => {
+        setMyReportIds(new Set(await getMyReportIds()));
+    };
 
     const fetchReports = async () => {
         try {
             const res = await apiClient.get<Report[]>('/reports/');
             setReports(res.data || []);
+            await refreshMyReportIds();
         } catch (error) {
             console.error('Error fetching reports:', error);
             setReports([]);
@@ -160,7 +172,7 @@ export default function ReportsScreen() {
                 await apiClient.post('/users/', { device_id: deviceId });
             } catch {}
 
-            await apiClient.post('/reports/', {
+            const created = await apiClient.post<Report>('/reports/', {
                 device_id: deviceId,
                 latitude: coords?.lat || null,
                 longitude: coords?.lon || null,
@@ -171,6 +183,11 @@ export default function ReportsScreen() {
                 house: address.house.trim() || null,
                 comment: comment.trim() || 'Corte reportado desde la app móvil',
             });
+
+            // Сервер не отдает device_id, поэтому автора помним локально
+            if (typeof created.data?.id === 'number') {
+                await addMyReportId(created.data.id);
+            }
 
             setSuccess(true);
             setModalVisible(false);
@@ -231,7 +248,15 @@ export default function ReportsScreen() {
                         <ReportCard
                             key={report.id}
                             report={report}
+                            mine={myReportIds.has(report.id)}
+                            resolving={resolvingId === report.id}
                             onPress={() => router.push(`/report/${report.id}`)}
+                            onResolve={() => confirmAndResolveReport({
+                                reportId: report.id,
+                                onStart: () => setResolvingId(report.id),
+                                onResolved: () => fetchReports(),
+                                onFinish: () => setResolvingId(null),
+                            })}
                         />
                     ))
                 )}
@@ -290,13 +315,19 @@ export default function ReportsScreen() {
 
 function ReportCard({
     report,
+    mine,
+    resolving,
     onPress,
+    onResolve,
 }: {
     report: Report;
+    mine: boolean;
+    resolving: boolean;
     onPress: () => void;
+    onResolve: () => void;
 }) {
     const color = avatarColors[report.id % avatarColors.length];
-    const relative = formatRelative(report.created_at);
+    const relative = relativeTime(report.created_at, { justNow: 'Hace instantes' });
     const address = formatAddress(report);
     const complete = report.confirmed;
     const confirmations = report.confirmed ? 3 : 1;
@@ -316,6 +347,7 @@ function ReportCard({
                         <Text style={styles.reportName}>Vecino #{report.id.toString(16).toUpperCase()}</Text>
                         <Text style={styles.reportTime}>{relative}</Text>
                     </View>
+                    {mine ? <Text style={styles.mineTag}>Tu reporte</Text> : null}
                     {expiring ? <Text style={styles.expiring}>Expira pronto</Text> : null}
                 </View>
                 <Text style={styles.reportAddress}>{address}</Text>
@@ -327,21 +359,21 @@ function ReportCard({
                 <View style={styles.progress}>
                     <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: complete ? DS.greenLight : DS.amber }]} />
                 </View>
+                {mine && !report.resolved ? (
+                    <TouchableOpacity
+                        style={[styles.resolveCardButton, resolving && styles.resolveCardButtonDisabled]}
+                        activeOpacity={0.85}
+                        disabled={resolving}
+                        onPress={onResolve}
+                    >
+                        {resolving
+                            ? <ActivityIndicator size="small" color={DS.greenLight} />
+                            : <Text style={styles.resolveCardButtonText}>Ya volvio la luz</Text>}
+                    </TouchableOpacity>
+                ) : null}
             </SectionCard>
         </TouchableOpacity>
     );
-}
-
-function formatRelative(dateStr: string): string {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-    if (diff < 60) return 'Hace instantes';
-    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`;
-    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} h`;
-    return `Hace ${Math.floor(diff / 86400)} d`;
-}
-
-function ageMinutes(dateStr: string): number {
-    return Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
 }
 
 function formatAddress(report: Report): string {
@@ -550,6 +582,34 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 3,
         fontSize: 11,
+    },
+    mineTag: {
+        color: DS.greenLight,
+        backgroundColor: 'rgba(74,222,128,0.15)',
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    resolveCardButton: {
+        marginTop: 12,
+        minHeight: 38,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: DS.green,
+        backgroundColor: 'rgba(34,197,94,0.12)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 12,
+    },
+    resolveCardButtonDisabled: {
+        opacity: 0.6,
+    },
+    resolveCardButtonText: {
+        color: DS.greenLight,
+        fontSize: 13,
+        fontWeight: '800',
     },
     reportAddress: {
         color: DS.text,

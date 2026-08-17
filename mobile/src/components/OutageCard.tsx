@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Clock3, MessageCircle, UsersRound } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../api/types';
 import { DS, StatusChip } from './DesignSystem';
+import { parseApiDate, relativeTime } from '../utils/date';
 
 interface Props {
     outage: Outage;
@@ -12,21 +13,12 @@ interface Props {
 
 function formatTime(value?: string) {
     if (!value) return 'Sin horario';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
+    const date = parseApiDate(value);
+    if (!date) return value;
     const day = date.toLocaleString('es-PY', { day: '2-digit' });
     const month = date.toLocaleString('es-PY', { month: 'long' });
     const time = date.toLocaleString('es-PY', { hour: '2-digit', minute: '2-digit', hour12: false });
     return `${day} ${month}, ${time}`;
-}
-
-function relativeTime(value?: string) {
-    if (!value) return '';
-    const diff = Math.floor((Date.now() - new Date(value).getTime()) / 1000);
-    if (diff < 60) return 'Ahora';
-    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`;
-    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} h`;
-    return `Hace ${Math.floor(diff / 86400)} d`;
 }
 
 export const OutageCard = ({ outage, onPress, compact = false }: Props) => {

@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Region } from 'react-native-maps';
-import { useRouter } from 'expo-router';
+import { ActivityIndicator, AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MapView, { Marker, MapPressEvent, Region } from 'react-native-maps';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { AlertTriangle, LocateFixed, Settings, Zap } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
 import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
-import { registerMapFocusCallback, unregisterMapFocusCallback } from '../../src/mapFocus';
 
 const ASUNCION: Region = {
     latitude: -25.2637,
@@ -21,14 +22,19 @@ const ASUNCION: Region = {
 export default function MapScreen() {
     const { top } = useSafeAreaInsets();
     const [outages, setOutages] = useState<Outage[]>([]);
-    const [loading, setLoading] = useState(true);
+    // спиннер только на самую первую загрузку, фоновые обновления карту не размонтируют
+    const [initialLoading, setInitialLoading] = useState(true);
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
     const [initialRegion, setInitialRegion] = useState<Region>(ASUNCION);
+    const [sheetHeight, setSheetHeight] = useState(0);
     const router = useRouter();
     const mapRef = useRef<MapView>(null);
+    const isFocused = useIsFocused();
+    const tabBarHeight = useBottomTabBarHeight();
+    const { focusLat, focusLon } = useLocalSearchParams<{ focusLat?: string; focusLon?: string }>();
+    const lastFocusRef = useRef<string | null>(null);
 
     const fetchOutages = async () => {
-        setLoading(true);
         try {
             let fetchedOutages: Outage[] = [];
             let mappedReports: Outage[] = [];
@@ -62,7 +68,7 @@ export default function MapScreen() {
         } catch (error) {
             console.error('General error fetching data for map:', error);
         } finally {
-            setLoading(false);
+            setInitialLoading(false);
         }
     };
 
@@ -97,16 +103,21 @@ export default function MapScreen() {
     }, []);
 
     useEffect(() => {
-        registerMapFocusCallback((latitude, longitude) => {
-            setTimeout(() => {
-                mapRef.current?.animateToRegion(
-                    { latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 },
-                    600,
-                );
-            }, 800);
-        });
-        return () => unregisterMapFocusCallback();
-    }, []);
+        // параметры focusLat/focusLon остаются в урле, поэтому центрируем только при их смене
+        if (!isFocused || !focusLat || !focusLon) return;
+        const key = `${focusLat},${focusLon}`;
+        if (lastFocusRef.current === key) return;
+        lastFocusRef.current = key;
+        const latitude = parseFloat(focusLat);
+        const longitude = parseFloat(focusLon);
+        if (Number.isNaN(latitude) || Number.isNaN(longitude)) return;
+        setTimeout(() => {
+            mapRef.current?.animateToRegion(
+                { latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+                600,
+            );
+        }, 500);
+    }, [focusLat, focusLon, isFocused]);
 
 
     const centerOnUser = async () => {
@@ -121,12 +132,18 @@ export default function MapScreen() {
         }, 650);
     };
 
-    if (loading) {
+    if (initialLoading) {
         return (
             <View style={sharedStyles.center}>
                 <ActivityIndicator size="large" color={DS.amber} />
             </View>
         );
+    }
+
+    if (!isFocused) {
+        // экран не в фокусе: не рендерим MapView и оверлеи, чтобы нативный SurfaceView
+        // и его контролы не просвечивали поверх других табов на Android
+        return <View style={styles.container} />;
     }
 
     return (
@@ -136,9 +153,13 @@ export default function MapScreen() {
                 style={styles.map}
                 initialRegion={initialRegion}
                 customMapStyle={darkMapStyle}
-                onPress={() => setSelectedOutage(null)}
+                onPress={(e: MapPressEvent) => {
+                    // на Android тап по маркеру тоже долетает как press карты отдельным нативным
+                    // событием — stopPropagation в Marker его не гасит, поэтому фильтруем тут
+                    if (e.nativeEvent.action === 'marker-press') return;
+                    setSelectedOutage(null);
+                }}
                 zoomEnabled
-                zoomControlEnabled={Platform.OS === 'android'}
                 scrollEnabled
                 pitchEnabled
                 rotateEnabled
@@ -150,6 +171,9 @@ export default function MapScreen() {
                         <Marker
                             key={outage.id}
                             coordinate={{ latitude: outage.latitude!, longitude: outage.longitude! }}
+                            // перерисовываем битмап маркера только пока он выбран (иначе
+                            // Android не покажет увеличение, а постоянный трекинг съедает тапы)
+                            tracksViewChanges={selected}
                             onPress={e => {
                                 e.stopPropagation();
                                 setSelectedOutage(outage);
@@ -175,7 +199,7 @@ export default function MapScreen() {
                 </IconButton>
             </View>
 
-            <View style={styles.legend}>
+            <View style={[styles.legend, { bottom: tabBarHeight + 20 }]}>
                 {[
                     { color: DS.redLight, label: 'Activo' },
                     { color: DS.amber, label: 'Programado' },
@@ -189,7 +213,13 @@ export default function MapScreen() {
                 ))}
             </View>
 
-            <View style={[styles.fabs, selectedOutage && styles.fabsRaised]}>
+            <View
+                style={[
+                    styles.fabs,
+                    { bottom: tabBarHeight + 24 },
+                    selectedOutage && { bottom: sheetHeight + 16 },
+                ]}
+            >
                 <IconButton style={styles.locateButton} onPress={centerOnUser}>
                     <LocateFixed size={21} color={DS.text} />
                 </IconButton>
@@ -204,7 +234,10 @@ export default function MapScreen() {
             </View>
 
             {selectedOutage && (
-                <View style={styles.sheet}>
+                <View
+                    style={[styles.sheet, { paddingBottom: tabBarHeight + 16 }]}
+                    onLayout={e => setSheetHeight(e.nativeEvent.layout.height)}
+                >
                     <View style={styles.handle} />
                     <OutageCard
                         outage={selectedOutage}
@@ -262,6 +295,7 @@ const styles = StyleSheet.create({
     markerWrap: {
         alignItems: 'center',
         justifyContent: 'center',
+        padding: 10, // увеличиваем зону нажатия вокруг маленького маркера
     },
     marker: {
         width: 30,
@@ -274,7 +308,7 @@ const styles = StyleSheet.create({
     legend: {
         position: 'absolute',
         left: 12,
-        bottom: 100,
+        // bottom считается от высоты таб-бара (см. inline-стиль в рендере)
         backgroundColor: 'rgba(13,22,38,0.85)',
         borderRadius: 10,
         paddingHorizontal: 10,
@@ -299,12 +333,9 @@ const styles = StyleSheet.create({
     fabs: {
         position: 'absolute',
         right: 16,
-        bottom: 92,
+        // bottom считается от высоты таб-бара либо от высоты шторки (см. inline-стиль в рендере)
         alignItems: 'flex-end',
         gap: 10,
-    },
-    fabsRaised: {
-        bottom: 252,
     },
     locateButton: {
         backgroundColor: DS.surface,
@@ -335,7 +366,7 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 16,
         paddingHorizontal: 16,
         paddingTop: 10,
-        paddingBottom: 16,
+        // paddingBottom считается от высоты таб-бара (см. inline-стиль в рендере)
         gap: 10,
     },
     handle: {
