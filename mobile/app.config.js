@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "LuzAlerts",
     slug: "luzalerts",
-    version: "1.1.0",
+    version: "1.1.1",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
@@ -17,7 +17,7 @@ module.exports = {
     },
     android: {
       package: "com.luzalerts.app",
-      versionCode: 4,
+      versionCode: 5,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",

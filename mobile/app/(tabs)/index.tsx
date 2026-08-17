@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, MapPressEvent, Region } from 'react-native-maps';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useGlobalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
@@ -27,12 +27,18 @@ export default function MapScreen() {
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
     const [initialRegion, setInitialRegion] = useState<Region>(ASUNCION);
     const [sheetHeight, setSheetHeight] = useState(0);
+    // на Android битмап кастомного маркера снимается сразу, до раскладки вложенной View,
+    // поэтому первое время после монтирования и после обновления списка трекаем изменения
+    const [tracksChanges, setTracksChanges] = useState(true);
     const router = useRouter();
     const mapRef = useRef<MapView>(null);
     const isFocused = useIsFocused();
     const tabBarHeight = useBottomTabBarHeight();
-    const { focusLat, focusLon } = useLocalSearchParams<{ focusLat?: string; focusLon?: string }>();
+    // глобальные параметры: навигация идет на группу (tabs), сегмент может отличаться
+    const { focusLat, focusLon } = useGlobalSearchParams<{ focusLat?: string; focusLon?: string }>();
     const lastFocusRef = useRef<string | null>(null);
+    const pendingFocusRef = useRef<{ latitude: number; longitude: number } | null>(null);
+    const mapReadyRef = useRef(false);
 
     const fetchOutages = async () => {
         try {
@@ -103,21 +109,41 @@ export default function MapScreen() {
     }, []);
 
     useEffect(() => {
+        // после обновления маркеров даем нативной стороне время снять корректный битмап,
+        // потом трекинг выключаем — постоянный трекинг съедает тапы по маркерам
+        setTracksChanges(true);
+        const timer = setTimeout(() => setTracksChanges(false), 1500);
+        return () => clearTimeout(timer);
+    }, [outages]);
+
+    // центрируем только когда карта реально смонтирована и готова, иначе анимация уходит в никуда
+    const applyFocus = useCallback(() => {
+        const target = pendingFocusRef.current;
+        if (!target || !mapReadyRef.current) return;
+        pendingFocusRef.current = null;
+        mapRef.current?.animateToRegion(
+            { ...target, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+            600,
+        );
+    }, []);
+
+    useEffect(() => {
         // параметры focusLat/focusLon остаются в урле, поэтому центрируем только при их смене
-        if (!isFocused || !focusLat || !focusLon) return;
+        if (!focusLat || !focusLon) return;
         const key = `${focusLat},${focusLon}`;
         if (lastFocusRef.current === key) return;
-        lastFocusRef.current = key;
         const latitude = parseFloat(focusLat);
         const longitude = parseFloat(focusLon);
         if (Number.isNaN(latitude) || Number.isNaN(longitude)) return;
-        setTimeout(() => {
-            mapRef.current?.animateToRegion(
-                { latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 },
-                600,
-            );
-        }, 500);
-    }, [focusLat, focusLon, isFocused]);
+        lastFocusRef.current = key;
+        pendingFocusRef.current = { latitude, longitude };
+        applyFocus();
+    }, [focusLat, focusLon, applyFocus]);
+
+    useEffect(() => {
+        // при расфокусе MapView размонтируется, значит готовность надо сбросить
+        if (!isFocused) mapReadyRef.current = false;
+    }, [isFocused]);
 
 
     const centerOnUser = async () => {
@@ -153,6 +179,10 @@ export default function MapScreen() {
                 style={styles.map}
                 initialRegion={initialRegion}
                 customMapStyle={darkMapStyle}
+                onMapReady={() => {
+                    mapReadyRef.current = true;
+                    applyFocus();
+                }}
                 onPress={(e: MapPressEvent) => {
                     // на Android тап по маркеру тоже долетает как press карты отдельным нативным
                     // событием — stopPropagation в Marker его не гасит, поэтому фильтруем тут
@@ -171,9 +201,9 @@ export default function MapScreen() {
                         <Marker
                             key={outage.id}
                             coordinate={{ latitude: outage.latitude!, longitude: outage.longitude! }}
-                            // перерисовываем битмап маркера только пока он выбран (иначе
-                            // Android не покажет увеличение, а постоянный трекинг съедает тапы)
-                            tracksViewChanges={selected}
+                            // трекаем сразу после появления маркеров (иначе на Android они пустые)
+                            // и пока маркер выбран, чтобы прошло увеличение
+                            tracksViewChanges={tracksChanges || selected}
                             onPress={e => {
                                 e.stopPropagation();
                                 setSelectedOutage(outage);
