@@ -87,9 +87,12 @@ class UserReport(Base):
     house: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confirmation_count: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    # Автор закрыл свою метку ("ya volvio la luz"). Naive UTC, как и created_at.
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="reports")
 

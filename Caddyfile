@@ -1,6 +1,9 @@
 luzalerts.lat {
     encode gzip
 
+    handle /status {
+        reverse_proxy backend:8000
+    }
     handle /outages* {
         reverse_proxy backend:8000
     }

@@ -1,6 +1,20 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field, field_serializer
+
+
+def utc_iso(value: datetime | None) -> str | None:
+    """Сериализовать datetime как ISO-8601 с суффиксом Z.
+
+    В БД время хранится naive (timestamp without time zone), а сервер БД
+    работает в UTC, поэтому naive-значение трактуем как UTC. Без этого
+    клиент считает время локальным и неверно показывает "hace N minutos".
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 # ---------- User ----------
@@ -58,6 +72,10 @@ class ReportCreate(BaseModel):
     comment: str | None = None
 
 
+class ReportResolve(BaseModel):
+    device_id: str = Field(..., description="ID устройства автора метки. Чужие метки закрывать нельзя.")
+
+
 class ReportOut(BaseModel):
     id: int
     latitude: float
@@ -68,10 +86,21 @@ class ReportOut(BaseModel):
     street: str | None
     house: str | None
     comment: str | None
+    confirmation_count: int
     confirmed: bool
     created_at: datetime
+    resolved_at: datetime | None = Field(default=None, description="Когда автор закрыл метку. null — метка активна.")
 
     model_config = {"from_attributes": True}
+
+    @computed_field(description="true, если метка закрыта автором")
+    @property
+    def resolved(self) -> bool:
+        return self.resolved_at is not None
+
+    @field_serializer("created_at", "resolved_at")
+    def _serialize_dt(self, value: datetime | None) -> str | None:
+        return utc_iso(value)
 
 
 class ReportsInAreaQuery(BaseModel):

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
@@ -10,7 +11,7 @@ from app.database import get_db
 from app.geocoding import reverse_geocode, forward_geocode
 from app.limiter import limiter
 from app.models import User, UserReport
-from app.schemas import ReportCreate, ReportOut, ReportsInAreaQuery
+from app.schemas import ReportCreate, ReportOut, ReportResolve, ReportsInAreaQuery
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -73,6 +74,37 @@ async def create_report(request: Request, payload: ReportCreate, db: AsyncSessio
     return report
 
 
+@router.post("/{report_id}/resolve", response_model=ReportOut)
+async def resolve_report(
+    report_id: int,
+    payload: ReportResolve,
+    db: AsyncSession = Depends(get_db),
+):
+    """Закрыть свою метку: "ya volvio la luz".
+
+    Закрывать можно только собственные метки — device_id должен совпадать
+    с автором. Повторный вызов идемпотентен и возвращает ту же метку.
+    """
+    result = await db.execute(select(UserReport).where(UserReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+
+    owner = await db.get(User, report.user_id)
+    if owner is None or owner.device_id != payload.device_id:
+        raise HTTPException(status_code=403, detail="Solo el autor puede cerrar este reporte")
+
+    if report.resolved_at is None:
+        # В БД колонка timestamp without time zone, сервер БД в UTC —
+        # пишем naive UTC, наружу отдаем ISO с суффиксом Z.
+        report.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        report.is_active = False
+        await db.commit()
+        await db.refresh(report)
+
+    return report
+
+
 @router.get("/{report_id}", response_model=ReportOut)
 async def get_report(report_id: int, db: AsyncSession = Depends(get_db)):
     """Получить конкретный репорт по ID."""
@@ -90,8 +122,14 @@ async def get_reports_in_area(
     radius_m: int = Query(1000),
     db: AsyncSession = Depends(get_db),
 ):
-    """Получить активные метки. Если заданы lat/lon, фильтровать по радиусу."""
-    q = select(UserReport).where(UserReport.is_active == True)
+    """Получить активные метки. Если заданы lat/lon, фильтровать по радиусу.
+
+    Закрытые автором метки (resolved_at не пустой) в выдачу не попадают.
+    """
+    q = select(UserReport).where(
+        UserReport.is_active == True,
+        UserReport.resolved_at.is_(None),
+    )
 
     if latitude is not None and longitude is not None:
         point = ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)

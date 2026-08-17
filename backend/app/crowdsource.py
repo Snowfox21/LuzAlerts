@@ -42,6 +42,7 @@ async def check_and_confirm_reports(db: AsyncSession, lat: float, lon: float) ->
         reports = (await db.execute(update_q)).scalars().all()
         for r in reports:
             r.confirmed = True
+            r.confirmation_count = count
         await db.commit()
 
         barrio = reports[0].barrio if reports else None
