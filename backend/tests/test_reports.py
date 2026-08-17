@@ -163,3 +163,81 @@ async def test_resolved_report_disappears_from_list(client: AsyncClient, mock_ge
     detail = await client.get(f"/reports/{report['id']}")
     assert detail.status_code == 200
     assert detail.json()["resolved"] is True
+
+
+# ---------- Авторство: is_mine ----------
+
+@pytest.mark.asyncio
+async def test_is_mine_true_for_own_device(client: AsyncClient, mock_geocoder):
+    device_id, report = await _create_user_and_report(client, "mine-own", -25.4601, -57.7601)
+
+    # В списке
+    res = await client.get(
+        f"/reports/?latitude=-25.4601&longitude=-57.7601&radius_m=200&device_id={device_id}"
+    )
+    assert res.status_code == 200
+    mine = [r for r in res.json() if r["id"] == report["id"]]
+    assert len(mine) == 1
+    assert mine[0]["is_mine"] is True
+    assert "device_id" not in mine[0]
+
+    # По id
+    detail = await client.get(f"/reports/{report['id']}?device_id={device_id}")
+    assert detail.status_code == 200
+    assert detail.json()["is_mine"] is True
+    assert "device_id" not in detail.json()
+
+
+@pytest.mark.asyncio
+async def test_is_mine_false_for_foreign_device(client: AsyncClient, mock_geocoder):
+    _, report = await _create_user_and_report(client, "mine-foreign", -25.4701, -57.7701)
+    other = "device-is-mine-stranger"
+    await client.post("/users/", json={"device_id": other})
+
+    res = await client.get(
+        f"/reports/?latitude=-25.4701&longitude=-57.7701&radius_m=200&device_id={other}"
+    )
+    mine = [r for r in res.json() if r["id"] == report["id"]]
+    assert len(mine) == 1
+    assert mine[0]["is_mine"] is False
+    assert "device_id" not in mine[0]
+
+    detail = await client.get(f"/reports/{report['id']}?device_id={other}")
+    assert detail.json()["is_mine"] is False
+
+    # Незарегистрированное устройство — тоже не автор
+    unknown = await client.get(f"/reports/{report['id']}?device_id=device-never-seen")
+    assert unknown.json()["is_mine"] is False
+
+
+@pytest.mark.asyncio
+async def test_is_mine_false_without_param(client: AsyncClient, mock_geocoder):
+    """Старый клиент, который не шлет device_id, получает is_mine=false везде."""
+    device_id, report = await _create_user_and_report(client, "mine-noparam", -25.4801, -57.7801)
+
+    res = await client.get("/reports/?latitude=-25.4801&longitude=-57.7801&radius_m=200")
+    assert res.status_code == 200
+    for r in res.json():
+        assert r["is_mine"] is False
+        assert "device_id" not in r
+
+    detail = await client.get(f"/reports/{report['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["is_mine"] is False
+    assert "device_id" not in detail.json()
+
+    # А с device_id автора — true, тот же самый репорт
+    with_id = await client.get(f"/reports/{report['id']}?device_id={device_id}")
+    assert with_id.json()["is_mine"] is True
+
+
+@pytest.mark.asyncio
+async def test_is_mine_true_on_create_and_resolve(client: AsyncClient, mock_geocoder):
+    device_id, report = await _create_user_and_report(client, "mine-create", -25.4901, -57.7901)
+    assert report["is_mine"] is True
+    assert "device_id" not in report
+
+    res = await client.post(f"/reports/{report['id']}/resolve", json={"device_id": device_id})
+    assert res.status_code == 200
+    assert res.json()["is_mine"] is True
+    assert "device_id" not in res.json()

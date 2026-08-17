@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
 from geoalchemy2.types import Geography
-from sqlalchemy import select, cast
+from sqlalchemy import Boolean, literal, select, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crowdsource import check_and_confirm_reports
@@ -14,6 +14,26 @@ from app.models import User, UserReport
 from app.schemas import ReportCreate, ReportOut, ReportResolve, ReportsInAreaQuery
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _with_is_mine(q, device_id: Optional[str]):
+    """Добавить в SELECT вычисляемую колонку is_mine.
+
+    Авторство считает сервер: device_id наружу не отдается никогда, клиент
+    узнает только булев признак. Сравнение делается тем же запросом через
+    JOIN users, поэтому список отдается без N+1.
+    """
+    if not device_id:
+        return q.add_columns(literal(False, Boolean).label("is_mine"))
+    return q.add_columns((User.device_id == device_id).label("is_mine")).outerjoin(
+        User, User.id == UserReport.user_id
+    )
+
+
+def _attach_is_mine(report: UserReport, is_mine) -> UserReport:
+    """Проставить не-mapped атрибут, который подхватит ReportOut."""
+    report.is_mine = bool(is_mine)
+    return report
 
 
 @router.post("/", response_model=ReportOut, status_code=201)
@@ -71,7 +91,8 @@ async def create_report(request: Request, payload: ReportCreate, db: AsyncSessio
     # Проверка на threshold — подтверждаем всех в радиусе
     await check_and_confirm_reports(db, lat, lon)
 
-    return report
+    # Метку только что создало это устройство — она заведомо своя.
+    return _attach_is_mine(report, True)
 
 
 @router.post("/{report_id}/resolve", response_model=ReportOut)
@@ -102,17 +123,24 @@ async def resolve_report(
         await db.commit()
         await db.refresh(report)
 
-    return report
+    # Закрывать может только автор, значит запрос пришел от него.
+    return _attach_is_mine(report, True)
 
 
 @router.get("/{report_id}", response_model=ReportOut)
-async def get_report(report_id: int, db: AsyncSession = Depends(get_db)):
+async def get_report(
+    report_id: int,
+    device_id: Optional[str] = Query(
+        None, description="ID устройства. Если совпадает с автором, вернется is_mine=true."
+    ),
+    db: AsyncSession = Depends(get_db),
+):
     """Получить конкретный репорт по ID."""
-    result = await db.execute(select(UserReport).where(UserReport.id == report_id))
-    report = result.scalar_one_or_none()
-    if report is None:
+    q = _with_is_mine(select(UserReport).where(UserReport.id == report_id), device_id)
+    row = (await db.execute(q)).first()
+    if row is None:
         raise HTTPException(status_code=404, detail="Reporte no encontrado")
-    return report
+    return _attach_is_mine(row[0], row[1])
 
 
 @router.get("/", response_model=list[ReportOut])
@@ -120,6 +148,9 @@ async def get_reports_in_area(
     latitude: Optional[float] = Query(None),
     longitude: Optional[float] = Query(None),
     radius_m: int = Query(1000),
+    device_id: Optional[str] = Query(
+        None, description="ID устройства. Свои метки вернутся с is_mine=true."
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Получить активные метки. Если заданы lat/lon, фильтровать по радиусу.
@@ -141,6 +172,6 @@ async def get_reports_in_area(
             )
         )
 
-    q = q.order_by(UserReport.created_at.desc()).limit(200)
+    q = _with_is_mine(q.order_by(UserReport.created_at.desc()).limit(200), device_id)
     result = await db.execute(q)
-    return result.scalars().all()
+    return [_attach_is_mine(report, is_mine) for report, is_mine in result.all()]

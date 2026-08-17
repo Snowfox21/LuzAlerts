@@ -90,6 +90,13 @@ class ReportOut(BaseModel):
     confirmed: bool
     created_at: datetime
     resolved_at: datetime | None = Field(default=None, description="Когда автор закрыл метку. null — метка активна.")
+    is_mine: bool = Field(
+        default=False,
+        description=(
+            "true, если метка создана этим устройством. Вычисляется по query-параметру "
+            "device_id; без него всегда false. Поле присутствует всегда."
+        ),
+    )
 
     model_config = {"from_attributes": True}
 
