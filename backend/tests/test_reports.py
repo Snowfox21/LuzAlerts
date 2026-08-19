@@ -1,5 +1,11 @@
+from datetime import timedelta
+
 import pytest
 from httpx import AsyncClient
+
+from app.config import settings
+from app.crowdsource import auto_resolve_expired_reports
+from app.report_lifecycle import expires_at
 
 @pytest.fixture
 def mock_geocoder(monkeypatch):
@@ -241,3 +247,130 @@ async def test_is_mine_true_on_create_and_resolve(client: AsyncClient, mock_geoc
     assert res.status_code == 200
     assert res.json()["is_mine"] is True
     assert "device_id" not in res.json()
+
+
+# ---------- Автозакрытие по сроку (REPORT_AUTO_RESOLVE_HOURS) ----------
+
+async def _age_report(db, report_id: int, hours: float):
+    """Состарить метку: отодвинуть created_at на N часов назад."""
+    from sqlalchemy import update
+    from app.models import UserReport
+    from app.report_lifecycle import utcnow_naive
+
+    await db.execute(
+        update(UserReport)
+        .where(UserReport.id == report_id)
+        .values(created_at=utcnow_naive() - timedelta(hours=hours))
+    )
+    await db.commit()
+
+
+async def _get_report_row(db, report_id: int):
+    from sqlalchemy import select
+    from app.models import UserReport
+
+    return (
+        await db.execute(select(UserReport).where(UserReport.id == report_id))
+    ).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_fresh_report_stays_in_list(client: AsyncClient, db, mock_geocoder):
+    """Метка младше срока жизни остается активной."""
+    _, report = await _create_user_and_report(client, "ttl-fresh", -25.5101, -57.8101)
+    await _age_report(db, report["id"], settings.REPORT_AUTO_RESOLVE_HOURS - 1)
+
+    res = await client.get("/reports/?latitude=-25.5101&longitude=-57.8101&radius_m=200")
+    assert report["id"] in [r["id"] for r in res.json()]
+
+    detail = await client.get(f"/reports/{report['id']}")
+    assert detail.json()["resolved"] is False
+    assert detail.json()["resolved_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_expired_report_hidden_from_list_and_resolved_by_id(
+    client: AsyncClient, db, mock_geocoder
+):
+    """Просроченная метка пропадает из списка и по id отдается закрытой.
+
+    Проверяется до прогона фоновой задачи — работает защита на чтении.
+    """
+    _, report = await _create_user_and_report(client, "ttl-expired", -25.5201, -57.8201)
+    await _age_report(db, report["id"], settings.REPORT_AUTO_RESOLVE_HOURS + 1)
+
+    res = await client.get("/reports/?latitude=-25.5201&longitude=-57.8201&radius_m=200")
+    assert report["id"] not in [r["id"] for r in res.json()]
+
+    detail = await client.get(f"/reports/{report['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["resolved"] is True
+    assert detail.json()["resolved_reason"] == "auto"
+    assert detail.json()["resolved_at"].endswith("Z")
+
+    # В БД метка при этом еще не тронута — оверлей только на чтении.
+    assert (await _get_report_row(db, report["id"])).resolved_at is None
+
+
+@pytest.mark.asyncio
+async def test_expired_report_excluded_from_confirmation(
+    client: AsyncClient, db, mock_geocoder
+):
+    """Просроченные метки не участвуют в подтверждении по threshold."""
+    lat, lon = -25.5301, -57.8301
+    ids = []
+    for i in range(settings.REPORT_THRESHOLD - 1):
+        _, rep = await _create_user_and_report(client, f"ttl-conf-{i}", lat + i * 0.0001, lon)
+        ids.append(rep["id"])
+    for rid in ids:
+        await _age_report(db, rid, settings.REPORT_AUTO_RESOLVE_HOURS + 1)
+
+    # Свежая метка рядом: соседей "живых" нет, threshold не должен сработать
+    _, fresh = await _create_user_and_report(client, "ttl-conf-fresh", lat + 0.0005, lon)
+    assert fresh["confirmed"] is False
+
+
+@pytest.mark.asyncio
+async def test_auto_resolve_task_closes_expired(client: AsyncClient, db, mock_geocoder):
+    """Задача проставляет resolved_at = created_at + срок, а не время прогона."""
+    _, report = await _create_user_and_report(client, "ttl-task", -25.5401, -57.8401)
+    await _age_report(db, report["id"], settings.REPORT_AUTO_RESOLVE_HOURS + 5)
+
+    closed = await auto_resolve_expired_reports(db)
+    assert closed >= 1
+
+    row = await _get_report_row(db, report["id"])
+    assert row.resolved_at == expires_at(row.created_at)
+    assert row.resolved_reason == "auto"
+    assert row.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_auto_resolve_keeps_manual_resolved_at(client: AsyncClient, db, mock_geocoder):
+    """Закрытую вручную метку задача не перезаписывает."""
+    device_id, report = await _create_user_and_report(client, "ttl-manual", -25.5501, -57.8501)
+    res = await client.post(f"/reports/{report['id']}/resolve", json={"device_id": device_id})
+    assert res.status_code == 200
+    manual_resolved_at = res.json()["resolved_at"]
+
+    await _age_report(db, report["id"], settings.REPORT_AUTO_RESOLVE_HOURS + 10)
+    await auto_resolve_expired_reports(db)
+
+    detail = await client.get(f"/reports/{report['id']}")
+    assert detail.json()["resolved_at"] == manual_resolved_at
+    assert detail.json()["resolved_reason"] == "author"
+
+
+@pytest.mark.asyncio
+async def test_auto_resolve_is_idempotent(client: AsyncClient, db, mock_geocoder):
+    """Повторный прогон ничего не меняет и никого не закрывает повторно."""
+    _, report = await _create_user_and_report(client, "ttl-idem", -25.5601, -57.8601)
+    await _age_report(db, report["id"], settings.REPORT_AUTO_RESOLVE_HOURS + 2)
+
+    await auto_resolve_expired_reports(db)
+    first = (await _get_report_row(db, report["id"])).resolved_at
+    assert first is not None
+
+    second_run = await auto_resolve_expired_reports(db)
+    assert second_run == 0
+    assert (await _get_report_row(db, report["id"])).resolved_at == first

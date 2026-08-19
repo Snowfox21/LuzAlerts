@@ -89,7 +89,15 @@ class ReportOut(BaseModel):
     confirmation_count: int
     confirmed: bool
     created_at: datetime
-    resolved_at: datetime | None = Field(default=None, description="Когда автор закрыл метку. null — метка активна.")
+    resolved_at: datetime | None = Field(default=None, description="Когда метка была закрыта. null — метка активна.")
+    resolved_reason: str | None = Field(
+        default=None,
+        description=(
+            '"author" — автор закрыл метку сам; "auto" — метка протухла по сроку '
+            "и закрыта автоматически (resolved_at = момент истечения срока, а не "
+            "реальный момент возврата света); null — метка активна."
+        ),
+    )
     is_mine: bool = Field(
         default=False,
         description=(
@@ -100,7 +108,7 @@ class ReportOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
-    @computed_field(description="true, если метка закрыта автором")
+    @computed_field(description="true, если метка закрыта (автором или по сроку)")
     @property
     def resolved(self) -> bool:
         return self.resolved_at is not None

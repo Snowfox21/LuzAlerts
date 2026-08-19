@@ -11,6 +11,11 @@ from app.database import get_db
 from app.geocoding import reverse_geocode, forward_geocode
 from app.limiter import limiter
 from app.models import User, UserReport
+from app.report_lifecycle import (
+    RESOLUTION_AUTHOR,
+    active_report_clause,
+    apply_auto_resolution,
+)
 from app.schemas import ReportCreate, ReportOut, ReportResolve, ReportsInAreaQuery
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -119,6 +124,7 @@ async def resolve_report(
         # В БД колонка timestamp without time zone, сервер БД в UTC —
         # пишем naive UTC, наружу отдаем ISO с суффиксом Z.
         report.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        report.resolved_reason = RESOLUTION_AUTHOR
         report.is_active = False
         await db.commit()
         await db.refresh(report)
@@ -135,12 +141,17 @@ async def get_report(
     ),
     db: AsyncSession = Depends(get_db),
 ):
-    """Получить конкретный репорт по ID."""
+    """Получить конкретный репорт по ID.
+
+    Закрытые метки эта ручка не прячет — иначе диплинк на свою же закрытую
+    метку отдавал бы 404. Просроченная метка отдается как resolved даже
+    до того, как до нее дошла фоновая задача.
+    """
     q = _with_is_mine(select(UserReport).where(UserReport.id == report_id), device_id)
     row = (await db.execute(q)).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Reporte no encontrado")
-    return _attach_is_mine(row[0], row[1])
+    return _attach_is_mine(apply_auto_resolution(row[0]), row[1])
 
 
 @router.get("/", response_model=list[ReportOut])
@@ -155,12 +166,11 @@ async def get_reports_in_area(
 ):
     """Получить активные метки. Если заданы lat/lon, фильтровать по радиусу.
 
-    Закрытые автором метки (resolved_at не пустой) в выдачу не попадают.
+    Не отдаются: закрытые автором (resolved_at не пустой) и просроченные
+    (старше REPORT_AUTO_RESOLVE_HOURS) — вторые отсекаются прямо здесь,
+    чтобы не ждать очередного прогона фоновой задачи.
     """
-    q = select(UserReport).where(
-        UserReport.is_active == True,
-        UserReport.resolved_at.is_(None),
-    )
+    q = select(UserReport).where(active_report_clause())
 
     if latitude is not None and longitude is not None:
         point = ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)

@@ -91,8 +91,11 @@ class UserReport(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    # Автор закрыл свою метку ("ya volvio la luz"). Naive UTC, как и created_at.
+    # Метка закрыта: автором ("ya volvio la luz") или автоматически по сроку.
+    # Naive UTC, как и created_at.
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Чем закрыта: "author" | "auto" | None (метка активна).
+    resolved_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="reports")
 

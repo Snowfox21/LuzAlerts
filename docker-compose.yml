@@ -30,6 +30,9 @@ services:
       NOMINATIM_EMAIL: ${NOMINATIM_EMAIL:-dev@luzalerts.local}
       REPORT_RADIUS_M: 500
       REPORT_THRESHOLD: 3
+      # Срок жизни пользовательской метки. Просроченные не отдаются в
+      # GET /reports/ и закрываются фоновой задачей в контейнере scraper.
+      REPORT_AUTO_RESOLVE_HOURS: ${REPORT_AUTO_RESOLVE_HOURS:-96}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
     depends_on:
       db:
@@ -59,6 +62,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://luz:luz@db:5432/luzalerts}
       ANDE_URL: https://www.ande.gov.py/
       POLL_INTERVAL_MINUTES: 240
+      # Должен совпадать со значением у backend: тот же срок используется
+      # на чтении, эта задача только материализует его в БД.
+      REPORT_AUTO_RESOLVE_HOURS: ${REPORT_AUTO_RESOLVE_HOURS:-96}
       PYTHONUNBUFFERED: "1"
       # Primary ANDE egress. patchright passes the Radware JS challenge from the
       # plain datacenter IP, so this is normally empty (direct) — no tunnel

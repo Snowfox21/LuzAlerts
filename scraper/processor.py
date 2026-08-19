@@ -155,6 +155,20 @@ async def mark_resolved_outages() -> None:
     logger.info(f"Marked {len(candidates)} outages as resolved.")
 
 
+async def auto_resolve_expired_reports() -> None:
+    """Закрывает пользовательские метки, которым вышел срок жизни.
+
+    Логика живет в backend (app.crowdsource), здесь только прогон по расписанию:
+    источник правды один, а тесты бэкенда покрывают ее без зависимостей скрейпера.
+    """
+    from app.crowdsource import auto_resolve_expired_reports as _auto_resolve
+    from app.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        closed = await _auto_resolve(session)
+    logger.info(f"Auto-resolved {closed} expired user reports.")
+
+
 async def cleanup_old_data(days: int = 7) -> None:
     """Deletes outages and user reports older than `days` days."""
     from app.database import AsyncSessionLocal
