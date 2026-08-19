@@ -23,6 +23,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 const ANDE_SILENT_SINCE_FALLBACK = '05/05';
 // Данные считаются устаревшими, если последнему official-корту больше суток
 const ANDE_STALE_MS = 24 * 60 * 60 * 1000;
+const SYSTEM_STATUS_MIN_HEIGHT = 92;
 
 const formatDayMonth = (iso: string): string => {
     const d = parseApiDate(iso);
@@ -38,6 +39,7 @@ export default function ListScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<Filter>('all');
     const [lastAndeData, setLastAndeData] = useState<string | null>(null);
+    const [systemStatusHeight, setSystemStatusHeight] = useState(0);
     const router = useRouter();
     const tabBarHeight = useBottomTabBarHeight();
 
@@ -121,6 +123,9 @@ export default function ListScreen() {
     }, [lastAndeData]);
 
     const andeSilentSince = lastAndeData ? formatDayMonth(lastAndeData) : ANDE_SILENT_SINCE_FALLBACK;
+    const listBottomInset = andeStale
+        ? tabBarHeight + Math.max(systemStatusHeight, SYSTEM_STATUS_MIN_HEIGHT) + 48
+        : 24;
 
     if (loading && !refreshing) {
         return (
@@ -174,7 +179,11 @@ export default function ListScreen() {
                         />
                     )}
                     ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-                    contentContainerStyle={[styles.listContent, filtered.length === 0 && styles.listContentEmpty]}
+                    contentContainerStyle={[
+                        styles.listContent,
+                        { paddingBottom: listBottomInset },
+                        filtered.length === 0 && styles.listContentEmpty,
+                    ]}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOutages(); }} tintColor={DS.amber} />
                     }
@@ -200,7 +209,10 @@ export default function ListScreen() {
                 />
 
                 {andeStale && (
-                    <View style={[styles.systemStatus, { bottom: tabBarHeight + 16 }]}>
+                    <View
+                        style={[styles.systemStatus, { bottom: tabBarHeight + 16 }]}
+                        onLayout={event => setSystemStatusHeight(event.nativeEvent.layout.height)}
+                    >
                         <View style={styles.statusRow}>
                             <View style={[styles.statusDot, styles.statusDotOk]} />
                             <Text style={styles.statusTextPrimary}>LuzAlerts funcionando normalmente</Text>
@@ -257,7 +269,6 @@ const styles = StyleSheet.create({
     },
     listContent: {
         paddingHorizontal: 16,
-        paddingBottom: 24,
     },
     listContentEmpty: {
         flexGrow: 1,
@@ -318,7 +329,7 @@ const styles = StyleSheet.create({
         // ширина фиксированная: у абсолютной коробки без left/width размер идет по контенту,
         // и flex: 1 у текстов внутри схлопывает их в ноль
         width: 250,
-        backgroundColor: 'rgba(30,41,59,0.94)',
+        backgroundColor: DS.surface,
         borderWidth: 1,
         borderColor: DS.border,
         borderRadius: 12,

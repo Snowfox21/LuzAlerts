@@ -73,3 +73,6 @@ admin_README.md
 scraper/.env
 scraper/.venv.312/
 scraper/__pycache__/
+
+# Раздаваемый с сайта APK, 110 МБ, в историю не нужен
+web/*.apk

@@ -1,15 +1,31 @@
-// Бэкенд отдает naive-даты без таймзоны (без "Z" и без смещения) - это UTC.
-// Без суффикса такая строка парсится JS как локальное время, из-за чего дата уезжает
-// в будущее/прошлое на величину смещения таймзоны устройства. Дописываем "Z", если
-// признака таймзоны в строке нет.
+function hasTimezone(value: string): boolean {
+    const tPos = value.indexOf('T');
+    const tail = tPos >= 0 ? value.slice(tPos + 1) : value;
+    return /Z$/i.test(tail) || /[+-]\d{2}:?\d{2}$/.test(tail);
+}
+
+// Серверные naive-даты считаем UTC. Явную таймзону всегда сохраняем.
 export function parseApiDate(value?: string): Date | null {
     if (!value) return null;
 
-    const tPos = value.indexOf('T');
-    const tail = tPos >= 0 ? value.slice(tPos + 1) : value;
-    const hasTimezone = /Z$/.test(tail) || /[+-]\d{2}:?\d{2}$/.test(tail);
+    const trimmed = value.trim();
+    const normalized = hasTimezone(trimmed) ? trimmed : `${trimmed}Z`;
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return null;
 
-    const normalized = hasTimezone ? value : `${value}Z`;
+    return date;
+}
+
+// Расписание ANDE без таймзоны уже задано в локальном времени устройства.
+export function parseApiLocalDate(value?: string): Date | null {
+    if (!value) return null;
+
+    const trimmed = value.trim();
+    const normalized = hasTimezone(trimmed)
+        ? trimmed
+        : /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+            ? `${trimmed}T00:00:00`
+            : trimmed.replace(/^(\d{4}-\d{2}-\d{2})\s/, '$1T');
     const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) return null;
 
@@ -18,6 +34,15 @@ export function parseApiDate(value?: string): Date | null {
 
 export function formatDateTime24(value?: string): string {
     const date = parseApiDate(value);
+    return formatDateTime24Value(date);
+}
+
+export function formatLocalDateTime24(value?: string): string {
+    const date = parseApiLocalDate(value);
+    return formatDateTime24Value(date);
+}
+
+function formatDateTime24Value(date: Date | null): string {
     if (!date) return 'No especificado';
 
     const day = String(date.getDate()).padStart(2, '0');

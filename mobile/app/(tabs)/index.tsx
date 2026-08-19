@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, MapPressEvent, Region } from 'react-native-maps';
+import MapView, { MapMarker, Marker, MapPressEvent, Region } from 'react-native-maps';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,6 +53,26 @@ export default function MapScreen() {
     const { focusLat, focusLon } = useGlobalSearchParams<{ focusLat?: string; focusLon?: string }>();
     const pendingFocusRef = useRef<{ latitude: number; longitude: number } | null>(null);
     const mapReadyRef = useRef(false);
+    const savedRegionRef = useRef<Region>(ASUNCION);
+    const restoringRegionRef = useRef(true);
+    const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const markerRefs = useRef(new Map<number, MapMarker>());
+
+    const stopRestoreGuard = useCallback(() => {
+        if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
+        restoreTimerRef.current = null;
+        restoringRegionRef.current = false;
+    }, []);
+
+    const finishRestoreAfter = useCallback((delay: number) => {
+        if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
+        restoreTimerRef.current = setTimeout(stopRestoreGuard, delay);
+    }, [stopRestoreGuard]);
+
+    const saveRegion = useCallback((region: Region) => {
+        savedRegionRef.current = region;
+        setSavedRegion(region);
+    }, []);
 
     const fetchOutages = async () => {
         try {
@@ -100,7 +120,7 @@ export default function MapScreen() {
                 .then(pos => pos ?? Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
                 .then(pos => {
                     if (!pos) return;
-                    setSavedRegion({
+                    saveRegion({
                         latitude: pos.coords.latitude,
                         longitude: pos.coords.longitude,
                         latitudeDelta: 0.1,
@@ -109,7 +129,7 @@ export default function MapScreen() {
                 })
                 .catch(() => {});
         });
-    }, []);
+    }, [saveRegion]);
 
     useEffect(() => {
         const interval = setInterval(fetchOutages, 5 * 60 * 1000);
@@ -125,14 +145,28 @@ export default function MapScreen() {
     const selectedId = selectedOutage?.id ?? null;
 
     useEffect(() => {
-        // окно трекинга открываем при любой причине пересъемки битмапа: смена данных,
-        // новое монтирование карты (возврат на таб) и смена выбранного маркера — включая
-        // снятие выбора, иначе маркер навсегда остается увеличенным.
-        // потом трекинг выключаем — постоянный трекинг съедает тапы по маркерам
+        // После двух кадров SVG уже нарисован. Явно переснимаем битмап и закрываем
+        // общее окно трекинга, чтобы постоянный трекинг не съедал тапы.
         if (!isFocused) return;
         setTracksChanges(true);
-        const timer = setTimeout(() => setTracksChanges(false), 1500);
-        return () => clearTimeout(timer);
+
+        let secondFrame = 0;
+        let captureTimer: ReturnType<typeof setTimeout> | null = null;
+        const firstFrame = requestAnimationFrame(() => {
+            secondFrame = requestAnimationFrame(() => {
+                markerRefs.current.forEach(marker => marker.redraw());
+                captureTimer = setTimeout(() => {
+                    markerRefs.current.forEach(marker => marker.redraw());
+                    setTracksChanges(false);
+                }, 250);
+            });
+        });
+
+        return () => {
+            cancelAnimationFrame(firstFrame);
+            if (secondFrame) cancelAnimationFrame(secondFrame);
+            if (captureTimer) clearTimeout(captureTimer);
+        };
     }, [outages, isFocused, mapEpoch, selectedId]);
 
     // центрируем только когда карта реально смонтирована и готова, иначе анимация уходит в никуда
@@ -140,11 +174,11 @@ export default function MapScreen() {
         const target = pendingFocusRef.current;
         if (!target || !mapReadyRef.current) return;
         pendingFocusRef.current = null;
-        mapRef.current?.animateToRegion(
-            { ...target, latitudeDelta: 0.01, longitudeDelta: 0.01 },
-            600,
-        );
-    }, []);
+        const region = { ...target, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+        saveRegion(region);
+        mapRef.current?.animateToRegion(region, 600);
+        if (restoringRegionRef.current) finishRestoreAfter(700);
+    }, [finishRestoreAfter, saveRegion]);
 
     useEffect(() => {
         if (!isFocused || !focusLat || !focusLon) return;
@@ -159,20 +193,31 @@ export default function MapScreen() {
 
     useEffect(() => {
         // при расфокусе MapView размонтируется, значит готовность надо сбросить
-        if (!isFocused) mapReadyRef.current = false;
+        if (!isFocused) {
+            mapReadyRef.current = false;
+            restoringRegionRef.current = true;
+            if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
+            restoreTimerRef.current = null;
+        }
     }, [isFocused]);
+
+    useEffect(() => () => {
+        if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
+    }, []);
 
 
     const centerOnUser = async () => {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        mapRef.current?.animateToRegion({
+        const region = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
             latitudeDelta: 0.06,
             longitudeDelta: 0.06,
-        }, 650);
+        };
+        saveRegion(region);
+        mapRef.current?.animateToRegion(region, 650);
     };
 
     if (initialLoading) {
@@ -196,11 +241,24 @@ export default function MapScreen() {
                 style={styles.map}
                 initialRegion={savedRegion}
                 customMapStyle={darkMapStyle}
-                onRegionChangeComplete={setSavedRegion}
+                loadingEnabled
+                loadingBackgroundColor={DS.bg}
+                loadingIndicatorColor={DS.amber}
+                onRegionChangeComplete={(region, details) => {
+                    // Mount-события не должны затирать сохраненный viewport.
+                    if (restoringRegionRef.current && !details.isGesture) return;
+                    if (details.isGesture) stopRestoreGuard();
+                    saveRegion(region);
+                }}
                 onMapReady={() => {
                     mapReadyRef.current = true;
                     setMapEpoch(epoch => epoch + 1);
-                    applyFocus();
+                    if (pendingFocusRef.current) {
+                        applyFocus();
+                    } else {
+                        mapRef.current?.animateToRegion(savedRegionRef.current, 0);
+                        finishRestoreAfter(500);
+                    }
                 }}
                 onPress={(e: MapPressEvent) => {
                     // на Android тап по маркеру тоже долетает как press карты отдельным нативным
@@ -219,6 +277,10 @@ export default function MapScreen() {
                     return (
                         <Marker
                             key={outage.id}
+                            ref={marker => {
+                                if (marker) markerRefs.current.set(outage.id, marker);
+                                else markerRefs.current.delete(outage.id);
+                            }}
                             coordinate={{ latitude: outage.latitude!, longitude: outage.longitude! }}
                             // якорь задаем явно: у кастомной View размер меняется, а дефолтный
                             // якорь на Android при этом уезжает с точки

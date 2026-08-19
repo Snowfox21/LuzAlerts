@@ -19,7 +19,7 @@ import { Outage, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
 import { darkMapStyle } from '../../src/theme/mapStyle';
-import { formatDateTime24, relativeTime } from '../../src/utils/date';
+import { formatLocalDateTime24, relativeTime } from '../../src/utils/date';
 import { formatVecinoId } from '../../src/utils/vecinoId';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
@@ -210,8 +210,8 @@ export default function OutageDetailScreen() {
                     {(outage.scheduled_start || outage.scheduled_end) && (
                         <SectionCard>
                             <InfoTitle icon={<Clock3 size={18} color={DS.amber} />} title="Horario" />
-                            <InfoRow label="Inicio" value={formatDateTime24(outage.scheduled_start)} />
-                            <InfoRow label="Fin estimado" value={formatDateTime24(outage.scheduled_end)} />
+                            <InfoRow label="Inicio" value={formatLocalDateTime24(outage.scheduled_start)} />
+                            <InfoRow label="Fin estimado" value={formatLocalDateTime24(outage.scheduled_end)} />
                         </SectionCard>
                     )}
 

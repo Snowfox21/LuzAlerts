@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Clock3, MessageCircle, UsersRound } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../api/types';
 import { DS, StatusChip } from './DesignSystem';
-import { parseApiDate, relativeTime } from '../utils/date';
+import { parseApiLocalDate, relativeTime } from '../utils/date';
 
 interface Props {
     outage: Outage;
@@ -13,7 +13,7 @@ interface Props {
 
 function formatTime(value?: string) {
     if (!value) return 'Sin horario';
-    const date = parseApiDate(value);
+    const date = parseApiLocalDate(value);
     if (!date) return value;
     const day = date.toLocaleString('es-PY', { day: '2-digit' });
     const month = date.toLocaleString('es-PY', { month: 'long' });
