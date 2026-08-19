@@ -18,6 +18,9 @@ import { Building2, Clock3, MapPin, Send, Share2, UsersRound } from 'lucide-reac
 import { Outage, OutageSource } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
+import { darkMapStyle } from '../../src/theme/mapStyle';
+import { formatDateTime24, relativeTime } from '../../src/utils/date';
+import { formatVecinoId } from '../../src/utils/vecinoId';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 
@@ -25,26 +28,6 @@ interface Comment {
     id: number;
     text: string;
     created_at: string;
-}
-
-function formatRelative(dateStr: string): string {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-    if (diff < 60) return 'ahora';
-    if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
-    if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
-    return `hace ${Math.floor(diff / 86400)} d`;
-}
-
-function formatDate(value?: string) {
-    if (!value) return 'No especificado';
-    return new Date(value).toLocaleString('es-PY', {
-        day: 'numeric',
-        month: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    });
 }
 
 async function geocodeZona(outage: Outage): Promise<{ latitude: number; longitude: number } | null> {
@@ -227,8 +210,8 @@ export default function OutageDetailScreen() {
                     {(outage.scheduled_start || outage.scheduled_end) && (
                         <SectionCard>
                             <InfoTitle icon={<Clock3 size={18} color={DS.amber} />} title="Horario" />
-                            <InfoRow label="Inicio" value={formatDate(outage.scheduled_start)} />
-                            <InfoRow label="Fin estimado" value={formatDate(outage.scheduled_end)} />
+                            <InfoRow label="Inicio" value={formatDateTime24(outage.scheduled_start)} />
+                            <InfoRow label="Fin estimado" value={formatDateTime24(outage.scheduled_end)} />
                         </SectionCard>
                     )}
 
@@ -265,8 +248,8 @@ export default function OutageDetailScreen() {
                                     </View>
                                     <View style={styles.commentContent}>
                                         <View style={styles.commentTop}>
-                                            <Text style={styles.commentName}>Vecino #{comment.id.toString(16).toUpperCase()}</Text>
-                                            <Text style={styles.commentTime}>{formatRelative(comment.created_at)}</Text>
+                                            <Text style={styles.commentName}>Vecino #{formatVecinoId(comment.id)}</Text>
+                                            <Text style={styles.commentTime}>{relativeTime(comment.created_at)}</Text>
                                         </View>
                                         <Text style={styles.commentText}>{comment.text}</Text>
                                     </View>
@@ -344,6 +327,7 @@ function MiniMap({ location, color }: { location: { latitude: number; longitude:
             <MapView
                 style={StyleSheet.absoluteFillObject}
                 region={region}
+                customMapStyle={darkMapStyle}
                 scrollEnabled={false}
                 zoomEnabled={false}
                 pitchEnabled={false}

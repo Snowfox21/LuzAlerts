@@ -23,6 +23,7 @@ import { confirmAndResolveReport } from '../../src/api/reports';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { addMyReportId, getMyReportIds } from '../../src/utils/myReports';
 import { ageMinutes, relativeTime } from '../../src/utils/date';
+import { formatVecinoId } from '../../src/utils/vecinoId';
 import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 
 interface Report {
@@ -39,9 +40,14 @@ interface Report {
     created_at: string;
     resolved: boolean;
     resolved_at: string | null;
+    resolved_reason?: 'author' | 'auto' | null;
     // Автора определяет сервер по device_id из query; старый бэкенд поле не отдает
     is_mine?: boolean;
 }
+
+// Репорт автозакрывается на сервере через 96 часов, предупреждаем на середине срока.
+// Раньше тут стояло 48 без множителя, то есть бейдж загорался через 48 минут.
+const EXPIRING_AFTER_MINUTES = 48 * 60;
 
 const PARAGUAY_BOUNDS = {
     minLat: -27.7,
@@ -253,8 +259,8 @@ export default function ReportsScreen() {
                         <ReportCard
                             key={report.id}
                             report={report}
-                            // Приоритет у серверного флага, локальный реестр — запасной путь
-                            mine={report.is_mine === true || myReportIds.has(report.id)}
+                            // Локальный реестр используем только со старым бэкендом без is_mine
+                            mine={report.is_mine ?? myReportIds.has(report.id)}
                             resolving={resolvingId === report.id}
                             onPress={() => router.push(`/report/${report.id}`)}
                             onResolve={() => confirmAndResolveReport({
@@ -336,11 +342,12 @@ function ReportCard({
     const relative = relativeTime(report.created_at, { justNow: 'Hace instantes' });
     const address = formatAddress(report);
     const complete = report.confirmed;
-    const confirmations = report.confirmed ? 3 : 1;
-    const pct = report.confirmed ? 100 : 33;
-    const expiring = !report.confirmed && ageMinutes(report.created_at) >= 48;
-    const chipColor = complete ? DS.greenLight : expiring ? DS.textMuted : DS.amber;
-    const chipBg = complete ? 'rgba(74,222,128,0.15)' : expiring ? 'rgba(100,116,139,0.15)' : 'rgba(251,191,36,0.15)';
+    const closed = report.resolved;
+    const confirmations = complete ? 3 : 1;
+    const pct = closed || complete ? 100 : 33;
+    const expiring = !closed && !complete && ageMinutes(report.created_at) >= EXPIRING_AFTER_MINUTES;
+    const chipColor = closed || complete ? DS.greenLight : expiring ? DS.textMuted : DS.amber;
+    const chipBg = closed || complete ? 'rgba(74,222,128,0.15)' : expiring ? 'rgba(100,116,139,0.15)' : 'rgba(251,191,36,0.15)';
 
     return (
         <TouchableOpacity activeOpacity={0.82} onPress={onPress}>
@@ -350,7 +357,7 @@ function ReportCard({
                         <Text style={styles.avatarText}>V</Text>
                     </View>
                     <View style={styles.reportIdentity}>
-                        <Text style={styles.reportName}>Vecino #{report.id.toString(16).toUpperCase()}</Text>
+                        <Text style={styles.reportName}>Vecino #{formatVecinoId(report.id)}</Text>
                         <Text style={styles.reportTime}>{relative}</Text>
                     </View>
                     {mine ? <Text style={styles.mineTag}>Tu reporte</Text> : null}
@@ -359,11 +366,13 @@ function ReportCard({
                 <Text style={styles.reportAddress}>{address}</Text>
                 <View style={[styles.confirmChip, { backgroundColor: chipBg }]}>
                     <Text style={[styles.confirmText, { color: chipColor }]}>
-                        {complete ? 'Confirmado' : `${confirmations} / 3 confirmaciones`}
+                        {closed
+                            ? report.resolved_reason === 'auto' ? 'Expirado' : 'Cerrado'
+                            : complete ? 'Confirmado' : `${confirmations} / 3 confirmaciones`}
                     </Text>
                 </View>
                 <View style={styles.progress}>
-                    <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: complete ? DS.greenLight : DS.amber }]} />
+                    <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: closed || complete ? DS.greenLight : DS.amber }]} />
                 </View>
                 {mine && !report.resolved ? (
                     <TouchableOpacity

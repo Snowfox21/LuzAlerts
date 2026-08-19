@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, MapPressEvent, Region } from 'react-native-maps';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -11,6 +11,18 @@ import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
 import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
+import { darkMapStyle } from '../../src/theme/mapStyle';
+
+// react-native-maps на новой архитектуре не сообщает нативной стороне размер вьюхи маркера
+// (MapMarkerManager.updateExtraData вызывается только из шэдоу-ноды старой архитектуры),
+// поэтому MapMarker.createDrawable всегда рисует битмап ровно 100x100 ФИЗИЧЕСКИХ пикселей
+// и все, что крупнее, обрезается. Значит вся вьюха маркера должна укладываться в эти 100 px.
+const MARKER_BOX = PixelRatio.roundToNearestPixel(100 / PixelRatio.get());
+const MARKER_SELECTED_SCALE = 1.2;
+// квадрат считаем от бокса с запасом, чтобы увеличенный вариант тоже влезал целиком
+const MARKER_SQUARE = PixelRatio.roundToNearestPixel((MARKER_BOX - 1) / MARKER_SELECTED_SCALE);
+// иконка занимает ту же долю квадрата, что и раньше (14 из 30)
+const MARKER_ICON = Math.max(9, Math.round(MARKER_SQUARE * 0.47));
 
 const ASUNCION: Region = {
     latitude: -25.2637,
@@ -25,18 +37,20 @@ export default function MapScreen() {
     // спиннер только на самую первую загрузку, фоновые обновления карту не размонтируют
     const [initialLoading, setInitialLoading] = useState(true);
     const [selectedOutage, setSelectedOutage] = useState<Outage | null>(null);
-    const [initialRegion, setInitialRegion] = useState<Region>(ASUNCION);
+    const [savedRegion, setSavedRegion] = useState<Region>(ASUNCION);
     const [sheetHeight, setSheetHeight] = useState(0);
     // на Android битмап кастомного маркера снимается сразу, до раскладки вложенной View,
     // поэтому первое время после монтирования и после обновления списка трекаем изменения
     const [tracksChanges, setTracksChanges] = useState(true);
+    // счетчик монтирований карты: MapView размонтируется при расфокусе таба, и новым
+    // маркерам снова нужно окно трекинга, иначе они остаются пустыми
+    const [mapEpoch, setMapEpoch] = useState(0);
     const router = useRouter();
     const mapRef = useRef<MapView>(null);
     const isFocused = useIsFocused();
     const tabBarHeight = useBottomTabBarHeight();
     // глобальные параметры: навигация идет на группу (tabs), сегмент может отличаться
     const { focusLat, focusLon } = useGlobalSearchParams<{ focusLat?: string; focusLon?: string }>();
-    const lastFocusRef = useRef<string | null>(null);
     const pendingFocusRef = useRef<{ latitude: number; longitude: number } | null>(null);
     const mapReadyRef = useRef(false);
 
@@ -86,7 +100,7 @@ export default function MapScreen() {
                 .then(pos => pos ?? Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
                 .then(pos => {
                     if (!pos) return;
-                    setInitialRegion({
+                    setSavedRegion({
                         latitude: pos.coords.latitude,
                         longitude: pos.coords.longitude,
                         latitudeDelta: 0.1,
@@ -108,13 +122,18 @@ export default function MapScreen() {
         };
     }, []);
 
+    const selectedId = selectedOutage?.id ?? null;
+
     useEffect(() => {
-        // после обновления маркеров даем нативной стороне время снять корректный битмап,
+        // окно трекинга открываем при любой причине пересъемки битмапа: смена данных,
+        // новое монтирование карты (возврат на таб) и смена выбранного маркера — включая
+        // снятие выбора, иначе маркер навсегда остается увеличенным.
         // потом трекинг выключаем — постоянный трекинг съедает тапы по маркерам
+        if (!isFocused) return;
         setTracksChanges(true);
         const timer = setTimeout(() => setTracksChanges(false), 1500);
         return () => clearTimeout(timer);
-    }, [outages]);
+    }, [outages, isFocused, mapEpoch, selectedId]);
 
     // центрируем только когда карта реально смонтирована и готова, иначе анимация уходит в никуда
     const applyFocus = useCallback(() => {
@@ -128,17 +147,15 @@ export default function MapScreen() {
     }, []);
 
     useEffect(() => {
-        // параметры focusLat/focusLon остаются в урле, поэтому центрируем только при их смене
-        if (!focusLat || !focusLon) return;
-        const key = `${focusLat},${focusLon}`;
-        if (lastFocusRef.current === key) return;
+        if (!isFocused || !focusLat || !focusLon) return;
         const latitude = parseFloat(focusLat);
         const longitude = parseFloat(focusLon);
         if (Number.isNaN(latitude) || Number.isNaN(longitude)) return;
-        lastFocusRef.current = key;
         pendingFocusRef.current = { latitude, longitude };
+        // Убираем обработанные параметры, чтобы те же координаты можно было открыть повторно
+        router.setParams({ focusLat: undefined, focusLon: undefined });
         applyFocus();
-    }, [focusLat, focusLon, applyFocus]);
+    }, [focusLat, focusLon, isFocused, router, applyFocus]);
 
     useEffect(() => {
         // при расфокусе MapView размонтируется, значит готовность надо сбросить
@@ -177,10 +194,12 @@ export default function MapScreen() {
             <MapView
                 ref={mapRef}
                 style={styles.map}
-                initialRegion={initialRegion}
+                initialRegion={savedRegion}
                 customMapStyle={darkMapStyle}
+                onRegionChangeComplete={setSavedRegion}
                 onMapReady={() => {
                     mapReadyRef.current = true;
+                    setMapEpoch(epoch => epoch + 1);
                     applyFocus();
                 }}
                 onPress={(e: MapPressEvent) => {
@@ -205,9 +224,9 @@ export default function MapScreen() {
                             // якорь на Android при этом уезжает с точки
                             anchor={{ x: 0.5, y: 0.5 }}
                             centerOffset={{ x: 0, y: 0 }}
-                            // трекаем сразу после появления маркеров (иначе на Android они пустые)
-                            // и пока маркер выбран, чтобы прошло увеличение
-                            tracksViewChanges={tracksChanges || selected}
+                            // окно трекинга общее для всех маркеров: держать его по selected
+                            // нельзя, иначе битмап после снятия выбора не пересъемется
+                            tracksViewChanges={tracksChanges}
                             onPress={e => {
                                 e.stopPropagation();
                                 setSelectedOutage(outage);
@@ -218,12 +237,12 @@ export default function MapScreen() {
                                     style={[
                                         styles.marker,
                                         { backgroundColor: meta.color },
-                                        // масштабируем сам квадрат, а не обертку: размер снимаемого
-                                        // битмапа остается 50x50 и центр не смещается
-                                        selected && { transform: [{ scale: 1.2 }] },
+                                        // масштабируем сам квадрат, а не обертку: размер обертки
+                                        // (и снимаемого битмапа) не меняется никогда
+                                        selected && { transform: [{ scale: MARKER_SELECTED_SCALE }] },
                                     ]}
                                 >
-                                    <AlertTriangle size={14} color={DS.ink} strokeWidth={3} />
+                                    <AlertTriangle size={MARKER_ICON} color={DS.ink} strokeWidth={3} />
                                 </View>
                             </View>
                         </Marker>
@@ -335,20 +354,23 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     markerWrap: {
-        // фиксированный размер вместо padding: зона нажатия та же, но размер вьюхи
-        // не зависит от контента и якорь 0.5/0.5 всегда попадает в центр квадрата
-        width: 50,
-        height: 50,
+        // ровно 100 физических пикселей — столько и рисует нативная сторона, поэтому
+        // ничего не обрезается, а якорь 0.5/0.5 попадает точно в центр квадрата
+        width: MARKER_BOX,
+        height: MARKER_BOX,
         alignItems: 'center',
         justifyContent: 'center',
     },
     marker: {
-        width: 30,
-        height: 30,
-        borderRadius: 8,
+        width: MARKER_SQUARE,
+        height: MARKER_SQUARE,
+        borderRadius: Math.round(MARKER_SQUARE * 0.27),
         alignItems: 'center',
         justifyContent: 'center',
-        elevation: 4,
+        // elevation убрана: тень рисуется за границами вьюхи и обрезалась бы битмапом,
+        // контраст на темной карте дает темная рамка
+        borderWidth: 1.5,
+        borderColor: DS.ink,
     },
     legend: {
         position: 'absolute',
@@ -436,18 +458,3 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
 });
-
-const darkMapStyle = [
-    { elementType: 'geometry', stylers: [{ color: '#0D1626' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#0D1626' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#253348' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#64748B' }] },
-    { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#334155' }] },
-    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0A1520' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1A2840' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#131E30' }] },
-    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#334155' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#22314D' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0A1520' }] },
-    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#253348' }] },
-];

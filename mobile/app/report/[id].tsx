@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { CheckCircle2, ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
@@ -23,6 +23,7 @@ interface Report {
     created_at: string;
     resolved: boolean;
     resolved_at: string | null;
+    resolved_reason?: 'author' | 'auto' | null;
     // Автора определяет сервер по device_id из query; старый бэкенд поле не отдает
     is_mine?: boolean;
 }
@@ -36,19 +37,32 @@ export default function ReportDetailScreen() {
     const [error, setError] = useState<string | null>(null);
     const [mine, setMine] = useState(false);
     const [resolving, setResolving] = useState(false);
+    const activeReportIdRef = useRef<number | null>(null);
 
     useEffect(() => {
         let active = true;
+        activeReportIdRef.current = null;
+        setReport(null);
+        setLoading(true);
+        setError(null);
+        setMine(false);
+        setResolving(false);
+
         (async () => {
             try {
-                const deviceId = await getOrCreateDeviceId().catch(() => null);
+                const reportId = Number(id);
+                const [deviceId, localMine] = await Promise.all([
+                    getOrCreateDeviceId().catch(() => null),
+                    Number.isFinite(reportId) ? isMyReport(reportId) : Promise.resolve(false),
+                ]);
                 const res = await apiClient.get<Report>(`/reports/${id}`, {
                     params: deviceId ? { device_id: deviceId } : undefined,
                 });
                 if (!active) return;
+                activeReportIdRef.current = res.data.id;
                 setReport(res.data);
-                // Приоритет у серверного флага, локальный реестр — запасной путь
-                if (res.data?.is_mine === true) setMine(true);
+                // Локальный реестр используем только со старым бэкендом без is_mine
+                setMine(res.data.is_mine ?? localMine);
             } catch {
                 if (active) setError('No se pudo cargar el reporte.');
             } finally {
@@ -58,31 +72,29 @@ export default function ReportDetailScreen() {
         return () => { active = false; };
     }, [id]);
 
-    // Запасной путь: репорт, созданный на этом устройстве, помним локально
-    useEffect(() => {
-        let active = true;
-        const reportId = Number(id);
-        if (!Number.isFinite(reportId)) return;
-        isMyReport(reportId).then(value => {
-            if (active && value) setMine(true);
-        });
-        return () => { active = false; };
-    }, [id]);
-
     const handleResolve = () => {
         if (!report || resolving) return;
+        const reportId = report.id;
         confirmAndResolveReport({
-            reportId: report.id,
-            onStart: () => setResolving(true),
-            onResolved: resolved => setReport(prev => (prev ? {
+            reportId,
+            onStart: () => {
+                if (activeReportIdRef.current === reportId) setResolving(true);
+            },
+            onResolved: resolved => setReport(prev => (prev?.id === reportId ? {
                 ...prev,
                 resolved: true,
                 resolved_at: resolved.resolved_at ?? new Date().toISOString(),
+                resolved_reason: 'author',
             } : prev)),
             onFinish: () => {
+                if (activeReportIdRef.current !== reportId) return;
                 setResolving(false);
                 // после 403 реестр мог обновиться — перечитываем принадлежность
-                isMyReport(report.id).then(setMine);
+                if (report.is_mine === undefined) {
+                    isMyReport(reportId).then(value => {
+                        if (activeReportIdRef.current === reportId) setMine(value);
+                    });
+                }
             },
         });
     };
@@ -129,6 +141,13 @@ export default function ReportDetailScreen() {
         );
     }
 
+    const resolvedBadge = report.resolved_reason === 'auto' ? 'EXPIRADO' : 'CERRADO';
+    const resolvedText = report.resolved_reason === 'author'
+        ? `La luz volvio el ${formatDateTime24(report.resolved_at ?? undefined)}`
+        : report.resolved_reason === 'auto'
+            ? `El reporte expiró el ${formatDateTime24(report.resolved_at ?? undefined)}`
+            : `Reporte cerrado el ${formatDateTime24(report.resolved_at ?? undefined)}`;
+
     return (
         <ScrollView style={sharedStyles.screen} contentContainerStyle={styles.content}>
             <Stack.Screen
@@ -159,7 +178,7 @@ export default function ReportDetailScreen() {
                     {report.resolved ? (
                         <View style={[styles.statusBadge, styles.closedBadge]}>
                             <CheckCircle2 size={13} color={DS.greenLight} />
-                            <Text style={[styles.statusBadgeText, styles.closedBadgeText]}>CERRADO</Text>
+                            <Text style={[styles.statusBadgeText, styles.closedBadgeText]}>{resolvedBadge}</Text>
                         </View>
                     ) : null}
                 </View>
@@ -192,11 +211,9 @@ export default function ReportDetailScreen() {
                     <View style={styles.closedNotice}>
                         <View style={[styles.statusBadge, styles.closedBadge]}>
                             <CheckCircle2 size={13} color={DS.greenLight} />
-                            <Text style={[styles.statusBadgeText, styles.closedBadgeText]}>CERRADO</Text>
+                            <Text style={[styles.statusBadgeText, styles.closedBadgeText]}>{resolvedBadge}</Text>
                         </View>
-                        <Text style={styles.closedNoticeText}>
-                            La luz volvio el {formatDateTime24(report.resolved_at ?? undefined)}
-                        </Text>
+                        <Text style={styles.closedNoticeText}>{resolvedText}</Text>
                     </View>
                 ) : mine ? (
                     <PrimaryButton onPress={handleResolve} disabled={resolving} style={styles.resolveButton}>
