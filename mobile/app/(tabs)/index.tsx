@@ -201,6 +201,10 @@ export default function MapScreen() {
                         <Marker
                             key={outage.id}
                             coordinate={{ latitude: outage.latitude!, longitude: outage.longitude! }}
+                            // якорь задаем явно: у кастомной View размер меняется, а дефолтный
+                            // якорь на Android при этом уезжает с точки
+                            anchor={{ x: 0.5, y: 0.5 }}
+                            centerOffset={{ x: 0, y: 0 }}
                             // трекаем сразу после появления маркеров (иначе на Android они пустые)
                             // и пока маркер выбран, чтобы прошло увеличение
                             tracksViewChanges={tracksChanges || selected}
@@ -209,8 +213,16 @@ export default function MapScreen() {
                                 setSelectedOutage(outage);
                             }}
                         >
-                            <View style={[styles.markerWrap, selected && { transform: [{ scale: 1.2 }] }]}>
-                                <View style={[styles.marker, { backgroundColor: meta.color }]}>
+                            <View style={styles.markerWrap}>
+                                <View
+                                    style={[
+                                        styles.marker,
+                                        { backgroundColor: meta.color },
+                                        // масштабируем сам квадрат, а не обертку: размер снимаемого
+                                        // битмапа остается 50x50 и центр не смещается
+                                        selected && { transform: [{ scale: 1.2 }] },
+                                    ]}
+                                >
                                     <AlertTriangle size={14} color={DS.ink} strokeWidth={3} />
                                 </View>
                             </View>
@@ -323,9 +335,12 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     markerWrap: {
+        // фиксированный размер вместо padding: зона нажатия та же, но размер вьюхи
+        // не зависит от контента и якорь 0.5/0.5 всегда попадает в центр квадрата
+        width: 50,
+        height: 50,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 10, // увеличиваем зону нажатия вокруг маленького маркера
     },
     marker: {
         width: 30,

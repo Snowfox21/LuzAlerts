@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, AppState, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Navigation, Settings, Zap } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
@@ -38,6 +39,7 @@ export default function ListScreen() {
     const [filter, setFilter] = useState<Filter>('all');
     const [lastAndeData, setLastAndeData] = useState<string | null>(null);
     const router = useRouter();
+    const tabBarHeight = useBottomTabBarHeight();
 
     const fetchOutages = async () => {
         setLoading(true);
@@ -198,7 +200,7 @@ export default function ListScreen() {
                 />
 
                 {andeStale && (
-                    <View style={styles.systemStatus}>
+                    <View style={[styles.systemStatus, { bottom: tabBarHeight + 16 }]}>
                         <View style={styles.statusRow}>
                             <View style={[styles.statusDot, styles.statusDotOk]} />
                             <Text style={styles.statusTextPrimary}>LuzAlerts funcionando normalmente</Text>
@@ -311,9 +313,11 @@ const styles = StyleSheet.create({
     },
     systemStatus: {
         position: 'absolute',
-        bottom: 16,
+        // bottom считается от высоты таб-бара (см. inline-стиль в рендере)
         right: 16,
-        maxWidth: 250,
+        // ширина фиксированная: у абсолютной коробки без left/width размер идет по контенту,
+        // и flex: 1 у текстов внутри схлопывает их в ноль
+        width: 250,
         backgroundColor: 'rgba(30,41,59,0.94)',
         borderWidth: 1,
         borderColor: DS.border,

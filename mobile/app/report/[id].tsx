@@ -7,6 +7,7 @@ import { confirmAndResolveReport } from '../../src/api/reports';
 import { DS, PrimaryButton, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
 import { isMyReport } from '../../src/utils/myReports';
+import { getOrCreateDeviceId } from '../../src/utils/device';
 
 interface Report {
     id: number;
@@ -22,6 +23,8 @@ interface Report {
     created_at: string;
     resolved: boolean;
     resolved_at: string | null;
+    // Автора определяет сервер по device_id из query; старый бэкенд поле не отдает
+    is_mine?: boolean;
 }
 
 export default function ReportDetailScreen() {
@@ -35,19 +38,33 @@ export default function ReportDetailScreen() {
     const [resolving, setResolving] = useState(false);
 
     useEffect(() => {
-        apiClient.get<Report>(`/reports/${id}`)
-            .then(res => setReport(res.data))
-            .catch(() => setError('No se pudo cargar el reporte.'))
-            .finally(() => setLoading(false));
+        let active = true;
+        (async () => {
+            try {
+                const deviceId = await getOrCreateDeviceId().catch(() => null);
+                const res = await apiClient.get<Report>(`/reports/${id}`, {
+                    params: deviceId ? { device_id: deviceId } : undefined,
+                });
+                if (!active) return;
+                setReport(res.data);
+                // Приоритет у серверного флага, локальный реестр — запасной путь
+                if (res.data?.is_mine === true) setMine(true);
+            } catch {
+                if (active) setError('No se pudo cargar el reporte.');
+            } finally {
+                if (active) setLoading(false);
+            }
+        })();
+        return () => { active = false; };
     }, [id]);
 
-    // "Свой" репорт определяем по локальному реестру: device_id наружу не отдается
+    // Запасной путь: репорт, созданный на этом устройстве, помним локально
     useEffect(() => {
         let active = true;
         const reportId = Number(id);
         if (!Number.isFinite(reportId)) return;
         isMyReport(reportId).then(value => {
-            if (active) setMine(value);
+            if (active && value) setMine(true);
         });
         return () => { active = false; };
     }, [id]);

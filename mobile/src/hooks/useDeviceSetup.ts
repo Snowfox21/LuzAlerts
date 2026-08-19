@@ -2,20 +2,9 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
-import * as Crypto from 'expo-crypto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../api/client';
-
-const DEVICE_ID_KEY = '@luzalerts_device_id';
-
-async function getOrCreateDeviceId(): Promise<string> {
-    let id = await AsyncStorage.getItem(DEVICE_ID_KEY);
-    if (!id) {
-        id = Crypto.randomUUID();
-        await AsyncStorage.setItem(DEVICE_ID_KEY, id);
-    }
-    return id;
-}
+// Единая реализация id устройства: своя копия здесь давала гонку на старте
+import { getOrCreateDeviceId } from '../utils/device';
 
 async function getExpoPushToken(): Promise<string | null> {
     if (Platform.OS === 'web') return null;

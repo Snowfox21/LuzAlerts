@@ -39,6 +39,8 @@ interface Report {
     created_at: string;
     resolved: boolean;
     resolved_at: string | null;
+    // Автора определяет сервер по device_id из query; старый бэкенд поле не отдает
+    is_mine?: boolean;
 }
 
 const PARAGUAY_BOUNDS = {
@@ -69,7 +71,10 @@ export default function ReportsScreen() {
 
     const fetchReports = async () => {
         try {
-            const res = await apiClient.get<Report[]>('/reports/');
+            const deviceId = await getOrCreateDeviceId().catch(() => null);
+            const res = await apiClient.get<Report[]>('/reports/', {
+                params: deviceId ? { device_id: deviceId } : undefined,
+            });
             setReports(res.data || []);
             await refreshMyReportIds();
         } catch (error) {
@@ -248,7 +253,8 @@ export default function ReportsScreen() {
                         <ReportCard
                             key={report.id}
                             report={report}
-                            mine={myReportIds.has(report.id)}
+                            // Приоритет у серверного флага, локальный реестр — запасной путь
+                            mine={report.is_mine === true || myReportIds.has(report.id)}
                             resolving={resolvingId === report.id}
                             onPress={() => router.push(`/report/${report.id}`)}
                             onResolve={() => confirmAndResolveReport({
