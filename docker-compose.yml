@@ -44,6 +44,14 @@ services:
       dockerfile: scraper/Dockerfile
     container_name: luzalerts_scraper
     restart: unless-stopped
+    # Hetzner's resolvers answer SERVFAIL for www.ande.gov.py (the .gov.py ->
+    # radwarecloud chain fails validation there), so the scraper could not even
+    # resolve the source and every run died with ERR_NAME_NOT_RESOLVED. Public
+    # resolvers answer it fine. Scoped to this container on purpose: the host
+    # resolver is shared with unrelated services and is left alone.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     # Run a real init (tini) as PID 1. The CMD is `xvfb-run … python main.py`, and
     # xvfb-run waits for a SIGUSR1 readiness signal from Xvfb — but the kernel does
     # NOT deliver signals to a PID 1 that lacks an explicit handler, so as PID 1
