@@ -31,6 +31,10 @@ HEARTBEAT_FILE = os.environ.get("SCRAPER_HEARTBEAT", "/tmp/scraper_heartbeat")
 
 async def run_scraper():
     logger.info("Starting ANDE Scraper run...")
+    # Ingestion (steps 1-3) reaches out to the network and fails regularly:
+    # Radware blocks, ANDE downtime, a DNS hiccup right after container start.
+    # It gets its own try/except so a failed fetch cannot skip the maintenance
+    # steps below, which only touch our own database and must run on schedule.
     try:
         # 1. Fetch planned outages from ANDE (authoritative, structured source).
         #    parse_outages returns [] when Radware blocks the egress IP; if that
@@ -48,7 +52,10 @@ async def run_scraper():
 
         # 3. Normalize, geocode, and save all to DB
         await normalize_and_save_outages(all_outages)
+    except Exception as e:
+        logger.error(f"Error during ANDE ingestion: {e}", exc_info=True)
 
+    try:
         # 4. Mark expired outages as resolved + notify users
         await mark_resolved_outages()
 
@@ -63,7 +70,7 @@ async def run_scraper():
 
         logger.info("Scraper run completed.")
     except Exception as e:
-        logger.error(f"Error during scraper run: {e}", exc_info=True)
+        logger.error(f"Error during scraper maintenance: {e}", exc_info=True)
     finally:
         try:
             with open(HEARTBEAT_FILE, "w") as f:
