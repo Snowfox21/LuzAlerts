@@ -13,10 +13,17 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Bell, ChevronRight, Info, Map, MapPin, Plus, Shield, Trash2, X, Zap } from 'lucide-react-native';
+import { Bell, ChevronRight, Download, Info, Map, MapPin, Plus, Shield, Trash2, X, Zap } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
+import { checkForUpdate } from '../../src/update/checkForUpdate';
+import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
+import { UpdateSheet } from '../../src/update/UpdateSheet';
+
+// Версия сборки, а не строковый литерал: с самообновлением вне стора
+// расхождение экрана и реального APK путает при поддержке.
+const appVersion = getInstalledVersionName();
 
 interface Subscription {
     id: number;
@@ -34,6 +41,8 @@ export default function SettingsScreen() {
     const [alertsEnabled, setAlertsEnabled] = useState(true);
     const [resolvedEnabled, setResolvedEnabled] = useState(true);
     const [deviceId, setDeviceId] = useState('');
+    const [checkingUpdate, setCheckingUpdate] = useState(false);
+    const [update, setUpdate] = useState<UpdateManifest | null>(null);
 
     useEffect(() => {
         fetchSubscriptions();
@@ -84,6 +93,25 @@ export default function SettingsScreen() {
             Alert.alert('Error', 'No se pudo eliminar la suscripción.');
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    // Ручная проверка: игнорирует и суточный интервал, и ранее нажатое
+    // "Después" — человек пришел за обновлением осознанно.
+    const handleCheckUpdate = async () => {
+        if (checkingUpdate) return;
+        setCheckingUpdate(true);
+        try {
+            const result = await checkForUpdate({ force: true });
+            if (result) {
+                setUpdate(result.manifest);
+            } else {
+                Alert.alert('Todo al día', 'Ya tenés la última versión de LuzAlerts.');
+            }
+        } catch {
+            Alert.alert('Sin conexion', 'No pudimos verificar si hay una nueva versión.');
+        } finally {
+            setCheckingUpdate(false);
         }
     };
 
@@ -172,6 +200,18 @@ export default function SettingsScreen() {
                     )}
                 </SettingSection>
 
+                <SettingSection title="Aplicación">
+                    <SettingRow
+                        icon={<Download size={20} color={DS.textMuted} />}
+                        label="Buscar actualizaciones"
+                        sub={`Versión ${appVersion}`}
+                        right={checkingUpdate
+                            ? <ActivityIndicator size="small" color={DS.amber} />
+                            : <ChevronRight size={16} color={DS.textMuted} />}
+                        onPress={handleCheckUpdate}
+                    />
+                </SettingSection>
+
                 <SettingSection title="Datos y privacidad">
                     <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Mi ID anónimo" sub={deviceId ? `#${deviceId}` : 'Cargando...'} />
                     <SettingRow icon={<Trash2 size={20} color={DS.redLight} />} label="Eliminar mis datos" danger right={<ChevronRight size={16} color={DS.textMuted} />} />
@@ -182,11 +222,12 @@ export default function SettingsScreen() {
                 <View style={styles.footer}>
                     <View style={styles.footerBrand}>
                         <Zap size={14} color={DS.textMuted} />
-                        <Text style={styles.footerTitle}>LuzAlerts v1.0.0</Text>
+                        <Text style={styles.footerTitle}>LuzAlerts v{appVersion}</Text>
                     </View>
                     <Text style={styles.footerText}>Proyecto independiente. No afiliado a la ANDE.</Text>
                 </View>
             </ScrollView>
+            <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />
         </KeyboardAvoidingView>
     );
 }

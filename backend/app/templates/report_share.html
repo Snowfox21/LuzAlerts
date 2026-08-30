@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es-PY">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ og_title }} · LuzAlerts</title>
+<meta name="description" content="{{ og_description }}">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LuzAlerts">
+<meta property="og:locale" content="es_PY">
+<meta property="og:title" content="{{ og_title }}">
+<meta property="og:description" content="{{ og_description }}">
+<meta property="og:image" content="{{ og_image }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="{{ page_url }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ og_title }}">
+<meta name="twitter:description" content="{{ og_description }}">
+<meta name="twitter:image" content="{{ og_image }}">
+
+<link rel="icon" href="{{ site_url }}/favicon.ico">
+<style>
+  :root {
+    --bg: #151718;
+    --card: #1e2122;
+    --line: #2c3032;
+    --text: #ecedee;
+    --muted: #9ba1a6;
+    --accent: #f59e0b;
+    --ok: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 40px;
+  }
+  .wrap { width: 100%; max-width: 440px; }
+  .brand {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; letter-spacing: .2px; margin-bottom: 20px;
+  }
+  .brand span { color: var(--accent); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .status {
+    display: inline-block;
+    font-size: 12px; font-weight: 700; letter-spacing: .6px;
+    text-transform: uppercase;
+    padding: 5px 10px; border-radius: 999px;
+    margin-bottom: 14px;
+  }
+  .status.reported { background: rgba(245,158,11,.15); color: var(--accent); }
+  .status.confirmed { background: rgba(239,68,68,.15); color: #ef4444; }
+  .status.resolved  { background: rgba(34,197,94,.15); color: var(--ok); }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 6px; }
+  .place { color: var(--muted); margin: 0 0 20px; }
+  .meter { margin: 22px 0 24px; }
+  .meter-row {
+    display: flex; justify-content: space-between;
+    font-size: 14px; color: var(--muted); margin-bottom: 8px;
+  }
+  .bar { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+  .btn {
+    display: block; width: 100%; text-align: center;
+    padding: 15px 16px; border-radius: 12px;
+    font-size: 16px; font-weight: 700; text-decoration: none;
+    border: 1px solid transparent; cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #1a1200; }
+  .btn-ghost {
+    background: transparent; color: var(--text);
+    border-color: var(--line); margin-top: 10px; font-weight: 600;
+  }
+  .hint { color: var(--muted); font-size: 13px; text-align: center; margin: 14px 0 0; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 24px; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">⚡ Luz<span>Alerts</span></div>
+
+  <div class="card">
+    {% if report.resolved %}
+      <div class="status resolved">La luz volvió</div>
+      <h1>Ya volvió la luz en {{ place }}</h1>
+    {% elif report.confirmed %}
+      <div class="status confirmed">Corte confirmado</div>
+      <h1>Corte de luz en {{ place }}</h1>
+    {% else %}
+      <div class="status reported">Reportado</div>
+      <h1>Un vecino se quedó sin luz en {{ place }}</h1>
+    {% endif %}
+
+    <p class="place">
+      {% if report.city and report.barrio %}{{ report.barrio }}, {{ report.city }}
+      {% else %}{{ report.city or report.barrio or "Paraguay" }}{% endif %}
+      · <time datetime="{{ report.created_at }}" id="reported-at"></time>
+    </p>
+
+    {% if not report.resolved %}
+      <div class="meter">
+        <div class="meter-row">
+          <span>Vecinos que confirmaron</span>
+          <strong>{{ report.confirmation_count }}</strong>
+        </div>
+        <div class="bar">
+          <i style="width: {{ [report.confirmation_count * 33, 100] | min }}%"></i>
+        </div>
+      </div>
+
+      <a class="btn btn-primary" id="open-app" href="{{ deep_link }}">
+        Yo también estoy sin luz
+      </a>
+      <p class="hint">Se abre LuzAlerts. Si no lo tenés, te llevamos a la descarga.</p>
+    {% endif %}
+
+    <a class="btn btn-ghost" href="{{ site_url }}">Ver todos los cortes en Paraguay</a>
+  </div>
+
+  <footer>
+    LuzAlerts · <a href="{{ site_url }}/privacy">Privacidad</a>
+  </footer>
+</div>
+
+<script>
+  // Время показываем в часовом поясе читателя: сосед смотрит ссылку у себя
+  // на телефоне, а сервер отдает UTC.
+  (function () {
+    var el = document.getElementById('reported-at');
+    if (!el) return;
+    var d = new Date("{{ report.created_at }}");
+    el.textContent = isNaN(d) ? '' : d.toLocaleString('es-PY', {
+      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false
+    });
+  })();
+
+  // Диплинк с фолбэком: пробуем открыть приложение, и если через 1.2 с
+  // страница все еще на переднем плане — значит приложения нет, ведем на
+  // скачивание APK. Проверка на visibilitychange нужна, чтобы не утащить
+  // на страницу загрузки того, у кого приложение как раз открылось.
+  (function () {
+    var btn = document.getElementById('open-app');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var left = false;
+      var onHide = function () { left = true; };
+      document.addEventListener('visibilitychange', onHide);
+      window.addEventListener('pagehide', onHide);
+      window.location.href = "{{ deep_link }}";
+      setTimeout(function () {
+        document.removeEventListener('visibilitychange', onHide);
+        window.removeEventListener('pagehide', onHide);
+        if (!left && !document.hidden) {
+          window.location.href = "{{ download_url }}";
+        }
+      }, 1200);
+    });
+  })();
+</script>
+</body>
+</html>

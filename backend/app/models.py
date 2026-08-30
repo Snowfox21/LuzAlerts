@@ -97,6 +97,15 @@ class UserReport(Base):
     # Чем закрыта: "author" | "auto" | None (метка активна).
     resolved_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    # Публичный код метки для ссылки вида /r/{share_code}. Наружу отдается
+    # он, а не id: последовательный id позволил бы перебором вычитать все
+    # метки страны через публичную страницу.
+    share_code: Mapped[str | None] = mapped_column(String(12), unique=True, index=True, nullable=True)
+    # Счетчики вирусной петли: сколько раз автор нажал "поделиться" и
+    # сколько раз кто-то открыл публичную страницу метки.
+    share_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    share_view_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
     user: Mapped["User"] = relationship(back_populates="reports")
 
 

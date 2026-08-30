@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     # протухшей и закрывается автоматически, если автор не закрыл ее сам.
     REPORT_AUTO_RESOLVE_HOURS: int = 96
     ADMIN_API_KEY: str | None = None
+    # Базовый URL публичной части. Из него собираются ссылки для шеринга
+    # (/r/{code}) и абсолютный og:image — относительные пути краулер
+    # WhatsApp не резолвит.
+    PUBLIC_BASE_URL: str = "https://luzalerts.lat"
+    # Схема диплинка мобильного приложения (app.config.js -> scheme).
+    APP_SCHEME: str = "luzalerts"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

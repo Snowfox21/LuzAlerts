@@ -13,6 +13,11 @@ luzalerts.lat {
     handle /users* {
         reverse_proxy backend:8000
     }
+    # Публичная страница метки для шеринга. Рендерит бэкенд, а не file_server:
+    # og-теги нужны готовыми в HTML, краулер WhatsApp не исполняет JS.
+    handle /r/* {
+        reverse_proxy backend:8000
+    }
     handle /subscriptions* {
         reverse_proxy backend:8000
     }

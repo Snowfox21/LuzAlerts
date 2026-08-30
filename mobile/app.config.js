@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "LuzAlerts",
     slug: "luzalerts",
-    version: "1.1.6",
+    version: "1.2.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
@@ -17,13 +17,26 @@ module.exports = {
     },
     android: {
       package: "com.luzalerts.app",
-      versionCode: 10,
+      // versionCode — единственный источник истины для самообновления:
+      // приложение сравнивает его с web/dl/latest.json. Инкрементировать
+      // при каждом релизе APK, иначе обновление никому не приедет.
+      versionCode: 11,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#151718",
       },
       edgeToEdgeEnabled: true,
+      // Установка APK своими силами: стора вне Google Play нет.
+      permissions: ["REQUEST_INSTALL_PACKAGES"],
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [{ scheme: "https", host: "luzalerts.lat", pathPrefix: "/r" }],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
       config: {
         googleMaps: {
           apiKey: process.env.GOOGLE_MAPS_API_KEY,

@@ -25,6 +25,7 @@ import { addMyReportId, getMyReportIds } from '../../src/utils/myReports';
 import { ageMinutes, relativeTime } from '../../src/utils/date';
 import { formatVecinoId } from '../../src/utils/vecinoId';
 import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
+import { ShareBlock } from '../../src/share/ShareBlock';
 
 interface Report {
     id: number;
@@ -43,6 +44,10 @@ interface Report {
     resolved_reason?: 'author' | 'auto' | null;
     // Автора определяет сервер по device_id из query; старый бэкенд поле не отдает
     is_mine?: boolean;
+    confirmation_count?: number;
+    // Публичная ссылка для шеринга; у меток старого бэкенда её нет
+    share_code?: string | null;
+    share_url?: string | null;
 }
 
 // Репорт автозакрывается на сервере через 96 часов, предупреждаем на середине срока.
@@ -65,6 +70,8 @@ export default function ReportsScreen() {
     const [submitting, setSubmitting] = useState(false);
     const [autofilling, setAutofilling] = useState(false);
     const [success, setSuccess] = useState(false);
+    // Метка, только что созданная на этом экране: из нее берем ссылку для шеринга
+    const [createdReport, setCreatedReport] = useState<Report | null>(null);
     const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
     const [address, setAddress] = useState({ department: '', city: '', barrio: '', street: '', house: '' });
     const [comment, setComment] = useState('');
@@ -200,6 +207,7 @@ export default function ReportsScreen() {
                 await addMyReportId(created.data.id);
             }
 
+            setCreatedReport(created.data ?? null);
             setSuccess(true);
             setModalVisible(false);
             fetchReports();
@@ -212,26 +220,54 @@ export default function ReportsScreen() {
     };
 
     if (success) {
+        const shareUrl = createdReport?.share_url ?? null;
+        const dismissSuccess = () => {
+            setSuccess(false);
+            setCreatedReport(null);
+            if (coords) {
+                router.navigate({ pathname: '/(tabs)/', params: { focusLat: String(coords.lat), focusLon: String(coords.lon) } });
+            } else {
+                router.navigate('/(tabs)/');
+            }
+        };
+
         return (
-            <View style={[sharedStyles.center, styles.success]}>
+            <ScrollView
+                style={sharedStyles.screen}
+                contentContainerStyle={[styles.successScroll, styles.success]}
+            >
                 <View style={styles.successIcon}>
                     <CheckCircle2 size={56} color={DS.greenLight} />
                 </View>
                 <Text style={styles.successTitle}>Reporte enviado</Text>
-                <Text style={styles.successBody}>Si más vecinos reportan, te avisamos cuando se confirme.</Text>
-                <PrimaryButton
-                    label="Listo"
-                    style={styles.successButton}
-                    onPress={() => {
-                        setSuccess(false);
-                        if (coords) {
-                            router.navigate({ pathname: '/(tabs)/', params: { focusLat: String(coords.lat), focusLon: String(coords.lon) } });
-                        } else {
-                            router.navigate('/(tabs)/');
-                        }
-                    }}
-                />
-            </View>
+                <Text style={styles.successBody}>
+                    {shareUrl
+                        ? 'Hace falta que 3 vecinos lo reporten para confirmar el corte. Avisales ahora — es lo que más ayuda.'
+                        : 'Si más vecinos reportan, te avisamos cuando se confirme.'}
+                </Text>
+
+                {/* Момент сразу после репорта — единственный, когда соседи
+                    нужны прямо сейчас. Поэтому шеринг здесь основное
+                    действие, а "Listo" уходит на второй план. */}
+                {shareUrl ? (
+                    <ShareBlock
+                        target={{
+                            reportId: createdReport?.id,
+                            url: shareUrl,
+                            place: createdReport?.barrio ?? createdReport?.city ?? address.barrio ?? address.city,
+                            confirmations: createdReport?.confirmation_count ?? 0,
+                        }}
+                    />
+                ) : null}
+
+                {shareUrl ? (
+                    <TouchableOpacity onPress={dismissSuccess} activeOpacity={0.7} style={styles.successSkip}>
+                        <Text style={styles.successSkipText}>Ahora no</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <PrimaryButton label="Listo" style={styles.successButton} onPress={dismissSuccess} />
+                )}
+            </ScrollView>
         );
     }
 
@@ -775,6 +811,21 @@ const styles = StyleSheet.create({
     success: {
         paddingHorizontal: 28,
     },
+    successScroll: {
+        flexGrow: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+    },
+    successSkip: {
+        paddingVertical: 16,
+        paddingHorizontal: 24,
+    },
+    successSkipText: {
+        color: DS.textMuted,
+        fontSize: 15,
+        fontWeight: '700',
+    },
     successIcon: {
         width: 96,
         height: 96,
@@ -796,7 +847,7 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 22,
         textAlign: 'center',
-        marginBottom: 28,
+        marginBottom: 24,
     },
     successButton: {
         alignSelf: 'stretch',

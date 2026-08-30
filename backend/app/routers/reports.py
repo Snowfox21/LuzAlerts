@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
 from geoalchemy2.types import Geography
-from sqlalchemy import Boolean, literal, select, cast
+from sqlalchemy import Boolean, literal, select, cast, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.crowdsource import check_and_confirm_reports
 from app.database import get_db
 from app.geocoding import reverse_geocode, forward_geocode
@@ -16,7 +17,16 @@ from app.report_lifecycle import (
     active_report_clause,
     apply_auto_resolution,
 )
-from app.schemas import ReportCreate, ReportOut, ReportResolve, ReportsInAreaQuery
+from app.public_report import to_public_report
+from app.schemas import (
+    ReportCorroborate,
+    ReportCreate,
+    ReportOut,
+    ReportPublicOut,
+    ReportResolve,
+    ReportsInAreaQuery,
+)
+from app.sharing import generate_share_code
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -75,13 +85,11 @@ async def create_report(request: Request, payload: ReportCreate, db: AsyncSessio
             payload.street = payload.street or geo.get("street")
             payload.barrio = payload.barrio or geo.get("barrio")
 
-    # Создать метку
-    point_wkt = f"SRID=4326;POINT({lon} {lat})"
-    report = UserReport(
-        user_id=user.id,
-        latitude=lat,
-        longitude=lon,
-        location=point_wkt,
+    report = await _insert_report(
+        db,
+        user=user,
+        lat=lat,
+        lon=lon,
         department=payload.department,
         city=payload.city,
         barrio=payload.barrio,
@@ -89,15 +97,119 @@ async def create_report(request: Request, payload: ReportCreate, db: AsyncSessio
         house=payload.house,
         comment=payload.comment,
     )
-    db.add(report)
-    await db.commit()
-    await db.refresh(report)
 
     # Проверка на threshold — подтверждаем всех в радиусе
     await check_and_confirm_reports(db, lat, lon)
+    await db.refresh(report)
 
     # Метку только что создало это устройство — она заведомо своя.
     return _attach_is_mine(report, True)
+
+
+async def _insert_report(
+    db: AsyncSession,
+    *,
+    user: User,
+    lat: float,
+    lon: float,
+    department: Optional[str] = None,
+    city: Optional[str] = None,
+    barrio: Optional[str] = None,
+    street: Optional[str] = None,
+    house: Optional[str] = None,
+    comment: Optional[str] = None,
+) -> UserReport:
+    """Вставить метку. Общее тело для create_report и corroborate_report.
+
+    share_code выдается здесь же: у метки без кода нет публичной страницы,
+    а значит нечего шарить — а шеринг сейчас основной канал роста.
+    """
+    point_wkt = f"SRID=4326;POINT({lon} {lat})"
+    report = UserReport(
+        user_id=user.id,
+        latitude=lat,
+        longitude=lon,
+        location=point_wkt,
+        department=department,
+        city=city,
+        barrio=barrio,
+        street=street,
+        house=house,
+        comment=comment,
+        share_code=generate_share_code(),
+    )
+    db.add(report)
+    await db.commit()
+    await db.refresh(report)
+    return report
+
+
+@router.post("/{report_id}/corroborate", response_model=ReportOut)
+@limiter.limit("5/hour")
+async def corroborate_report(
+    request: Request,
+    report_id: int,
+    payload: ReportCorroborate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Сосед подтверждает чужую метку: "yo tambien estoy sin luz".
+
+    Подтверждение — это собственная метка подтверждающего с его
+    координатами, а не счетчик-лайк: порог REPORT_THRESHOLD решает, есть ли
+    в квартале настоящее отключение, и накрутить его нажатиями нельзя.
+
+    Идемпотентна по человеку: если у этого device_id уже есть активная
+    метка в пределах REPORT_RADIUS_M, вторая не создается — иначе один
+    пользователь дотянул бы метку до "confirmado" в одиночку.
+    """
+    result = await db.execute(select(UserReport).where(UserReport.id == report_id))
+    target = result.scalar_one_or_none()
+    if target is None:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+
+    result = await db.execute(select(User).where(User.device_id == payload.device_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado. Regístrese primero.")
+
+    if user.id == target.user_id:
+        raise HTTPException(status_code=400, detail="No podés confirmar tu propio reporte")
+
+    lat = payload.latitude
+    lon = payload.longitude
+    point = ST_SetSRID(ST_MakePoint(lon, lat), 4326)
+
+    existing = await db.execute(
+        select(UserReport.id).where(
+            UserReport.user_id == user.id,
+            active_report_clause(),
+            ST_DWithin(
+                cast(UserReport.location, Geography(srid=4326)),
+                cast(point, Geography(srid=4326)),
+                settings.REPORT_RADIUS_M,
+            ),
+        ).limit(1)
+    )
+    already_reported = existing.scalar_one_or_none() is not None
+
+    if not already_reported:
+        geo = await reverse_geocode(lat, lon)
+        await _insert_report(
+            db,
+            user=user,
+            lat=lat,
+            lon=lon,
+            city=geo.get("city"),
+            barrio=geo.get("barrio"),
+            street=geo.get("street"),
+            comment="Confirmado desde un reporte compartido",
+        )
+        await check_and_confirm_reports(db, lat, lon)
+
+    # Отдаем исходную метку: клиент показывает обновленный счетчик именно
+    # на ней, на нее же он пришел по ссылке.
+    await db.refresh(target)
+    return _attach_is_mine(apply_auto_resolution(target), False)
 
 
 @router.post("/{report_id}/resolve", response_model=ReportOut)
@@ -131,6 +243,46 @@ async def resolve_report(
 
     # Закрывать может только автор, значит запрос пришел от него.
     return _attach_is_mine(report, True)
+
+
+@router.get("/by-code/{share_code}", response_model=ReportPublicOut)
+async def get_report_by_share_code(share_code: str, db: AsyncSession = Depends(get_db)):
+    """Найти метку по публичному коду из ссылки /r/{code}.
+
+    Нужна приложению: по диплинку с веб-страницы приходит код, а экран
+    метки работает с id. Двух сегментов в пути хватает, чтобы не спорить
+    с /reports/{report_id}.
+
+    Отдает публичный срез, а не ReportOut: код уезжает в WhatsApp и живет
+    дальше своей жизнью, поэтому по нему нельзя выдавать больше, чем
+    показывает сама страница /r/{code} — то есть без street/house и с
+    огрубленными координатами. Клиенту отсюда нужен только id, за
+    остальным он идет на /reports/{id} со своим device_id.
+    """
+    result = await db.execute(select(UserReport).where(UserReport.share_code == share_code))
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    return to_public_report(apply_auto_resolution(report))
+
+
+@router.post("/{report_id}/shared", status_code=204)
+async def mark_report_shared(report_id: int, db: AsyncSession = Depends(get_db)):
+    """Отметить, что метку отправили соседям.
+
+    Счетчик нужен, чтобы понять, работает ли вирусная петля: сколько раз
+    нажали "поделиться" против того, сколько раз открыли страницу метки.
+    Тело ответа пустое — клиент этот вызов не ждет и ошибку глотает.
+    """
+    result = await db.execute(
+        update(UserReport)
+        .where(UserReport.id == report_id)
+        .values(share_count=UserReport.share_count + 1)
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    await db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/{report_id}", response_model=ReportOut)

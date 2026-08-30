@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, computed_field, field_serializer
 
+from app.sharing import share_url as build_share_url
+
 
 def utc_iso(value: datetime | None) -> str | None:
     """Сериализовать datetime как ISO-8601 с суффиксом Z.
@@ -76,6 +78,17 @@ class ReportResolve(BaseModel):
     device_id: str = Field(..., description="ID устройства автора метки. Чужие метки закрывать нельзя.")
 
 
+class ReportCorroborate(BaseModel):
+    """Сосед подтверждает чужую метку своей геопозицией.
+
+    Подтверждение — это не лайк, а собственная метка с координатами
+    подтверждающего: только так порог REPORT_THRESHOLD остается честным.
+    """
+    device_id: str
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+
+
 class ReportOut(BaseModel):
     id: int
     latitude: float
@@ -105,6 +118,10 @@ class ReportOut(BaseModel):
             "device_id; без него всегда false. Поле присутствует всегда."
         ),
     )
+    share_code: str | None = Field(
+        default=None,
+        description="Публичный код метки. null у меток, созданных до миграции 0005.",
+    )
 
     model_config = {"from_attributes": True}
 
@@ -113,7 +130,36 @@ class ReportOut(BaseModel):
     def resolved(self) -> bool:
         return self.resolved_at is not None
 
+    @computed_field(description="Ссылка на публичную страницу метки для шеринга")
+    @property
+    def share_url(self) -> str | None:
+        return build_share_url(self.share_code)
+
     @field_serializer("created_at", "resolved_at")
+    def _serialize_dt(self, value: datetime | None) -> str | None:
+        return utc_iso(value)
+
+
+class ReportPublicOut(BaseModel):
+    """То, что можно показать кому угодно на странице /r/{code}.
+
+    Намеренно отдельная схема, а не срез ReportOut: street и house — это
+    домашний адрес человека, который сам же и разошлет ссылку в WhatsApp.
+    Наружу уходят только barrio/city и координаты, огрубленные до ~1 км.
+    """
+    id: int
+    share_code: str
+    barrio: str | None
+    city: str | None
+    department: str | None
+    latitude: float
+    longitude: float
+    confirmation_count: int
+    confirmed: bool
+    created_at: datetime
+    resolved: bool
+
+    @field_serializer("created_at")
     def _serialize_dt(self, value: datetime | None) -> str | None:
         return utc_iso(value)
 

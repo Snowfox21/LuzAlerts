@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.limiter import limiter
 from app.models import Outage, OutageSource
-from app.routers import users, outages, reports, subscriptions, comments
+from app.routers import users, outages, reports, share, subscriptions, comments
 
 
 app = FastAPI(
@@ -24,6 +24,7 @@ app.include_router(outages.router)
 app.include_router(reports.router)
 app.include_router(subscriptions.router)
 app.include_router(comments.router)
+app.include_router(share.router)
 
 
 @app.get("/", tags=["health"])

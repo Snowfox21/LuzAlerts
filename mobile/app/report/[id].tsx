@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { CheckCircle2, ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound } from 'lucide-react-native';
+import { CheckCircle2, ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound, Zap } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import apiClient from '../../src/api/client';
-import { confirmAndResolveReport } from '../../src/api/reports';
+import { confirmAndResolveReport, corroborateReport, getCorroborateErrorCopy } from '../../src/api/reports';
+import { ShareBlock } from '../../src/share/ShareBlock';
 import { DS, PrimaryButton, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
 import { isMyReport } from '../../src/utils/myReports';
@@ -26,7 +28,15 @@ interface Report {
     resolved_reason?: 'author' | 'auto' | null;
     // Автора определяет сервер по device_id из query; старый бэкенд поле не отдает
     is_mine?: boolean;
+    confirmation_count?: number;
+    // Публичная ссылка для шеринга; у меток старого бэкенда её нет
+    share_code?: string | null;
+    share_url?: string | null;
 }
+
+// Столько независимых репортов в радиусе 500 м подтверждают отключение.
+// Значение совпадает с REPORT_THRESHOLD на бэкенде.
+const CONFIRMATION_THRESHOLD = 3;
 
 export default function ReportDetailScreen() {
     const { id } = useLocalSearchParams();
@@ -37,6 +47,8 @@ export default function ReportDetailScreen() {
     const [error, setError] = useState<string | null>(null);
     const [mine, setMine] = useState(false);
     const [resolving, setResolving] = useState(false);
+    const [corroborating, setCorroborating] = useState(false);
+    const [corroborated, setCorroborated] = useState(false);
     const activeReportIdRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -47,6 +59,8 @@ export default function ReportDetailScreen() {
         setError(null);
         setMine(false);
         setResolving(false);
+        setCorroborating(false);
+        setCorroborated(false);
 
         (async () => {
             try {
@@ -61,8 +75,13 @@ export default function ReportDetailScreen() {
                 if (!active) return;
                 activeReportIdRef.current = res.data.id;
                 setReport(res.data);
-                // Локальный реестр используем только со старым бэкендом без is_mine
-                setMine(res.data.is_mine ?? localMine);
+                // Локальный реестр — не запасной вариант, а второй независимый
+                // признак: если device_id до сервера не доехал (его не выдал
+                // getOrCreateDeviceId), он честно ответит is_mine: false, и
+                // автор увидел бы у себя кнопку "yo también estoy sin luz".
+                // Ложноположительным реестр быть не может: id попадает в него
+                // только после успешного создания метки с этого устройства.
+                setMine(res.data.is_mine === true || localMine);
             } catch {
                 if (active) setError('No se pudo cargar el reporte.');
             } finally {
@@ -97,6 +116,46 @@ export default function ReportDetailScreen() {
                 }
             },
         });
+    };
+
+    const handleCorroborate = async () => {
+        if (!report || corroborating) return;
+        const reportId = report.id;
+        setCorroborating(true);
+        try {
+            // Координаты берем свои, а не из чужой метки: подтверждение — это
+            // собственный репорт подтверждающего, иначе порог можно накрутить,
+            // не выходя из дома соседа.
+            const permission = await Location.requestForegroundPermissionsAsync();
+            if (permission.status !== 'granted') {
+                Alert.alert(
+                    'Necesitamos tu ubicación',
+                    'Confirmamos el corte con tu ubicación real. Sin eso no podemos saber si estás en la misma zona.',
+                );
+                return;
+            }
+
+            const position = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+            });
+            const updated = await corroborateReport(reportId, {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+            });
+
+            if (activeReportIdRef.current !== reportId) return;
+            setCorroborated(true);
+            setReport(prev => (prev?.id === reportId ? {
+                ...prev,
+                confirmed: updated.confirmed,
+                confirmation_count: updated.confirmation_count,
+            } : prev));
+        } catch (error) {
+            const copy = getCorroborateErrorCopy(error);
+            Alert.alert(copy.title, copy.message);
+        } finally {
+            if (activeReportIdRef.current === reportId) setCorroborating(false);
+        }
     };
 
     const formatAddress = (r: Report) => {
@@ -141,6 +200,10 @@ export default function ReportDetailScreen() {
         );
     }
 
+    const confirmations = report.confirmation_count ?? 0;
+    const meterPercent = report.confirmed
+        ? 100
+        : Math.min(Math.round((confirmations / CONFIRMATION_THRESHOLD) * 100), 100);
     const resolvedBadge = report.resolved_reason === 'auto' ? 'EXPIRADO' : 'CERRADO';
     const resolvedText = report.resolved_reason === 'author'
         ? `La luz volvio el ${formatDateTime24(report.resolved_at ?? undefined)}`
@@ -207,6 +270,20 @@ export default function ReportDetailScreen() {
                     </Text>
                 </SectionCard>
 
+                {!report.resolved ? (
+                    <SectionCard>
+                        <InfoTitle icon={<UsersRound size={18} color={DS.violet} />} title="Vecinos" />
+                        <Text style={styles.body}>
+                            {report.confirmed
+                                ? 'Varios vecinos confirmaron este corte.'
+                                : `${confirmations} de ${CONFIRMATION_THRESHOLD} confirmaciones`}
+                        </Text>
+                        <View style={styles.meterTrack}>
+                            <View style={[styles.meterFill, { width: `${meterPercent}%` }]} />
+                        </View>
+                    </SectionCard>
+                ) : null}
+
                 {report.resolved ? (
                     <View style={styles.closedNotice}>
                         <View style={[styles.statusBadge, styles.closedBadge]}>
@@ -221,6 +298,41 @@ export default function ReportDetailScreen() {
                             ? <ActivityIndicator color={DS.ink} />
                             : <Text style={styles.resolveButtonText}>Ya volvio la luz</Text>}
                     </PrimaryButton>
+                ) : corroborated ? (
+                    <View style={styles.thanksNotice}>
+                        <CheckCircle2 size={18} color={DS.greenLight} />
+                        <Text style={styles.thanksText}>
+                            Gracias. Tu confirmación ya está en el mapa.
+                        </Text>
+                    </View>
+                ) : (
+                    // Метка чужая и активная: пришедший по ссылке сосед может
+                    // подтвердить, что света нет и у него.
+                    <PrimaryButton onPress={handleCorroborate} disabled={corroborating} style={styles.resolveButton}>
+                        {corroborating
+                            ? <ActivityIndicator color={DS.ink} />
+                            : (
+                                <View style={styles.ctaRow}>
+                                    <Zap size={18} color={DS.ink} />
+                                    <Text style={styles.resolveButtonText}>Yo también estoy sin luz</Text>
+                                </View>
+                            )}
+                    </PrimaryButton>
+                )}
+
+                {!report.resolved && report.share_url ? (
+                    <View style={styles.shareSection}>
+                        <Text style={styles.shareHeading}>Avisá a tus vecinos</Text>
+                        <ShareBlock
+                            compact
+                            target={{
+                                reportId: report.id,
+                                url: report.share_url,
+                                place: report.barrio ?? report.city,
+                                confirmations,
+                            }}
+                        />
+                    </View>
                 ) : null}
             </View>
         </ScrollView>
@@ -349,5 +461,51 @@ const styles = StyleSheet.create({
         color: DS.ink,
         fontSize: 16,
         fontWeight: '800',
+    },
+    ctaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    meterTrack: {
+        height: 8,
+        borderRadius: 999,
+        backgroundColor: DS.surfaceVar,
+        overflow: 'hidden',
+        marginTop: 10,
+    },
+    meterFill: {
+        height: '100%',
+        borderRadius: 999,
+        backgroundColor: DS.violet,
+    },
+    thanksNotice: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(74,222,128,0.35)',
+        backgroundColor: 'rgba(34,197,94,0.12)',
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+    },
+    thanksText: {
+        flex: 1,
+        color: DS.text,
+        fontSize: 14,
+        fontWeight: '700',
+        lineHeight: 20,
+    },
+    shareSection: {
+        marginTop: 14,
+        gap: 10,
+    },
+    shareHeading: {
+        color: DS.textMuted,
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
     },
 });
