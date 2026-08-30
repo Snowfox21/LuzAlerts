@@ -1,9 +1,0 @@
-{
-  "versionCode": 11,
-  "versionName": "1.2.0",
-  "apkUrl": "https://luzalerts.lat/luzalerts.apk",
-  "sha256": null,
-  "sizeBytes": null,
-  "mandatory": false,
-  "notes_es": "Ahora podés avisar a tus vecinos por WhatsApp cuando se corta la luz, y confirmar los cortes que ellos reportan."
-}
