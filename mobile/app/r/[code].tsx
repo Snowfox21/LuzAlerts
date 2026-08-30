@@ -2,16 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 
-import apiClient from '../../../src/api/client';
-import { DS, PrimaryButton, sharedStyles } from '../../../src/components/DesignSystem';
-import { getOrCreateDeviceId } from '../../../src/utils/device';
+import apiClient from '../../src/api/client';
+import { DS, PrimaryButton, sharedStyles } from '../../src/components/DesignSystem';
+import { getOrCreateDeviceId } from '../../src/utils/device';
 
 /**
  * Переходник со ссылки из WhatsApp на экран метки.
  *
- * По ссылке https://luzalerts.lat/r/CODE приходит публичный код, а экран
- * метки работает с id. Резолвим код и сразу заменяем экран в стеке, чтобы
- * "назад" не возвращало на этот промежуточный шаг.
+ * Путь файла (app/r/[code]) намеренно повторяет URL, который выдает бэкенд:
+ * https://luzalerts.lat/r/CODE. expo-router разбирает входящий диплинк сам и
+ * делает это раньше любого нашего обработчика — если роута с таким путем нет,
+ * сосед из WhatsApp получает экран "Unmatched Route" вместо метки.
+ *
+ * По ссылке приходит публичный код, а экран метки работает с id. Резолвим код
+ * и сразу заменяем экран в стеке, чтобы "назад" не возвращало на этот
+ * промежуточный шаг.
  */
 export default function ReportByCodeScreen() {
     const { code } = useLocalSearchParams<{ code: string }>();

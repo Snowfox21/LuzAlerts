@@ -419,7 +419,7 @@ function ReportCard({
                     >
                         {resolving
                             ? <ActivityIndicator size="small" color={DS.greenLight} />
-                            : <Text style={styles.resolveCardButtonText}>Ya volvio la luz</Text>}
+                            : <Text style={styles.resolveCardButtonText}>Ya volvió la luz</Text>}
                     </TouchableOpacity>
                 ) : null}
             </SectionCard>

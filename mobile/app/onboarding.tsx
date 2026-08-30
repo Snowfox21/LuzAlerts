@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { takePendingLink } from '../src/utils/pendingLink';
 import { AlertTriangle, BellRing, MapPin, Users, Zap } from 'lucide-react-native';
 import { DS, PrimaryButton } from '../src/components/DesignSystem';
 
@@ -138,7 +139,13 @@ export default function OnboardingScreen() {
             Location.requestForegroundPermissionsAsync(),
         ]);
         await AsyncStorage.setItem(ONBOARDING_KEY, '1');
-        router.replace('/(tabs)');
+
+        // Если приложение открыли ссылкой на метку, а онбординг был не
+        // пройден — сосед пришел из WhatsApp за конкретной меткой, и
+        // высаживать его на общую карту значит терять ровно тот переход,
+        // ради которого шеринг и делался.
+        const pending = takePendingLink();
+        router.replace(pending ?? '/(tabs)');
     };
 
     const next = () => {

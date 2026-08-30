@@ -9,6 +9,7 @@ import { ShareBlock } from '../../src/share/ShareBlock';
 import { DS, PrimaryButton, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
 import { isMyReport } from '../../src/utils/myReports';
+import { hasCorroborated, markCorroborated } from '../../src/utils/corroborated';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 
 interface Report {
@@ -65,9 +66,10 @@ export default function ReportDetailScreen() {
         (async () => {
             try {
                 const reportId = Number(id);
-                const [deviceId, localMine] = await Promise.all([
+                const [deviceId, localMine, alreadyCorroborated] = await Promise.all([
                     getOrCreateDeviceId().catch(() => null),
                     Number.isFinite(reportId) ? isMyReport(reportId) : Promise.resolve(false),
+                    Number.isFinite(reportId) ? hasCorroborated(reportId) : Promise.resolve(false),
                 ]);
                 const res = await apiClient.get<Report>(`/reports/${id}`, {
                     params: deviceId ? { device_id: deviceId } : undefined,
@@ -75,6 +77,7 @@ export default function ReportDetailScreen() {
                 if (!active) return;
                 activeReportIdRef.current = res.data.id;
                 setReport(res.data);
+                setCorroborated(alreadyCorroborated);
                 // Локальный реестр — не запасной вариант, а второй независимый
                 // признак: если device_id до сервера не доехал (его не выдал
                 // getOrCreateDeviceId), он честно ответит is_mine: false, и
@@ -135,14 +138,29 @@ export default function ReportDetailScreen() {
                 return;
             }
 
-            const position = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.Balanced,
-            });
+            let position;
+            try {
+                position = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+            } catch {
+                // Отдельная ветка намеренно: без нее отказ GPS попадает в
+                // общий catch и человек видит "попробуйте через несколько
+                // секунд" — и жмет бесконечно, потому что дело не в сети.
+                // На экране создания репорта эта ситуация уже разобрана
+                // отдельно, здесь должно быть так же.
+                Alert.alert(
+                    'Ubicación no disponible',
+                    'Asegurate de que el GPS esté encendido y volvé a intentar.',
+                );
+                return;
+            }
             const updated = await corroborateReport(reportId, {
                 latitude: position.coords.latitude,
                 longitude: position.coords.longitude,
             });
 
+            await markCorroborated(reportId);
             if (activeReportIdRef.current !== reportId) return;
             setCorroborated(true);
             setReport(prev => (prev?.id === reportId ? {
@@ -206,7 +224,7 @@ export default function ReportDetailScreen() {
         : Math.min(Math.round((confirmations / CONFIRMATION_THRESHOLD) * 100), 100);
     const resolvedBadge = report.resolved_reason === 'auto' ? 'EXPIRADO' : 'CERRADO';
     const resolvedText = report.resolved_reason === 'author'
-        ? `La luz volvio el ${formatDateTime24(report.resolved_at ?? undefined)}`
+        ? `La luz volvió el ${formatDateTime24(report.resolved_at ?? undefined)}`
         : report.resolved_reason === 'auto'
             ? `El reporte expiró el ${formatDateTime24(report.resolved_at ?? undefined)}`
             : `Reporte cerrado el ${formatDateTime24(report.resolved_at ?? undefined)}`;
@@ -276,7 +294,7 @@ export default function ReportDetailScreen() {
                         <Text style={styles.body}>
                             {report.confirmed
                                 ? 'Varios vecinos confirmaron este corte.'
-                                : `${confirmations} de ${CONFIRMATION_THRESHOLD} confirmaciones`}
+                                : `${confirmations} / ${CONFIRMATION_THRESHOLD} confirmaciones`}
                         </Text>
                         <View style={styles.meterTrack}>
                             <View style={[styles.meterFill, { width: `${meterPercent}%` }]} />
@@ -296,7 +314,7 @@ export default function ReportDetailScreen() {
                     <PrimaryButton onPress={handleResolve} disabled={resolving} style={styles.resolveButton}>
                         {resolving
                             ? <ActivityIndicator color={DS.ink} />
-                            : <Text style={styles.resolveButtonText}>Ya volvio la luz</Text>}
+                            : <Text style={styles.resolveButtonText}>Ya volvió la luz</Text>}
                     </PrimaryButton>
                 ) : corroborated ? (
                     <View style={styles.thanksNotice}>

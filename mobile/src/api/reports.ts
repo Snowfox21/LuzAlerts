@@ -156,6 +156,6 @@ export const getCorroborateErrorCopy = (error: unknown): { title: string; messag
 
     return {
         title: 'Error',
-        message: 'No pudimos confirmar el corte. Intenta de nuevo en unos segundos.',
+        message: 'No pudimos confirmar el corte. Intentá de nuevo en unos segundos.',
     };
 };

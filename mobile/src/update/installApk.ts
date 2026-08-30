@@ -36,7 +36,7 @@ export const installErrorCopy = (kind: InstallFailure): { title: string; message
         case 'download':
             return {
                 title: 'No se pudo descargar',
-                message: 'Revisá tu conexión e intentá de nuevo. La descarga pesa unos 100 MB.',
+                message: 'Revisá tu conexión e intentá de nuevo. La descarga pesa unos 110 MB.',
             };
         case 'checksum':
             return {

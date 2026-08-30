@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../src/theme/Theme';
 import { useDeviceSetup } from '../src/hooks/useDeviceSetup';
 import { ONBOARDING_KEY } from './onboarding';
+import { setPendingLink } from '../src/utils/pendingLink';
 import { checkForUpdate } from '../src/update/checkForUpdate';
 import { UpdateManifest } from '../src/update/manifest';
 import { UpdateSheet } from '../src/update/UpdateSheet';
@@ -56,27 +57,29 @@ export default function RootLayout() {
     const pendingUrlRef = useRef<string | null>(null);
     const onboardingDoneRef = useRef(false);
 
-    // Разбор диплинка: luzalerts://report/123 и https://luzalerts.lat/r/CODE.
-    const openFromUrl = useCallback((url: string) => {
+    // Разбор диплинка в маршрут приложения: luzalerts://report/123 и
+    // https://luzalerts.lat/r/CODE. Возвращает путь, а не навигирует, чтобы
+    // тот же разбор годился и для отложенной ссылки.
+    const resolveDeepLinkRoute = useCallback((url: string): string | null => {
         const { path } = Linking.parse(url);
-        if (!path) return;
+        if (!path) return null;
 
         const direct = path.match(/^report\/(\d+)$/);
-        if (direct) {
-            // navigate, а не push: этот же диплинк expo-router разбирает и
-            // сам по схеме приложения, и push положил бы второй такой же
-            // экран в стек — "назад" упиралось бы в дубль.
-            router.navigate(`/report/${direct[1]}`);
-            return;
-        }
+        if (direct) return `/report/${direct[1]}`;
 
-        // Веб-ссылка несет публичный код, а не id: разрешаем его в id
-        // на бэкенде, отдельного экрана под код заводить незачем.
         const shared = path.match(/^r\/([A-Za-z0-9]+)$/);
-        if (shared) {
-            router.navigate(`/report/code/${shared[1]}`);
-        }
+        if (shared) return `/r/${shared[1]}`;
+
+        return null;
     }, []);
+
+    const openFromUrl = useCallback((url: string) => {
+        const route = resolveDeepLinkRoute(url);
+        // navigate, а не push: этот же диплинк expo-router разбирает и сам,
+        // и push положил бы второй такой же экран в стек — "назад"
+        // упиралось бы в дубль.
+        if (route) router.navigate(route);
+    }, [resolveDeepLinkRoute]);
 
     useEffect(() => {
         AsyncStorage.getItem(ONBOARDING_KEY)
@@ -86,9 +89,15 @@ export default function RootLayout() {
             .then(done => {
                 if (!done) {
                     router.replace('/onboarding');
-                    // Ссылку роняем: онбординг — жесткий шлюз, открывать
-                    // метку поверх него некуда.
+                    // Ссылку НЕ роняем: сосед из WhatsApp — это чаще всего
+                    // человек, который только что поставил приложение, то
+                    // есть онбординг и диплинк сталкиваются именно в главном
+                    // сценарии шеринга. Передаем маршрут онбордингу, он
+                    // откроет метку вместо карты на своем последнем шаге.
+                    const url = pendingUrlRef.current;
                     pendingUrlRef.current = null;
+                    const route = url ? resolveDeepLinkRoute(url) : null;
+                    if (route) setPendingLink(route);
                 } else {
                     onboardingDoneRef.current = true;
                     setOnboardingDone(true);
