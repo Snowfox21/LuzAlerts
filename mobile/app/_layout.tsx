@@ -37,6 +37,9 @@ export default function RootLayout() {
     const [ready, setReady] = useState(false);
     const responseListener = useRef<Notifications.EventSubscription | null>(null);
     const [update, setUpdate] = useState<UpdateManifest | null>(null);
+    // Отдельное состояние, а не onboardingDoneRef: на ref эффект проверки
+    // обновления не переподпишется, а нам нужно дождаться ответа про онбординг.
+    const [onboardingDone, setOnboardingDone] = useState(false);
 
     useDeviceSetup();
 
@@ -88,6 +91,7 @@ export default function RootLayout() {
                     pendingUrlRef.current = null;
                 } else {
                     onboardingDoneRef.current = true;
+                    setOnboardingDone(true);
                     const pending = pendingUrlRef.current;
                     pendingUrlRef.current = null;
                     if (pending) openFromUrl(pending);
@@ -136,14 +140,21 @@ export default function RootLayout() {
     // Обновление вне Google Play: стора, который догонял бы пользователей,
     // у сайдлоада нет. Задержка — чтобы проверка не конкурировала за сеть
     // со стартовой загрузкой карты.
+    //
+    // Ждем онбординг: иначе человек, впервые открывший приложение, получает
+    // предложение скачать 110 МБ поверх экрана "что это вообще такое" —
+    // диалог всплывает над онбордингом и перекрывает его кнопки. Тому, кто
+    // проходит онбординг прямо сейчас, проверка достанется на следующем
+    // запуске, и это правильный момент: сначала показать продукт.
     useEffect(() => {
+        if (!onboardingDone) return;
         const timer = setTimeout(() => {
             checkForUpdate()
                 .then(result => setUpdate(result?.manifest ?? null))
                 .catch(() => {});
         }, 3000);
         return () => clearTimeout(timer);
-    }, []);
+    }, [onboardingDone]);
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>

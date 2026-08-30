@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "LuzAlerts",
     slug: "luzalerts",
-    version: "1.2.0",
+    version: "1.2.1",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
@@ -20,7 +20,7 @@ module.exports = {
       // versionCode — единственный источник истины для самообновления:
       // приложение сравнивает его с web/dl/latest.json. Инкрементировать
       // при каждом релизе APK, иначе обновление никому не приедет.
-      versionCode: 11,
+      versionCode: 12,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
