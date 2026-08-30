@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.luzalerts.app",
+      "sha256_cert_fingerprints": [
+        "3B:4E:F9:BD:C3:56:50:98:AD:31:69:FF:AB:31:D4:8D:24:CD:DF:17:DA:69:53:06:64:1F:5C:8D:86:DB:47:87"
+      ]
+    }
+  }
+]
