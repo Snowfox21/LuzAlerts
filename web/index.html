@@ -137,6 +137,8 @@
     .btn-hint { font-size: 13px; color: var(--text-muted); }
     .btn-hint span { margin: 0 4px; opacity: 0.5; }
     .dl-icon { width: 20px; height: 20px; flex-shrink: 0; }
+    .dl-meta { font-size: 13px; color: var(--text-muted); margin: 0; text-align: center; }
+    @media (min-width: 1024px) { .dl-meta { text-align: left; } }
     .store-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
     @media (min-width: 1024px) { .store-row { justify-content: flex-start; } }
     .store-badge {
@@ -309,6 +311,7 @@
               <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Descargar APK · Android
             </a>
+            <p class="dl-meta" id="dl-meta">Para Android 7 o superior</p>
             <div class="store-row">
               <a href="https://www.amazon.com/gp/mas/dl/android?p=com.luzalerts.app" class="store-badge" aria-label="Disponible en Amazon Appstore">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.93 17.09c-.04-.08-.14-.11-.22-.06-3.05 1.72-6.9 1.41-9.44-.73-2.54-2.14-3.23-5.89-1.73-8.77 1.5-2.88 4.74-4.35 7.9-3.62 3.16.73 5.35 3.6 5.35 6.82v.22c0 .09.07.16.16.16h1.27c.09 0 .16-.07.16-.16v-.22C19.38 6.3 16.3 2.84 12.2 2.1 8.1 1.36 4.18 3.64 2.65 7.48 1.12 11.32 2.34 15.72 5.57 18.2c3.23 2.48 7.72 2.61 11.08.32a.15.15 0 0 0 .04-.22l-.76-1.21zm3.44.65c-.43-.33-.77-.75-.77-1.31 0-.77.65-1.34 1.43-1.34.38 0 .74.14 1.02.37l-1.68 2.28z"/><path d="M21.62 15.09c-.19-.15-.4-.23-.62-.23-.56 0-1.04.47-1.04 1.04 0 .3.13.59.35.79l1.31-1.6z"/></svg>
@@ -614,6 +617,27 @@
         );
       }
     });
+  </script>
+  <script>
+    // Версия и вес берутся из того же манифеста, который читает само
+    // приложение при проверке обновлений. Хардкодить их здесь нельзя: они
+    // неизбежно разъедутся с APK, лежащим на сервере, и лендинг начнёт
+    // обещать не то, что скачивается.
+    (function () {
+      var el = document.getElementById('dl-meta');
+      if (!el) return;
+      fetch('/dl/latest.json', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (m) {
+          if (!m || !m.versionName) return;
+          var parts = ['Versión ' + m.versionName];
+          if (m.sizeBytes) parts.push(Math.round(m.sizeBytes / 1048576) + ' MB');
+          parts.push('Android 7 o superior');
+          el.textContent = parts.join(' · ');
+        })
+        // Сеть подвела — остаётся статичный текст, кнопка работает в любом случае.
+        .catch(function () {});
+    })();
   </script>
 </body>
 </html>
