@@ -25,8 +25,12 @@ apiClient.interceptors.response.use(
     error => {
         if (error.response) {
             const status = error.response.status;
+            // Счётчик шеринга отправляется по принципу «выстрелил и забыл»:
+            // его провал ничего не значит для пользователя, а в консоли
+            // выглядит как ошибка приложения.
+            const isFireAndForget = error.config?.url?.endsWith('/shared');
             // 404 is expected (device not yet registered, empty results, etc.)
-            if (status !== 404) {
+            if (status !== 404 && !isFireAndForget) {
                 console.error(`API Error - Status ${status}:`, JSON.stringify(error.response.data, null, 2));
             }
         } else if (error.request) {

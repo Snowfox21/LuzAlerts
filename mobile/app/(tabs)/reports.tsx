@@ -435,6 +435,7 @@ export default function ReportsScreen() {
                         >
                         <ScrollView
                             style={[styles.form, keyboardUp && formViewport > 0 && { height: formViewport, flexShrink: 0 }]}
+                            contentContainerStyle={styles.formContent}
                             keyboardShouldPersistTaps="handled"
                         >
                             <FormInput label="Ciudad" value={address.city} placeholder="Ej: Asunción" onChangeText={city => setAddress(prev => ({ ...prev, city }))} />
@@ -875,6 +876,11 @@ const styles = StyleSheet.create({
         color: DS.textMuted,
         fontSize: 12,
         marginTop: 2,
+    },
+    formContent: {
+        // Запас снизу: кнопка «Confirmar reporte» лежит поверх нижней кромки
+        // прокрутки, и без этого поле на середине жеста уезжало под неё.
+        paddingBottom: 12,
     },
     formWrap: {
         // Без клавиатуры обёртка просто повторяет высоту формы, с клавиатурой —
