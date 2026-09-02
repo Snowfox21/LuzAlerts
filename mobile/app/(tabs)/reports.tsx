@@ -89,6 +89,9 @@ export default function ReportsScreen() {
     const keyboardOverlap = keyboardScreenY === null
         ? 0
         : Math.max(0, Math.round(sheetRootHeight - keyboardScreenY));
+    const keyboardUp = keyboardOverlap > 0;
+    // Высота места, оставшегося под форму: её отдаём ScrollView явно.
+    const [formViewport, setFormViewport] = useState(0);
     // Аппаратный «Назад» приходит в тот же тик, что и события клавиатуры,
     // поэтому решение принимаем по ref, а не по стейту с отложенным рендером.
     const keyboardOpenRef = useRef(false);
@@ -396,7 +399,7 @@ export default function ReportsScreen() {
                     <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={closeModal} />
                     <View style={[
                         styles.sheet,
-                        keyboardOverlap > 0 && { maxHeight: '100%' as const, paddingBottom: keyboardOverlap + 12 },
+                        keyboardUp && { height: '100%' as const, paddingBottom: keyboardOverlap + 12 },
                     ]}>
                         <View style={styles.handle} />
                         <View style={styles.sheetHeader}>
@@ -421,12 +424,25 @@ export default function ReportsScreen() {
                             {autofilling ? <ActivityIndicator size="small" color={DS.amber} /> : <RefreshCw size={18} color={DS.textMuted} />}
                         </TouchableOpacity>
 
-                        <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
+                        {/* Обёртка меряет остаток места, и эта высота отдаётся
+                            ScrollView явно. Когда высоту ScrollView получает только
+                            от флексбокса, нативный скролл на Android не получает
+                            диапазона прокрутки: контент выше вьюпорта, но свайп
+                            ничего не делает и «Comentario» недостижим. */}
+                        <View
+                            style={[styles.formWrap, keyboardUp && styles.formWrapKeyboard]}
+                            onLayout={event => setFormViewport(event.nativeEvent.layout.height)}
+                        >
+                        <ScrollView
+                            style={[styles.form, keyboardUp && formViewport > 0 && { height: formViewport, flexShrink: 0 }]}
+                            keyboardShouldPersistTaps="handled"
+                        >
                             <FormInput label="Ciudad" value={address.city} placeholder="Ej: Asunción" onChangeText={city => setAddress(prev => ({ ...prev, city }))} />
                             <FormInput label="Barrio" value={address.barrio} placeholder="Ej: Villa Morra" onChangeText={barrio => setAddress(prev => ({ ...prev, barrio }))} />
                             <FormInput label="Calle principal" value={address.street} placeholder="Ej: Mcal. López" onChangeText={street => setAddress(prev => ({ ...prev, street }))} />
                             <FormInput label="Comentario" value={comment} placeholder="Ej: transformador con ruido" onChangeText={setComment} multiline />
                         </ScrollView>
+                        </View>
 
                         <PrimaryButton onPress={handleSubmit} disabled={submitting} style={styles.submit}>
                             {submitting ? <ActivityIndicator color={DS.ink} /> : <Text style={styles.submitText}>Confirmar reporte</Text>}
@@ -860,17 +876,23 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 2,
     },
+    formWrap: {
+        // Без клавиатуры обёртка просто повторяет высоту формы, с клавиатурой —
+        // забирает всё, что осталось между шапкой шита и кнопкой.
+        flexGrow: 0,
+        flexShrink: 1,
+    },
+    formWrapKeyboard: {
+        flexGrow: 1,
+        flexBasis: 0,
+    },
     form: {
-        // Жёсткая высота не давала форме ужаться под клавиатуру. Теперь
-        // ScrollView сжимается сам, а содержимое остаётся прокручиваемым.
+        // Раньше тут была фиксированная высота 286: список полей не умел
+        // ужиматься, поэтому с клавиатурой он вылезал за границы шита.
         flexGrow: 0,
         flexShrink: 1,
     },
     formGroup: {
-        // flexShrink шита распространялся на группы полей: последняя
-        // ("Comentario") схлопывалась в полоску 9px, контент становился ровно
-        // по высоте вьюпорта, и ScrollView нечего было прокручивать.
-        flexShrink: 0,
         marginBottom: 12,
     },
     label: {
