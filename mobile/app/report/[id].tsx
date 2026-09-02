@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, BackHandler, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { CheckCircle2, ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound, Zap } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import apiClient from '../../src/api/client';
@@ -181,13 +181,37 @@ export default function ReportDetailScreen() {
         return parts.length > 0 ? parts.join(', ') : 'Dirección no especificada';
     };
 
-    const handleBack = () => {
+    // Куда уводит "назад", если возвращаться некуда: метку открыли диплинком
+    // при пустом стеке. Карта, а не список: сосед пришёл по ссылке из WhatsApp
+    // ради того, что происходит рядом с ним, и именно карта отвечает на этот
+    // вопрос. Выкидывать его на лаунчер значит обрывать воронку там, где она
+    // должна начинаться.
+    const handleBack = useCallback(() => {
         if (navigation.canGoBack()) {
             router.back();
             return;
         }
-        router.replace('/(tabs)/reports');
-    };
+        router.replace('/(tabs)');
+    }, [navigation, router]);
+
+    // Аппаратная кнопка "назад" на Android идёт мимо headerLeft: её
+    // обрабатывает не наш заголовок, а навигатор, и при единственном экране в
+    // стеке система просто закрывает приложение — поэтому кастомный handleBack
+    // в этом сценарии не срабатывал. Перехватываем событие сами и только
+    // тогда, когда возвращаться действительно некуда; в обычном переходе с
+    // карты/списка отдаём событие навигатору (return false), чтобы не ломать
+    // штатную анимацию и историю.
+    useFocusEffect(
+        useCallback(() => {
+            if (Platform.OS !== 'android') return;
+            const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+                if (navigation.canGoBack()) return false;
+                router.replace('/(tabs)');
+                return true;
+            });
+            return () => subscription.remove();
+        }, [navigation, router]),
+    );
 
     const openOnMap = () => {
         if (!report) return;

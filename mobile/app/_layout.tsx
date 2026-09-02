@@ -82,31 +82,35 @@ export default function RootLayout() {
     }, [resolveDeepLinkRoute]);
 
     useEffect(() => {
-        AsyncStorage.getItem(ONBOARDING_KEY)
+        // Оба ответа ждем вместе. По отдельности между ними гонка, и она
+        // стабильно проигрывалась: флаг онбординга из AsyncStorage приходил
+        // первым, ссылка из getInitialURL еще не была прочитана, ветка
+        // "онбординг не пройден" видела пустой ref и ничего не откладывала.
+        // Ссылка приезжала следом, ложилась в ref — и больше ее никто не
+        // читал. Ровно тот случай, ради которого все делалось: сосед из
+        // WhatsApp ставит приложение, проходит онбординг и не видит метки.
+        Promise.all([
             // Провал чтения не должен подвесить readiness: без него диплинки
             // остались бы в очереди навсегда.
-            .catch(() => null)
-            .then(done => {
-                if (!done) {
-                    router.replace('/onboarding');
-                    // Ссылку НЕ роняем: сосед из WhatsApp — это чаще всего
-                    // человек, который только что поставил приложение, то
-                    // есть онбординг и диплинк сталкиваются именно в главном
-                    // сценарии шеринга. Передаем маршрут онбордингу, он
-                    // откроет метку вместо карты на своем последнем шаге.
-                    const url = pendingUrlRef.current;
-                    pendingUrlRef.current = null;
-                    const route = url ? resolveDeepLinkRoute(url) : null;
-                    if (route) setPendingLink(route);
-                } else {
-                    onboardingDoneRef.current = true;
-                    setOnboardingDone(true);
-                    const pending = pendingUrlRef.current;
-                    pendingUrlRef.current = null;
-                    if (pending) openFromUrl(pending);
-                }
-                setReady(true);
-            });
+            AsyncStorage.getItem(ONBOARDING_KEY).catch(() => null),
+            Linking.getInitialURL().catch(() => null),
+        ]).then(([done, initialUrl]) => {
+            const url = initialUrl ?? pendingUrlRef.current;
+            pendingUrlRef.current = null;
+            const route = url ? resolveDeepLinkRoute(url) : null;
+
+            if (!done) {
+                router.replace('/onboarding');
+                // Маршрут переживает онбординг: его заберет последний шаг
+                // онбординга и откроет метку вместо карты.
+                if (route) setPendingLink(route);
+            } else {
+                onboardingDoneRef.current = true;
+                setOnboardingDone(true);
+                if (route) router.navigate(route);
+            }
+            setReady(true);
+        });
     }, []);
 
     // Navigate to map when user taps a push notification
@@ -130,17 +134,21 @@ export default function RootLayout() {
     useEffect(() => {
         const handle = (url: string | null) => {
             if (!url) return;
-            // До ответа про онбординг навигировать нельзя — придерживаем.
             if (!onboardingDoneRef.current) {
+                // Онбординг еще идет (или ответ про него не пришел). Кладем и
+                // в ref — на случай, если ответ еще впереди, — и в
+                // pendingLink, чтобы ссылка, прилетевшая уже поверх
+                // открытого онбординга, тоже дожила до его финала.
                 pendingUrlRef.current = url;
+                const route = resolveDeepLinkRoute(url);
+                if (route) setPendingLink(route);
                 return;
             }
             openFromUrl(url);
         };
 
-        // Холодный старт: приложение подняли самой ссылкой, слушатель
-        // подписаться уже не успел.
-        Linking.getInitialURL().then(handle).catch(() => {});
+        // Холодный старт разбирается выше, вместе с флагом онбординга:
+        // здесь остаются только ссылки, прилетевшие в уже живое приложение.
 
         const sub = Linking.addEventListener('url', event => handle(event.url));
         return () => sub.remove();

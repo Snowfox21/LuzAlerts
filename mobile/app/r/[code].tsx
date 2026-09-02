@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
+import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 
 import apiClient from '../../src/api/client';
 import { DS, PrimaryButton, sharedStyles } from '../../src/components/DesignSystem';
@@ -21,7 +21,24 @@ import { getOrCreateDeviceId } from '../../src/utils/device';
 export default function ReportByCodeScreen() {
     const { code } = useLocalSearchParams<{ code: string }>();
     const router = useRouter();
+    const navigation = useNavigation();
     const [failed, setFailed] = useState(false);
+
+    // Тот же случай, что и на экране метки: при холодном старте по ссылке
+    // этот переходник — единственный экран в стеке, и аппаратная "назад"
+    // закрыла бы приложение (она идёт к навигатору мимо любых наших кнопок).
+    // Уводим на карту, чтобы человек остался внутри продукта.
+    useFocusEffect(
+        useCallback(() => {
+            if (Platform.OS !== 'android') return;
+            const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+                if (navigation.canGoBack()) return false;
+                router.replace('/(tabs)');
+                return true;
+            });
+            return () => subscription.remove();
+        }, [navigation, router]),
+    );
 
     useEffect(() => {
         let active = true;

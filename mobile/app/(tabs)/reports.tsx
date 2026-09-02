@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import {
     ActivityIndicator,
     Alert,
     AppState,
-    KeyboardAvoidingView,
+    Keyboard,
     Modal,
     Platform,
     RefreshControl,
@@ -54,6 +54,10 @@ interface Report {
 // Раньше тут стояло 48 без множителя, то есть бейдж загорался через 48 минут.
 const EXPIRING_AFTER_MINUTES = 48 * 60;
 
+// Столько независимых репортов в радиусе 500 м подтверждают отключение.
+// Совпадает с REPORT_THRESHOLD на бэкенде.
+const CONFIRMATION_THRESHOLD = 3;
+
 const PARAGUAY_BOUNDS = {
     minLat: -27.7,
     maxLat: -19.0,
@@ -72,6 +76,22 @@ export default function ReportsScreen() {
     const [success, setSuccess] = useState(false);
     // Метка, только что созданная на этом экране: из нее берем ссылку для шеринга
     const [createdReport, setCreatedReport] = useState<Report | null>(null);
+    // Клавиатуру отрабатываем сами. KeyboardAvoidingView внутри Modal на
+    // Android с edge-to-edge меряет свой фрейм относительно окна активити, а у
+    // Modal собственное полноэкранное окно — сдвиг выходит неверным.
+    // Перекрытие считаем как (высота контейнера модалки - screenY клавиатуры),
+    // а не как высоту клавиатуры: высота окна и высота экрана расходятся на
+    // статусбар с навбаром, и на этом промахивается на ~90dp. Через onLayout
+    // формула самонастраивается: если система сама ужимает окно (обычный
+    // adjustResize), контейнер станет ниже и перекрытие честно выйдет нулевым.
+    const [keyboardScreenY, setKeyboardScreenY] = useState<number | null>(null);
+    const [sheetRootHeight, setSheetRootHeight] = useState(0);
+    const keyboardOverlap = keyboardScreenY === null
+        ? 0
+        : Math.max(0, Math.round(sheetRootHeight - keyboardScreenY));
+    // Аппаратный «Назад» приходит в тот же тик, что и события клавиатуры,
+    // поэтому решение принимаем по ref, а не по стейту с отложенным рендером.
+    const keyboardOpenRef = useRef(false);
     const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
     const [address, setAddress] = useState({ department: '', city: '', barrio: '', street: '', house: '' });
     const [comment, setComment] = useState('');
@@ -171,6 +191,60 @@ export default function ReportsScreen() {
             setAutofilling(false);
         }
     };
+
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const onShow = Keyboard.addListener(showEvent, event => {
+            keyboardOpenRef.current = true;
+            if (event.endCoordinates) setKeyboardScreenY(event.endCoordinates.screenY);
+        });
+        const onHide = Keyboard.addListener(hideEvent, () => {
+            keyboardOpenRef.current = false;
+            setKeyboardScreenY(null);
+        });
+
+        return () => {
+            onShow.remove();
+            onHide.remove();
+        };
+    }, []);
+
+    const closeModal = useCallback(() => {
+        Keyboard.dismiss();
+        setModalVisible(false);
+    }, []);
+
+    // Аппаратный «Назад». Раньше он закрывал шит безусловно, и человек терял
+    // всё, что успел заполнить, — притом что ожидал всего лишь убрать
+    // клавиатуру.
+    const handleRequestClose = useCallback(() => {
+        if (keyboardOpenRef.current) {
+            Keyboard.dismiss();
+            return;
+        }
+
+        const hasDraft = Boolean(
+            address.department || address.city || address.barrio || address.street || address.house || comment || coords,
+        );
+        if (!hasDraft) {
+            closeModal();
+            return;
+        }
+
+        // Подтверждение, а не черновик: координаты и автозаполненный адрес
+        // протухают (человек уехал, свет дали), и восстановленный через сутки
+        // черновик отправил бы метку не туда.
+        Alert.alert(
+            '¿Descartar el reporte?',
+            'Vas a perder los datos que cargaste. Si querés, seguí completando y confirmá el reporte.',
+            [
+                { text: 'Seguir editando', style: 'cancel' },
+                { text: 'Descartar', style: 'destructive', onPress: closeModal },
+            ],
+        );
+    }, [address, comment, coords, closeModal]);
 
     const handleSubmit = async () => {
         if (!address.city && !address.street && !coords) {
@@ -289,7 +363,7 @@ export default function ReportsScreen() {
                 {loadingReports ? (
                     <ActivityIndicator color={DS.amber} style={styles.loader} />
                 ) : reports.length === 0 ? (
-                    <Text style={styles.emptyText}>Todavia no hay reportes vecinales.</Text>
+                    <Text style={styles.emptyText}>Todavía no hay reportes vecinales.</Text>
                 ) : (
                     reports.map(report => (
                         <ReportCard
@@ -317,14 +391,17 @@ export default function ReportsScreen() {
                 </TouchableOpacity>
             </View>
 
-            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0} style={styles.modalRoot}>
-                    <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={() => setModalVisible(false)} />
-                    <View style={styles.sheet}>
+            <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={handleRequestClose}>
+                <View style={styles.modalRoot} onLayout={event => setSheetRootHeight(event.nativeEvent.layout.height)}>
+                    <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={closeModal} />
+                    <View style={[
+                        styles.sheet,
+                        keyboardOverlap > 0 && { maxHeight: '100%' as const, paddingBottom: keyboardOverlap + 12 },
+                    ]}>
                         <View style={styles.handle} />
                         <View style={styles.sheetHeader}>
                             <Text style={styles.sheetTitle}>¿No hay luz en tu zona?</Text>
-                            <IconButton onPress={() => setModalVisible(false)}>
+                            <IconButton onPress={closeModal}>
                                 <X size={22} color={DS.textMuted} />
                             </IconButton>
                         </View>
@@ -355,7 +432,7 @@ export default function ReportsScreen() {
                             {submitting ? <ActivityIndicator color={DS.ink} /> : <Text style={styles.submitText}>Confirmar reporte</Text>}
                         </PrimaryButton>
                     </View>
-                </KeyboardAvoidingView>
+                </View>
             </Modal>
         </View>
     );
@@ -379,8 +456,14 @@ function ReportCard({
     const address = formatAddress(report);
     const complete = report.confirmed;
     const closed = report.resolved;
-    const confirmations = complete ? 3 : 1;
-    const pct = closed || complete ? 100 : 33;
+    // Раньше здесь стояла заглушка `complete ? 3 : 1`, из-за которой
+    // неподтверждённая метка всегда показывала "1 / 3": человек видел, что
+    // сосед уже подтвердил его отключение, хотя не подтверждал никто.
+    const confirmations = report.confirmation_count ?? 0;
+    // Полоска тоже была захардкожена на треть и не зависела от данных.
+    const pct = closed || complete
+        ? 100
+        : Math.min(Math.round((confirmations / CONFIRMATION_THRESHOLD) * 100), 100);
     const expiring = !closed && !complete && ageMinutes(report.created_at) >= EXPIRING_AFTER_MINUTES;
     const chipColor = closed || complete ? DS.greenLight : expiring ? DS.textMuted : DS.amber;
     const chipBg = closed || complete ? 'rgba(74,222,128,0.15)' : expiring ? 'rgba(100,116,139,0.15)' : 'rgba(251,191,36,0.15)';
@@ -404,7 +487,7 @@ function ReportCard({
                     <Text style={[styles.confirmText, { color: chipColor }]}>
                         {closed
                             ? report.resolved_reason === 'auto' ? 'Expirado' : 'Cerrado'
-                            : complete ? 'Confirmado' : `${confirmations} / 3 confirmaciones`}
+                            : complete ? 'Confirmado' : `${confirmations} / ${CONFIRMATION_THRESHOLD} confirmaciones`}
                     </Text>
                 </View>
                 <View style={styles.progress}>
@@ -464,10 +547,10 @@ function buildOutsideCoverageMessage(city?: string | null): string {
     const cityName = city?.trim();
 
     if (cityName) {
-        return `LuzAlerts por ahora solo registra cortes dentro de Paraguay. ${cityName} queda fuera de cobertura, asi que no podemos tomar ese reporte todavia.`;
+        return `LuzAlerts por ahora solo registra cortes dentro de Paraguay. ${cityName} queda fuera de cobertura, así que no podemos tomar ese reporte todavía.`;
     }
 
-    return 'LuzAlerts por ahora solo registra cortes dentro de Paraguay. La ubicacion que enviaste queda fuera de cobertura, asi que no podemos tomar ese reporte todavia.';
+    return 'LuzAlerts por ahora solo registra cortes dentro de Paraguay. La ubicación que enviaste queda fuera de cobertura, así que no podemos tomar ese reporte todavía.';
 }
 
 function getReportSubmitError(error: unknown, city?: string | null): { title: string; message: string } {
@@ -477,22 +560,22 @@ function getReportSubmitError(error: unknown, city?: string | null): { title: st
 
         if (status === 400 && detail?.includes('No se pudo determinar la ubicación')) {
             return {
-                title: 'Direccion fuera de cobertura',
-                message: `${buildOutsideCoverageMessage(city)} Revisa ciudad y calle, o usa tu ubicacion actual.`,
+                title: 'Dirección fuera de cobertura',
+                message: `${buildOutsideCoverageMessage(city)} Revisá ciudad y calle, o usá tu ubicación actual.`,
             };
         }
 
         if (status === 429) {
             return {
                 title: 'Demasiados intentos',
-                message: 'Ya recibimos varios intentos desde este dispositivo. Proba de nuevo en un rato.',
+                message: 'Ya recibimos varios intentos desde este dispositivo. Probá de nuevo en un rato.',
             };
         }
 
         if (!error.response) {
             return {
-                title: 'Sin conexion',
-                message: 'No pudimos comunicarnos con el servidor. Revisa tu conexion e intenta de nuevo.',
+                title: 'Sin conexión',
+                message: 'No pudimos comunicarnos con el servidor. Revisá tu conexión e intentá de nuevo.',
             };
         }
 
@@ -506,7 +589,7 @@ function getReportSubmitError(error: unknown, city?: string | null): { title: st
 
     return {
         title: 'Error',
-        message: 'Hubo un problema al enviar el reporte. Intenta de nuevo en unos segundos.',
+        message: 'Hubo un problema al enviar el reporte. Intentá de nuevo en unos segundos.',
     };
 }
 
@@ -714,6 +797,9 @@ const styles = StyleSheet.create({
     },
     sheet: {
         maxHeight: '88%',
+        // Без flexShrink шит держит высоту содержимого, и при поднятой
+        // клавиатуре кнопка уезжает под неё.
+        flexShrink: 1,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         backgroundColor: DS.bg,
@@ -775,9 +861,16 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     form: {
-        maxHeight: 286,
+        // Жёсткая высота не давала форме ужаться под клавиатуру. Теперь
+        // ScrollView сжимается сам, а содержимое остаётся прокручиваемым.
+        flexGrow: 0,
+        flexShrink: 1,
     },
     formGroup: {
+        // flexShrink шита распространялся на группы полей: последняя
+        // ("Comentario") схлопывалась в полоску 9px, контент становился ровно
+        // по высоте вьюпорта, и ScrollView нечего было прокручивать.
+        flexShrink: 0,
         marginBottom: 12,
     },
     label: {

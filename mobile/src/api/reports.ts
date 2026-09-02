@@ -31,8 +31,8 @@ const getResolveErrorCopy = (error: unknown): { title: string; message: string }
 
         if (status === 403) {
             return {
-                title: 'No podes cerrar este reporte',
-                message: 'Solo el autor puede cerrarlo desde el dispositivo con el que lo creo.',
+                title: 'No podés cerrar este reporte',
+                message: 'Solo el autor puede cerrarlo desde el dispositivo con el que lo creó.',
             };
         }
 
@@ -45,15 +45,15 @@ const getResolveErrorCopy = (error: unknown): { title: string; message: string }
 
         if (!error.response) {
             return {
-                title: 'Sin conexion',
-                message: 'No pudimos comunicarnos con el servidor. Revisa tu conexion e intenta de nuevo.',
+                title: 'Sin conexión',
+                message: 'No pudimos comunicarnos con el servidor. Revisá tu conexión e intentá de nuevo.',
             };
         }
     }
 
     return {
         title: 'Error',
-        message: 'No pudimos cerrar el reporte. Intenta de nuevo en unos segundos.',
+        message: 'No pudimos cerrar el reporte. Intentá de nuevo en unos segundos.',
     };
 };
 
@@ -67,12 +67,12 @@ export const confirmAndResolveReport = (options: {
     const { reportId, onStart, onResolved, onFinish } = options;
 
     Alert.alert(
-        '¿Ya volvio la luz?',
-        'Vamos a cerrar tu reporte y dejara de aparecer en el mapa.',
+        '¿Ya volvió la luz?',
+        'Vamos a cerrar tu reporte y dejará de aparecer en el mapa.',
         [
-            { text: 'Todavia no', style: 'cancel' },
+            { text: 'Todavía no', style: 'cancel' },
             {
-                text: 'Si, cerrar',
+                text: 'Sí, cerrar',
                 style: 'default',
                 onPress: async () => {
                     onStart?.();
@@ -148,8 +148,8 @@ export const getCorroborateErrorCopy = (error: unknown): { title: string; messag
 
         if (!error.response) {
             return {
-                title: 'Sin conexion',
-                message: 'No pudimos comunicarnos con el servidor. Revisa tu conexion e intenta de nuevo.',
+                title: 'Sin conexión',
+                message: 'No pudimos comunicarnos con el servidor. Revisá tu conexión e intentá de nuevo.',
             };
         }
     }

@@ -109,7 +109,7 @@ export default function SettingsScreen() {
                 Alert.alert('Todo al día', 'Ya tenés la última versión de LuzAlerts.');
             }
         } catch {
-            Alert.alert('Sin conexion', 'No pudimos verificar si hay una nueva versión.');
+            Alert.alert('Sin conexión', 'No pudimos verificar si hay una nueva versión.');
         } finally {
             setCheckingUpdate(false);
         }
