@@ -61,13 +61,23 @@ export default function RootLayout() {
     // https://luzalerts.lat/r/CODE. Возвращает путь, а не навигирует, чтобы
     // тот же разбор годился и для отложенной ссылки.
     const resolveDeepLinkRoute = useCallback((url: string): string | null => {
-        const { path } = Linking.parse(url);
-        if (!path) return null;
+        const { hostname, path } = Linking.parse(url);
 
-        const direct = path.match(/^report\/(\d+)$/);
+        // У кастомной схемы первый сегмент уезжает в hostname:
+        // luzalerts://report/16 разбирается как hostname="report", path="16",
+        // и матчить один path бесполезно. У https-ссылки hostname — это домен
+        // (luzalerts.lat), а путь целиком лежит в path. Поэтому склеиваем, но
+        // домен отбрасываем.
+        const segments = [hostname, path]
+            .filter((part): part is string => Boolean(part) && part !== 'luzalerts.lat')
+            .join('/')
+            .replace(/^\/+|\/+$/g, '');
+        if (!segments) return null;
+
+        const direct = segments.match(/^report\/(\d+)$/);
         if (direct) return `/report/${direct[1]}`;
 
-        const shared = path.match(/^r\/([A-Za-z0-9]+)$/);
+        const shared = segments.match(/^r\/([A-Za-z0-9]+)$/);
         if (shared) return `/r/${shared[1]}`;
 
         return null;
