@@ -4,7 +4,7 @@ from datetime import datetime
 from geoalchemy2 import Geometry
 from sqlalchemy import (
     Boolean, DateTime, Enum, Float, ForeignKey,
-    Integer, String, Text, func,
+    Integer, JSON, String, Text, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,6 +49,9 @@ class Outage(Base):
     __tablename__ = "outages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # ID assigned by ANDE (interna.php?id=...).  It is deliberately separate
+    # from our local primary key so scraper continuity can be checked.
+    ande_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     source: Mapped[OutageSource] = mapped_column(Enum(OutageSource))
     status: Mapped[OutageStatus] = mapped_column(Enum(OutageStatus), default=OutageStatus.active)
 
@@ -131,3 +134,27 @@ class Subscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="subscriptions")
+
+
+class ScraperRun(Base):
+    """One observable scraper attempt, including pre-filter source metrics."""
+
+    __tablename__ = "scraper_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    attempted_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source_reachable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    identity_valid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    container_found: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    rows_seen: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rows_parsed_ok: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rows_after_filter: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    events_written: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ande_ids: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
+    ids_added: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
+    ids_removed: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
+    ids_monotonic: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    ids_dense: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)

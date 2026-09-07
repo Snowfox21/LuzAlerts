@@ -44,6 +44,7 @@ class UserOut(BaseModel):
 
 class OutageOut(BaseModel):
     id: int
+    ande_id: int | None = None
     source: str
     status: str
     title: str

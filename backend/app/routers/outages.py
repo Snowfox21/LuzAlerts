@@ -61,6 +61,7 @@ async def list_outages(
         lat_v, lon_v = _extract_coords(o)
         items.append(OutageOut(
             id=o.id,
+            ande_id=o.ande_id,
             source=o.source.value,
             status=o.status.value,
             title=o.title,
@@ -93,6 +94,7 @@ async def get_outage(
     lat_v, lon_v = _extract_coords(o)
     return OutageOut(
         id=o.id,
+        ande_id=o.ande_id,
         source=o.source.value,
         status=o.status.value,
         title=o.title,

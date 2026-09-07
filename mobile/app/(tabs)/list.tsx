@@ -25,6 +25,15 @@ const ANDE_SILENT_SINCE_FALLBACK = '05/05';
 const ANDE_STALE_MS = 24 * 60 * 60 * 1000;
 const SYSTEM_STATUS_MIN_HEIGHT = 92;
 
+interface SystemStatus {
+    status: string;
+    last_success: string | null;
+    last_attempt: string | null;
+    coverage_valid_when: string | null;
+    misses_confirmados_30d: number;
+    ande_ids?: { monotonic: boolean | null; dense: boolean | null; added: number[]; removed: number[] };
+}
+
 const formatDayMonth = (iso: string): string => {
     const d = parseApiDate(iso);
     if (!d) return ANDE_SILENT_SINCE_FALLBACK;
@@ -33,12 +42,19 @@ const formatDayMonth = (iso: string): string => {
     return `${dd}/${mm}`;
 };
 
+const formatDateTime = (iso: string | null | undefined): string => {
+    if (!iso) return 'nunca';
+    const d = parseApiDate(iso);
+    if (!d) return 'desconocido';
+    return `${formatDayMonth(iso)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 export default function ListScreen() {
     const [outages, setOutages] = useState<Outage[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<Filter>('all');
-    const [lastAndeData, setLastAndeData] = useState<string | null>(null);
+    const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
     const [systemStatusHeight, setSystemStatusHeight] = useState(0);
     const router = useRouter();
     const tabBarHeight = useBottomTabBarHeight();
@@ -76,8 +92,8 @@ export default function ListScreen() {
             setOutages([...fetchedOutages, ...mappedReports]);
 
             try {
-                const statusRes = await apiClient.get<{ status: string; last_ande_data: string | null }>('/status');
-                setLastAndeData(statusRes.data?.last_ande_data ?? null);
+                const statusRes = await apiClient.get<SystemStatus>('/status');
+                setSystemStatus(statusRes.data ?? null);
             } catch (err) {
                 console.warn('Error fetching system status:', err);
             }
@@ -114,16 +130,16 @@ export default function ListScreen() {
         return outages.filter(item => item.status === status);
     }, [filter, outages]);
 
-    // ANDE молчит: данных нет вообще или последний official-корт старше суток.
-    // Тишина источника != "всё в порядке" — показываем это явно.
+    // Проверяем свежесть последней успешной проверки источника, а не наличие
+    // событий: пустой, но успешно обработанный раунд не считается поломкой.
     const andeStale = useMemo(() => {
-        const date = parseApiDate(lastAndeData ?? undefined);
+        const date = parseApiDate(systemStatus?.last_success ?? undefined);
         if (!date) return true;
         return Date.now() - date.getTime() > ANDE_STALE_MS;
-    }, [lastAndeData]);
+    }, [systemStatus?.last_success]);
 
-    const andeSilentSince = lastAndeData ? formatDayMonth(lastAndeData) : ANDE_SILENT_SINCE_FALLBACK;
-    const listBottomInset = andeStale
+    const showSystemStatus = Boolean(systemStatus);
+    const listBottomInset = showSystemStatus
         ? tabBarHeight + Math.max(systemStatusHeight, SYSTEM_STATUS_MIN_HEIGHT) + 48
         : 24;
 
@@ -208,19 +224,26 @@ export default function ListScreen() {
                     }
                 />
 
-                {andeStale && (
+                {showSystemStatus && (
                     <View
                         style={[styles.systemStatus, { bottom: tabBarHeight + 16 }]}
                         onLayout={event => setSystemStatusHeight(event.nativeEvent.layout.height)}
                     >
                         <View style={styles.statusRow}>
-                            <View style={[styles.statusDot, styles.statusDotOk]} />
-                            <Text style={styles.statusTextPrimary}>LuzAlerts funcionando normalmente</Text>
+                            <View style={[styles.statusDot, !andeStale && systemStatus?.coverage_valid_when ? styles.statusDotOk : styles.statusDotWarn]} />
+                            <Text style={styles.statusTextPrimary}>
+                                {!andeStale && systemStatus?.coverage_valid_when ? 'Cobertura de ANDE valida' : 'Cobertura de ANDE no verificada'}
+                            </Text>
                         </View>
                         <View style={styles.statusDivider} />
                         <View style={styles.statusRow}>
                             <View style={[styles.statusDot, styles.statusDotWarn]} />
-                            <Text style={styles.statusTextSecondary}>Datos de ANDE sin novedades desde {andeSilentSince}</Text>
+                            <Text style={styles.statusTextSecondary}>
+                                {`Ultimo intento: ${formatDateTime(systemStatus?.last_attempt)}`}
+                                {` · Ultimo exito: ${formatDateTime(systemStatus?.last_success)}`}
+                                {systemStatus?.coverage_valid_when ? ` · Valida desde ${formatDateTime(systemStatus.coverage_valid_when)}` : ''}
+                                {systemStatus ? ` · ${systemStatus.misses_confirmados_30d} confirmados fuera de ANDE (30d)` : ''}
+                            </Text>
                         </View>
                     </View>
                 )}

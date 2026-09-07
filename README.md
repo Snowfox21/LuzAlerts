@@ -154,6 +154,8 @@ Full interactive docs available at `http://localhost:8000/docs` when running loc
 | `GET` | `/reports/` | Active reports (optional radius filter) |
 | `POST` | `/users/` | Register device (push token + location) |
 | `POST` | `/subscriptions/` | Subscribe to outages near a custom location |
+| `GET` | `/status` | Scraper attempt/success, ANDE ID diff, coverage validity, and 30-day confirmed misses |
+| `GET` | `/events.json` | Public structured event feed for downstream consumers |
 
 Database schema is managed by **Alembic** — run `alembic upgrade head` (or just `docker-compose up`, the entrypoint does it). To smoke-test migrations on a temp DB: `./backend/scripts/migration_smoke.sh`.
 

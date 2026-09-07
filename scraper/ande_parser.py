@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import re
+from urllib.parse import parse_qs, urlparse
 
 import pdfplumber
 from bs4 import BeautifulSoup
@@ -53,7 +54,7 @@ async def _random_delay() -> None:
     await asyncio.sleep(random.uniform(2.0, 5.0))
 
 
-async def parse_outages(proxy_override: str | None = None) -> list[dict]:
+async def parse_outages(proxy_override: str | None = None, metrics: dict | None = None) -> list[dict]:
     """
     Drives a single persistent Chromium context so the Radware clearance cookie is
     obtained once (via the JS challenge) and reused across all page/PDF fetches.
@@ -87,7 +88,7 @@ async def parse_outages(proxy_override: str | None = None) -> list[dict]:
         context = await pw.chromium.launch_persistent_context(**launch_kwargs)
         try:
             page = context.pages[0] if context.pages else await context.new_page()
-            return await _parse_outages_with_context(context, page)
+            return await _parse_outages_with_context(context, page, metrics)
         finally:
             await context.close()
 
@@ -177,6 +178,36 @@ _HORARIO_RE = re.compile(r"^\s*HORARIO\b", re.IGNORECASE)
 _ACTIVIDAD_RE = re.compile(r"^\s*ACTIVIDAD\b", re.IGNORECASE)
 
 
+def extract_ande_id(url: str) -> int | None:
+    """Extract the numeric ANDE article ID from an interna.php URL."""
+    value = parse_qs(urlparse(url).query).get("id", [None])[0]
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def analyze_ande_ids(ids: list[int]) -> dict:
+    """Check page-order monotonicity and density without conflating them.
+
+    ANDE's listing is normally newest-first, so either strictly ascending or
+    strictly descending is monotonic. Density is checked on sorted unique IDs;
+    article IDs can legitimately skip numbers used by other ANDE content.
+    """
+    unique = list(dict.fromkeys(i for i in ids if isinstance(i, int)))
+    deltas = [b - a for a, b in zip(unique, unique[1:])]
+    monotonic = len(unique) < 2 or all(d > 0 for d in deltas) or all(d < 0 for d in deltas)
+    sorted_ids = sorted(unique)
+    gaps = [missing for a, b in zip(sorted_ids, sorted_ids[1:]) for missing in range(a + 1, b)]
+    return {
+        "ids": unique,
+        "monotonic": monotonic,
+        "direction": "ascending" if deltas and all(d > 0 for d in deltas) else "descending" if deltas and all(d < 0 for d in deltas) else None,
+        "dense": len(sorted_ids) < 2 or not gaps,
+        "gaps": gaps,
+    }
+
+
 def _zones_from_lines(lines: list[str], title: str) -> list[dict]:
     """
     Applies the ZONA/HORARIO/ACTIVIDAD state machine to a list of text lines.
@@ -228,7 +259,7 @@ def parse_pdf_bytes(pdf_bytes: bytes, title: str) -> list[dict]:
     return _zones_from_lines(lines, title)
 
 
-async def _parse_outages_with_context(context, page) -> list[dict]:
+async def _parse_outages_with_context(context, page, metrics: dict | None = None) -> list[dict]:
     html_content = await _fetch_page(page, ANDE_URL)
     soup = BeautifulSoup(html_content, "lxml")
 
@@ -247,6 +278,14 @@ async def _parse_outages_with_context(context, page) -> list[dict]:
             href = BASE_URL + href
         detail_links.append(href)
 
+    list_containers = soup.find_all("div", class_="lista")
+    if metrics is not None:
+        metrics.update({
+            "source_reachable": True,
+            "identity_valid": bool(soup.title and "ande" in soup.title.get_text(" ", strip=True).lower()),
+            "container_found": bool(list_containers),
+            "ande_ids": [i for i in (extract_ande_id(link) for link in detail_links) if i is not None],
+        })
     logger.info(f"Found {len(detail_links)} detail pages to process.")
 
     for link in detail_links:
@@ -267,7 +306,10 @@ async def _parse_outages_with_context(context, page) -> list[dict]:
 
         paragraphs = main_col.find_all("p")
         line_texts = [p.get_text(separator=" ", strip=True) for p in paragraphs]
-        outages.extend(_zones_from_lines(line_texts, title))
+        parsed = _zones_from_lines(line_texts, title)
+        for item in parsed:
+            item["ande_id"] = extract_ande_id(link)
+        outages.extend(parsed)
 
         for pdf_href in [a["href"] for a in main_col.find_all("a", href=True) if a["href"].lower().endswith(".pdf")]:
             pdf_url = pdf_href if pdf_href.startswith("http") else BASE_URL + pdf_href
@@ -281,4 +323,7 @@ async def _parse_outages_with_context(context, page) -> list[dict]:
                 logger.info(f"Extracted {len(pdf_outages)} zones from PDF {pdf_url}")
             outages.extend(pdf_outages)
 
+    if metrics is not None:
+        metrics["rows_seen"] = len(outages)
+        metrics["rows_parsed_ok"] = sum(1 for item in outages if item.get("title"))
     return outages
