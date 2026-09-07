@@ -4,6 +4,9 @@ luzalerts.lat {
     handle /status {
         reverse_proxy backend:8000
     }
+    handle /events.json {
+        reverse_proxy backend:8000
+    }
     handle /outages* {
         reverse_proxy backend:8000
     }

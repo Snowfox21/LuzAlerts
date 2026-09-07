@@ -169,7 +169,7 @@ async def auto_resolve_expired_reports() -> None:
     logger.info(f"Auto-resolved {closed} expired user reports.")
 
 
-async def cleanup_old_data(days: int = 7) -> None:
+async def cleanup_old_data(days: int = 30) -> None:
     """Deletes outages and user reports older than `days` days."""
     from app.database import AsyncSessionLocal
     from app.models import Outage, UserReport
@@ -190,14 +190,19 @@ async def cleanup_old_data(days: int = 7) -> None:
     logger.info(f"Cleanup done: removed {r1.rowcount} outages, {r2.rowcount} user reports older than {days} days.")
 
 
-async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
+async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> dict[str, int]:
     """
     Takes raw dictionaries parsed from ANDE, cleans them, applies geocoding,
     and saves them to the PostgreSQL database.
     """
     logger.info(f"Received {len(raw_outages)} raw outages to process.")
+    # These counters describe the ANDE pipeline. Media fallback rows are
+    # intentionally excluded so a healthy ANDE empty round cannot be hidden by
+    # news items.
+    ande_rows = [row for row in raw_outages if row.get("source") != "media"]
+    stats = {"rows_seen": len(ande_rows), "rows_parsed_ok": 0, "rows_after_filter": 0, "events_written": 0}
     if not raw_outages:
-        return
+        return stats
 
     from app.database import AsyncSessionLocal
     from app.models import Outage, OutageSource, OutageStatus
@@ -215,6 +220,9 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             raw_text = raw.get("raw", "")
             
             base_date = parse_spanish_date(title)
+            is_ande_row = raw.get("source") != "media"
+            if base_date and is_ande_row:
+                stats["rows_parsed_ok"] += 1
             start_time, end_time = None, None
             if base_date:
                 start_time, end_time = parse_time_range(horario, base_date)
@@ -224,6 +232,8 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             if end_time and end_time < datetime.utcnow() - timedelta(days=1):
                 logger.info("Skipping historical outage '%s' (ended %s)", title, end_time)
                 continue
+            if is_ande_row:
+                stats["rows_after_filter"] += 1
 
             # Resolve the storage source/status. Media (news) outages are stored as
             # OutageSource.twitter — the existing 'external / non-official' value —
@@ -247,6 +257,7 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             else:
                 dedup_stmt = select(Outage).where(
                     Outage.source == OutageSource.ande_official,
+                    Outage.ande_id == raw.get("ande_id"),
                     Outage.description == raw_text,
                 )
             existing = (await session.execute(dedup_stmt)).scalars().first()
@@ -267,6 +278,7 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
             outage_lat = geo_data.get("lat")
             outage_lon = geo_data.get("lon")
             outage = Outage(
+                ande_id=raw.get("ande_id"),
                 source=outage_source,
                 status=outage_status,
                 title=title,
@@ -279,6 +291,8 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
                 barrio=geo_data.get("barrio") or (zona if "ZONA" not in zona.upper() else None)
             )
             session.add(outage)
+            if is_ande_row:
+                stats["events_written"] += 1
 
             if outage_lat and outage_lon:
                 new_outage_coords.append((outage_lat, outage_lon, title))
@@ -290,6 +304,7 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> None:
 
     logger.info("Saved outages to DB.")
     await warn_if_no_upcoming_outages()
+    return stats
 
 
 async def warn_if_no_upcoming_outages(stale_after_days: int = 2) -> None:

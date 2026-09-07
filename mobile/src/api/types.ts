@@ -12,6 +12,7 @@ export enum OutageStatus {
 
 export interface Outage {
     id: number;
+    ande_id?: number;
     source: OutageSource;
     status: OutageStatus;
     title: string;
