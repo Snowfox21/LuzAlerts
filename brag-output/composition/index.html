@@ -41,16 +41,16 @@
       #s3 .inner, #s4 .inner, #s5 .inner { padding-top: 130px; }
       .stitle { font-size: 96px; margin-top: 18px; }
       #phone { position: relative; margin-top: 60px; width: 620px; height: 1000px; border-radius: 84px; background: #0b1220; border: 10px solid #334155; overflow: hidden; box-shadow: 0 40px 120px rgba(0,0,0,0.6); }
-      #mapwrap { position: absolute; left: -450px; top: -500px; width: 1536px; height: 1792px; transform-origin: 760px 1000px; }
-      #mapimg { position: absolute; left: 0; top: 0; width: 1536px; height: 1792px; }
+      #mapwrap { position: absolute; left: -590px; top: -800px; width: 1800px; height: 2600px; transform-origin: 900px 1300px; }
+      #mapimg { position: absolute; left: 0; top: 0; width: 1800px; height: 2600px; }
       #callout { position: absolute; left: 30px; right: 30px; bottom: 34px; padding: 26px 30px; border-radius: 36px; background: rgba(15,23,42,0.94); border: 2px solid #334155; }
-      #callout .ct { display: flex; align-items: center; gap: 16px; font-size: 38px; font-weight: 800; color: #ef4444; }
-      #callout .ct u { width: 22px; height: 22px; border-radius: 50%; background: #ef4444; display: block; }
+      #callout .ct { display: flex; align-items: center; gap: 16px; font-size: 32px; font-weight: 800; color: #fbbf24; }
+      #callout .ct u { width: 22px; height: 22px; border-radius: 50%; background: #fbbf24; display: block; }
       #callout .ca { margin-top: 8px; font-size: 28px; font-weight: 600; color: #cbd5e1; }
       #attr { position: absolute; right: 16px; top: 14px; font-size: 20px; color: rgba(248,250,252,0.55); }
-      .pin { position: absolute; width: 90px; height: 90px; margin: -45px 0 0 -45px; }
-      .pin i { position: absolute; inset: 0; border-radius: 50%; border: 6px solid #fff; }
-      .pin b { position: absolute; inset: -34px; border-radius: 50%; opacity: 0.35; }
+      .pin { position: absolute; width: 130px; height: 130px; margin: -65px 0 0 -65px; }
+      .pin i { position: absolute; inset: 0; border-radius: 50%; border: 10px solid #fff; }
+      .pin b { position: absolute; inset: -60px; border-radius: 50%; opacity: 0.35; }
       #legend { display: flex; gap: 20px; margin-top: 46px; width: 980px; justify-content: center; flex-wrap: wrap; }
       .chip { display: flex; align-items: center; gap: 14px; padding: 18px 30px; border-radius: 999px; background: var(--surface); border: 2px solid var(--border); font-size: 40px; font-weight: 600; }
       .chip u { width: 26px; height: 26px; border-radius: 50%; display: block; }
@@ -129,19 +129,17 @@
           <div class="kicker">Mapa en tiempo real</div>
           <div id="phone">
             <div id="mapwrap"><img id="mapimg" src="assets/map.jpg" alt="Mapa de Asunción" />
-            <div class="pin" id="pin1" style="left:620px; top:880px;"><b data-layout-allow-overflow style="background:#fbbf24"></b><i style="background:#fbbf24"></i></div>
-            <div class="pin" id="pin2" style="left:860px; top:1010px;"><b data-layout-allow-overflow style="background:#ef4444"></b><i style="background:#ef4444"></i></div>
-            <div class="pin" id="pin3" style="left:700px; top:1130px;"><b data-layout-allow-overflow style="background:#a855f7"></b><i style="background:#a855f7"></i></div>
-            <div class="pin" id="pin4" style="left:930px; top:860px;"><b data-layout-allow-overflow style="background:#22c55e"></b><i style="background:#22c55e"></i></div>
+            <div class="pin" id="pin1" style="left:855px; top:1571px;"><b data-layout-allow-overflow style="background:#fbbf24"></b><i style="background:#fbbf24"></i></div>
+            <div class="pin" id="pin2" style="left:379px; top:1055px;"><b data-layout-allow-overflow style="background:#fbbf24"></b><i style="background:#fbbf24"></i></div>
+            <div class="pin" id="pin3" style="left:1030px; top:1144px;"><b data-layout-allow-overflow style="background:#22c55e"></b><i style="background:#22c55e"></i></div>
+            <div class="pin" id="pin4" style="left:1424px; top:1031px;"><b data-layout-allow-overflow style="background:#22c55e"></b><i style="background:#22c55e"></i></div>
             </div>
-            <div id="callout"><div class="ct"><u></u>Corte activo</div><div class="ca">Av. Ejemplo 1234, Barrio Demo</div></div>
+            <div id="callout"><div class="ct"><u></u>Programado · 08:00–14:00</div><div class="ca">Los Gladiolos y Rosedal, Villa Elisa</div></div>
             <div id="attr">© OpenStreetMap contributors</div>
           </div>
           <div id="legend">
             <div class="chip" id="chip1"><u style="background:#fbbf24"></u>Programado</div>
-            <div class="chip" id="chip2"><u style="background:#ef4444"></u>Activo</div>
-            <div class="chip" id="chip3"><u style="background:#a855f7"></u>Vecinos</div>
-            <div class="chip" id="chip4"><u style="background:#22c55e"></u>Resuelto</div>
+            <div class="chip" id="chip2"><u style="background:#22c55e"></u>Resuelto</div>
           </div>
         </div>
       </div>
@@ -159,7 +157,7 @@
               <div>
                 <div class="nmeta">LuzAlerts · ahora</div>
                 <div class="nhead">Corte a 2 km de vos</div>
-                <div class="nbody">La ANDE programó un corte hoy de 14:00 a 16:00 en Barrio Demo.</div>
+                <div class="nbody">La ANDE programó un corte hoy de 08:00 a 14:00 en Rosedal, Villa Elisa.</div>
               </div>
             </div>
             <div class="notif" id="n2">
@@ -271,14 +269,14 @@
       gsap.set(".pin", { opacity: 0, scale: 0 });
       gsap.set(".chip", { opacity: 0, y: 24 });
       gsap.set("#callout", { opacity: 0, y: 40 });
-      tl.fromTo("#mapwrap", { scale: 0.8 }, { scale: 0.98, duration: 4.8, ease: "power1.inOut" }, 6.2);
+      tl.fromTo("#mapwrap", { scale: 0.42 }, { scale: 0.47, duration: 4.8, ease: "power1.inOut" }, 6.2);
       tl.to("#callout", { opacity: 1, y: 0, duration: 0.4, ease: EO }, 7.6);
       // beat-grid: pins at 7.02, 7.52, 8.02, 8.52
       [7.02, 7.52, 8.02, 8.52].forEach(function (t, i) {
         var n = i + 1;
         tl.to("#pin" + n, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.4)" }, t);
         tl.fromTo("#pin" + n + " b", { scale: 0.6, opacity: 0.5 }, { scale: 1.6, opacity: 0, duration: 0.7, ease: "power1.out" }, t);
-        tl.to("#chip" + n, { opacity: 1, y: 0, duration: 0.35, ease: EO }, t);
+        if (n === 1 || n === 3) tl.to("#chip" + (n === 1 ? 1 : 2), { opacity: 1, y: 0, duration: 0.35, ease: EO }, t);
       });
       tl.to("#s3 .inner", { opacity: 0, duration: 0.25 }, 10.77);
 
