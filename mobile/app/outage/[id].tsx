@@ -11,7 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker } from '../../src/maps';
 import axios from 'axios';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Building2, Clock3, MapPin, Send, Share2, UsersRound } from 'lucide-react-native';

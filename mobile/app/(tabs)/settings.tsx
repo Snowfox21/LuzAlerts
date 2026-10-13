@@ -20,10 +20,12 @@ import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSyste
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
 import { UpdateSheet } from '../../src/update/UpdateSheet';
+import { WebPushRow } from '../../src/push/WebPushRow';
 
 // Версия сборки, а не строковый литерал: с самообновлением вне стора
 // расхождение экрана и реального APK путает при поддержке.
-const appVersion = getInstalledVersionName();
+// В PWA нативной версии нет: веб-сборка всегда последняя с сервера.
+const appVersion = Platform.OS === 'web' ? 'web' : getInstalledVersionName();
 
 interface Subscription {
     id: number;
@@ -120,6 +122,9 @@ export default function SettingsScreen() {
             <ScreenHeader title="Ajustes" />
             <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 <SettingSection title="Notificaciones">
+                    {/* PWA (iOS): включение Web Push только по тапу — iOS не
+                        дает спросить разрешение без жеста пользователя. */}
+                    {Platform.OS === 'web' && <WebPushRow />}
                     <SettingRow
                         icon={<Bell size={20} color={DS.amber} />}
                         label="Alertas de cortes"
@@ -200,17 +205,21 @@ export default function SettingsScreen() {
                     )}
                 </SettingSection>
 
-                <SettingSection title="Aplicación">
-                    <SettingRow
-                        icon={<Download size={20} color={DS.textMuted} />}
-                        label="Buscar actualizaciones"
-                        sub={`Versión ${appVersion}`}
-                        right={checkingUpdate
-                            ? <ActivityIndicator size="small" color={DS.amber} />
-                            : <ChevronRight size={16} color={DS.textMuted} />}
-                        onPress={handleCheckUpdate}
-                    />
-                </SettingSection>
+                {/* Самообновление = сайдлоад APK, в PWA смысла не имеет:
+                    веб-версия обновляется сама при следующем открытии. */}
+                {Platform.OS !== 'web' && (
+                    <SettingSection title="Aplicación">
+                        <SettingRow
+                            icon={<Download size={20} color={DS.textMuted} />}
+                            label="Buscar actualizaciones"
+                            sub={`Versión ${appVersion}`}
+                            right={checkingUpdate
+                                ? <ActivityIndicator size="small" color={DS.amber} />
+                                : <ChevronRight size={16} color={DS.textMuted} />}
+                            onPress={handleCheckUpdate}
+                        />
+                    </SettingSection>
+                )}
 
                 <SettingSection title="Datos y privacidad">
                     <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Mi ID anónimo" sub={deviceId ? `#${deviceId}` : 'Cargando...'} />
@@ -227,7 +236,7 @@ export default function SettingsScreen() {
                     <Text style={styles.footerText}>Proyecto independiente. No afiliado a la ANDE.</Text>
                 </View>
             </ScrollView>
-            <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />
+            {Platform.OS !== 'web' && <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />}
         </KeyboardAvoidingView>
     );
 }

@@ -14,6 +14,10 @@ import { checkForUpdate } from '../src/update/checkForUpdate';
 import { UpdateManifest } from '../src/update/manifest';
 import { UpdateSheet } from '../src/update/UpdateSheet';
 
+// Хосты, которые в разборе диплинка отбрасываются как домен, а не сегмент
+// пути: лендинг (App Links на Android) и PWA (app.luzalerts.lat).
+const WEB_HOSTS = new Set(['luzalerts.lat', 'app.luzalerts.lat']);
+
 LogBox.ignoreLogs([
     'expo-notifications: Android Push notifications',
     '`expo-notifications` functionality is not fully supported',
@@ -69,7 +73,7 @@ export default function RootLayout() {
         // (luzalerts.lat), а путь целиком лежит в path. Поэтому склеиваем, но
         // домен отбрасываем.
         const segments = [hostname, path]
-            .filter((part): part is string => Boolean(part) && part !== 'luzalerts.lat')
+            .filter((part): part is string => typeof part === 'string' && part.length > 0 && !WEB_HOSTS.has(part))
             .join('/')
             .replace(/^\/+|\/+$/g, '');
         if (!segments) return null;
@@ -141,6 +145,27 @@ export default function RootLayout() {
         };
     }, []);
 
+    // PWA: тап по Web Push уведомлению при уже открытом приложении. Service
+    // worker (public/sw.js) присылает сюда путь вида /?focusLat=..&focusLon=..
+    // — тот же маршрут, что строит обработчик нативного пуша выше.
+    useEffect(() => {
+        if (Platform.OS !== 'web' || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+        const onMessage = (event: MessageEvent) => {
+            const msg = event.data;
+            if (msg?.type !== 'luzalerts:push-open' || typeof msg.url !== 'string') return;
+            const url = new URL(msg.url, window.location.origin);
+            const focusLat = url.searchParams.get('focusLat');
+            const focusLon = url.searchParams.get('focusLon');
+            if (focusLat && focusLon) {
+                router.push(`/(tabs)?focusLat=${focusLat}&focusLon=${focusLon}`);
+            } else {
+                router.push('/(tabs)');
+            }
+        };
+        navigator.serviceWorker.addEventListener('message', onMessage);
+        return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+    }, []);
+
     useEffect(() => {
         const handle = (url: string | null) => {
             if (!url) return;
@@ -173,7 +198,12 @@ export default function RootLayout() {
     // диалог всплывает над онбордингом и перекрывает его кнопки. Тому, кто
     // проходит онбординг прямо сейчас, проверка достанется на следующем
     // запуске, и это правильный момент: сначала показать продукт.
+    //
+    // Только Android: самообновление = сайдлоад APK. В PWA (web) манифест
+    // APK бессмысленен — PWA обновляется сама с сервера при следующем
+    // открытии, а шторка "скачать APK" поверх нее только путала бы.
     useEffect(() => {
+        if (Platform.OS !== 'android') return;
         if (!onboardingDone) return;
         const timer = setTimeout(() => {
             checkForUpdate()
@@ -200,7 +230,9 @@ export default function RootLayout() {
                 <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             </Stack>
-            <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />
+            {Platform.OS === 'android' && (
+                <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />
+            )}
         </GestureHandlerRootView>
     );
 }

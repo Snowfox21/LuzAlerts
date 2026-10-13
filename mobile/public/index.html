@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover: без него env(safe-area-inset-*) на iPhone всегда 0,
+         и react-native-safe-area-context не видит челку/Dynamic Island. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <title>LuzAlerts</title>
+    <meta name="description" content="Cortes de luz en Paraguay: mapa en tiempo real y avisos cerca tuyo." />
+    <meta name="theme-color" content="#151718" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+
+    <!-- iOS: запуск с домашнего экрана без адресной строки Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="LuzAlerts" />
+    <!-- black-translucent: контент под статус-баром, отступ дает safe-area -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+        background-color: #151718;
+      }
+      body {
+        overflow: hidden;
+        /* iOS: без этого жест "назад" и bounce тянут всю страницу */
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>
+      Necesitás habilitar JavaScript para usar LuzAlerts.
+    </noscript>
+    <div id="root"></div>
+  </body>
+</html>

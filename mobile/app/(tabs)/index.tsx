@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { MapMarker, Marker, MapPressEvent, Region } from 'react-native-maps';
+import MapView, { MapMarker, Marker, MapPressEvent, Region } from '../../src/maps';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
