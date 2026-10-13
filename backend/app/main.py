@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -8,10 +9,11 @@ from geoalchemy2.types import Geography
 from sqlalchemy import cast, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models import Outage, OutageSource, ScraperRun, UserReport
-from app.routers import users, outages, reports, share, subscriptions, comments
+from app.routers import app_config, users, outages, reports, share, subscriptions, comments
 
 
 app = FastAPI(
@@ -23,12 +25,24 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# PWA (app.luzalerts.lat) ходит в API на luzalerts.lat — другой origin.
+# Нативного приложения это не касается: CORS проверяет только браузер.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
+    allow_credentials=False,
+    max_age=600,
+)
+
 app.include_router(users.router)
 app.include_router(outages.router)
 app.include_router(reports.router)
 app.include_router(subscriptions.router)
 app.include_router(comments.router)
 app.include_router(share.router)
+app.include_router(app_config.router)
 
 
 @app.get("/", tags=["health"])

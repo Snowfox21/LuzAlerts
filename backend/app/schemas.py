@@ -1,6 +1,7 @@
+import json
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field, computed_field, field_serializer
+from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
 
 from app.sharing import share_url as build_share_url
 
@@ -25,6 +26,35 @@ class UserCreate(BaseModel):
     device_id: str = Field(..., description="Уникальный идентификатор устройства (UUID). Генерируется один раз и хранится в AsyncStorage.")
     nis_number: str | None = Field(default=None, description="Номер счета абонента (NIS). Пользователь вводит вручную в настройках.")
     fcm_token: str | None = Field(default=None, description="Expo Push Token устройства для отправки уведомлений.")
+    web_push_subscription: str | None = Field(
+        default=None,
+        max_length=4096,
+        description=(
+            "Web Push подписка PWA (JSON.stringify(PushSubscription): endpoint + keys.p256dh + keys.auth). "
+            "Отдельно от fcm_token, который остается за нативным приложением."
+        ),
+    )
+
+    @field_validator("web_push_subscription")
+    @classmethod
+    def _check_web_push_subscription(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            data = json.loads(value)
+        except ValueError as exc:
+            raise ValueError("web_push_subscription debe ser JSON") from exc
+        keys = data.get("keys") if isinstance(data, dict) else None
+        endpoint = data.get("endpoint") if isinstance(data, dict) else None
+        if (
+            not isinstance(endpoint, str)
+            or not endpoint.startswith("https://")
+            or not isinstance(keys, dict)
+            or not keys.get("p256dh")
+            or not keys.get("auth")
+        ):
+            raise ValueError("web_push_subscription incompleta")
+        return value
     latitude: float | None = Field(default=None, ge=-90, le=90, description="Широта устройства для геолокационных уведомлений.")
     longitude: float | None = Field(default=None, ge=-180, le=180, description="Долгота устройства для геолокационных уведомлений.")
 
@@ -35,6 +65,7 @@ class UserOut(BaseModel):
     role: str = Field(description="Роль пользователя: admin или user")
     nis_number: str | None = Field(description="Номер счета абонента (NIS)")
     feeder_number: str | None = Field(description="Уникальный номер линии (фидера), автоматически определяемый по NIS (пока пустое)")
+    web_push_enabled: bool = Field(default=False, description="true, если у устройства сохранена Web Push подписка (PWA)")
     created_at: datetime
 
     model_config = {"from_attributes": True}

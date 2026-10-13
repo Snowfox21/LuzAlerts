@@ -1,8 +1,12 @@
+import asyncio
+import json
 import logging
 
 import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +27,15 @@ async def notify_users_near_outage(
     body: str | None = None,
     push_title: str = DEFAULT_PUSH_TITLE,
 ) -> None:
-    """Find users within NOTIFY_RADIUS_M of (lat, lon) and send them a push notification."""
+    """Find users within NOTIFY_RADIUS_M of (lat, lon) and send them a push notification.
+
+    Два канала параллельно: Expo Push (нативный Android, fcm_token) и
+    Web Push (PWA на iOS, web_push_subscription). Один SELECT на оба.
+    """
     result = await session.execute(
         text("""
-            SELECT fcm_token FROM users
-            WHERE fcm_token IS NOT NULL
+            SELECT fcm_token, web_push_subscription FROM users
+            WHERE (fcm_token IS NOT NULL OR web_push_subscription IS NOT NULL)
               AND latitude IS NOT NULL
               AND longitude IS NOT NULL
               AND ST_DWithin(
@@ -38,19 +46,33 @@ async def notify_users_near_outage(
         """),
         {"lat": lat, "lon": lon, "radius_m": NOTIFY_RADIUS_M},
     )
-    tokens = [row[0] for row in result if row[0]]
+    rows = result.all()
+    tokens = [row[0] for row in rows if row[0]]
+    web_subs = [row[1] for row in rows if row[1]]
 
-    if not tokens:
+    if not tokens and not web_subs:
         logger.info("No users to notify near (%.4f, %.4f)", lat, lon)
         return
 
-    logger.info("Sending push to %d users near (%.4f, %.4f)", len(tokens), lat, lon)
-    await _send_expo_push(
-        tokens=tokens,
-        title=push_title,
-        body=body or title,
-        data={"lat": lat, "lon": lon},
-    )
+    data = {"lat": lat, "lon": lon}
+    if tokens:
+        logger.info("Sending push to %d users near (%.4f, %.4f)", len(tokens), lat, lon)
+        await _send_expo_push(
+            tokens=tokens,
+            title=push_title,
+            body=body or title,
+            data=data,
+        )
+    if web_subs:
+        logger.info("Sending web push to %d PWA users near (%.4f, %.4f)", len(web_subs), lat, lon)
+        expired = await _send_web_push(
+            subscriptions=web_subs,
+            title=push_title,
+            body=body or title,
+            data=data,
+        )
+        if expired:
+            await _drop_web_push_subscriptions(session, expired)
 
 
 async def _send_expo_push(
@@ -84,3 +106,71 @@ async def _send_expo_push(
                 logger.debug("Expo push response: %s", resp.json())
             except Exception as exc:
                 logger.error("Failed to send push batch: %s", exc)
+
+
+async def _send_web_push(
+    subscriptions: list[str],
+    title: str,
+    body: str,
+    data: dict | None = None,
+) -> list[str]:
+    """Отправить Web Push каждой подписке. Возвращает протухшие (404/410).
+
+    pywebpush синхронный (requests), поэтому каждый вызов уходит в поток,
+    чтобы не блокировать event loop.
+    """
+    if not settings.VAPID_PRIVATE_KEY:
+        logger.warning("VAPID_PRIVATE_KEY not set, skipping %d web push", len(subscriptions))
+        return []
+    # Ленивый импорт: этот модуль тянет и scraper. Если в его образе
+    # pywebpush не окажется, упасть должна только web push ветка, а не
+    # весь импорт вместе с рабочим Expo Push.
+    try:
+        from pywebpush import WebPushException, webpush
+    except ImportError:
+        logger.error("pywebpush not installed, skipping %d web push", len(subscriptions))
+        return []
+
+    payload = json.dumps({"title": title, "body": body, "data": data or {}})
+    expired: list[str] = []
+
+    async def send_one(raw: str) -> None:
+        try:
+            subscription_info = json.loads(raw)
+        except ValueError:
+            expired.append(raw)
+            return
+        try:
+            await asyncio.to_thread(
+                webpush,
+                subscription_info=subscription_info,
+                data=payload,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": settings.VAPID_SUBJECT},
+                ttl=60 * 60,
+                timeout=15,
+            )
+        except WebPushException as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            if status in (404, 410):
+                expired.append(raw)
+            else:
+                logger.error("Failed to send web push (status %s): %s", status, exc)
+        except Exception as exc:
+            logger.error("Failed to send web push: %s", exc)
+
+    await asyncio.gather(*(send_one(raw) for raw in subscriptions))
+    return expired
+
+
+async def _drop_web_push_subscriptions(session: AsyncSession, subscriptions: list[str]) -> None:
+    """Удалить подписки, которые push-сервис объявил несуществующими."""
+    try:
+        await session.execute(
+            text("UPDATE users SET web_push_subscription = NULL WHERE web_push_subscription = ANY(:subs)"),
+            {"subs": subscriptions},
+        )
+        await session.commit()
+        logger.info("Dropped %d expired web push subscriptions", len(subscriptions))
+    except Exception as exc:
+        logger.error("Failed to drop expired web push subscriptions: %s", exc)

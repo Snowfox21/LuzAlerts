@@ -23,6 +23,7 @@ async def create_or_update_user(request: Request, payload: UserCreate, db: Async
             device_id=payload.device_id,
             nis_number=payload.nis_number,
             fcm_token=payload.fcm_token,
+            web_push_subscription=payload.web_push_subscription,
             latitude=payload.latitude,
             longitude=payload.longitude,
         )
@@ -32,6 +33,8 @@ async def create_or_update_user(request: Request, payload: UserCreate, db: Async
             user.nis_number = payload.nis_number
         if payload.fcm_token is not None:
             user.fcm_token = payload.fcm_token
+        if payload.web_push_subscription is not None:
+            user.web_push_subscription = payload.web_push_subscription
         if payload.latitude is not None:
             user.latitude = payload.latitude
         if payload.longitude is not None:
@@ -50,6 +53,22 @@ async def get_user(device_id: str, db: AsyncSession = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return user
+
+
+@router.delete("/{device_id}/web-push", status_code=204)
+@limiter.limit("20/hour")
+async def delete_web_push_subscription(request: Request, device_id: str, db: AsyncSession = Depends(get_db)):
+    """Отключить Web Push для устройства (PWA): стираем подписку, остальное не трогаем.
+
+    Без админ-ключа, как и остальные ручки устройства: device_id знает только
+    само устройство. Идемпотентно: повторный вызов тоже отвечает 204.
+    """
+    result = await db.execute(select(User).where(User.device_id == device_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    user.web_push_subscription = None
+    await db.commit()
 
 
 @router.get("/", response_model=list[UserOut], dependencies=[Depends(require_admin_key)])

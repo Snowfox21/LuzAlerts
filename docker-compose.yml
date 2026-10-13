@@ -34,6 +34,12 @@ services:
       # GET /reports/ и закрываются фоновой задачей в контейнере scraper.
       REPORT_AUTO_RESOLVE_HOURS: ${REPORT_AUTO_RESOLVE_HOURS:-96}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      # Web Push для PWA (app.luzalerts.lat). Ключи лежат в .env на VPS,
+      # публичный отдается клиенту через GET /config/vapid-public-key.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://luzalerts.lat}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://app.luzalerts.lat}
     depends_on:
       db:
         condition: service_healthy
@@ -86,6 +92,10 @@ services:
       # Persisted browser profile dir (see volume below) so the Radware clearance
       # cookie survives container restarts and most runs skip the cold challenge.
       ANDE_PROFILE_DIR: /profiles/ande
+      # Scraper шлет пуши о плановых отключениях через backend/app/notifications.py,
+      # включая Web Push для PWA — ему нужен тот же приватный VAPID-ключ.
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-https://luzalerts.lat}
     volumes:
       - ande_profiles:/profiles
     depends_on:

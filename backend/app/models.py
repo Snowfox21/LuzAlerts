@@ -37,12 +37,20 @@ class User(Base):
     nis_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     feeder_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fcm_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Web Push подписка PWA (iOS): JSON {endpoint, keys: {p256dh, auth}}.
+    # Отдельно от fcm_token: формат другой (объект, а не строковый токен),
+    # и у одного device_id их не бывает одновременно, но смешивать нельзя.
+    web_push_subscription: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     reports: Mapped[list["UserReport"]] = relationship(back_populates="user")
     subscriptions: Mapped[list["Subscription"]] = relationship(back_populates="user")
+
+    @property
+    def web_push_enabled(self) -> bool:
+        return self.web_push_subscription is not None
 
 
 class Outage(Base):

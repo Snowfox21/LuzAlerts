@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     PUBLIC_BASE_URL: str = "https://luzalerts.lat"
     # Схема диплинка мобильного приложения (app.config.js -> scheme).
     APP_SCHEME: str = "luzalerts"
+    # Web Push (VAPID) для PWA на iOS. Параллельно Expo Push -> FCM, не вместо.
+    # Пустой приватный ключ = web push выключен (бэкенд молча пропускает
+    # отправку), пустой публичный = GET /config/vapid-public-key отдает 503.
+    VAPID_PUBLIC_KEY: str | None = None
+    VAPID_PRIVATE_KEY: str | None = None
+    VAPID_SUBJECT: str = "https://luzalerts.lat"
+    # Откуда можно ходить в API из браузера. PWA живет на app.luzalerts.lat,
+    # API на luzalerts.lat — это cross-origin. Нативное приложение CORS не
+    # касается. Через запятую; localhost — для `expo start --web`.
+    CORS_ORIGINS: str = "https://app.luzalerts.lat,http://localhost:8081,http://localhost:19006"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
