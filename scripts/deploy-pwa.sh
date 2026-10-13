@@ -13,7 +13,10 @@
 #   3. Перезапуск caddy, чтобы подхватить новый Caddyfile и volume.
 set -euo pipefail
 
-VPS="${VPS:?Укажите сервер: VPS=user@host ./scripts/deploy-pwa.sh}"
+# Адрес сервера живет в scripts/.deploy.env (в git не попадает, см. .gitignore),
+# либо передается переменной: VPS=user@host ./scripts/deploy-pwa.sh
+[ -f "$(dirname "${BASH_SOURCE[0]}")/.deploy.env" ] && . "$(dirname "${BASH_SOURCE[0]}")/.deploy.env"
+VPS="${VPS:?Укажите сервер: VPS=user@host ./scripts/deploy-pwa.sh (или задайте в scripts/.deploy.env)}"
 REMOTE_APP_WEB="${REMOTE_APP_WEB:-/opt/luzalerts/app-web}"
 MOBILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../mobile" && pwd)"
 OUT_DIR="$MOBILE_DIR/dist"

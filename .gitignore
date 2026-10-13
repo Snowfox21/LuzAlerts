@@ -85,3 +85,6 @@ web/dl/latest.json
 
 # Сборка PWA (expo export -p web), раздается Caddy с app.luzalerts.lat
 app-web/
+
+# Локальные настройки деплоя (адрес VPS)
+scripts/.deploy.env
