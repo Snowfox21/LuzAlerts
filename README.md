@@ -15,7 +15,12 @@ Paraguay has frequent unannounced power cuts. ANDE publishes planned outage noti
 | 🗺 **Live map** | Color-coded markers — planned (yellow), active (red), resolved (green), crowdsourced (purple) |
 | 📡 **Official data** | Scrapes ANDE's website every 60 minutes, geocodes zones automatically |
 | 👥 **Crowdsourcing** | Users report outages in one tap; 3+ reports in 500 m auto-confirms the area |
-| 🔔 **Push notifications** | Notified when a new outage appears within 5 km — and again when the lights come back |
+| 🔔 **Push notifications** | Notified when a new outage appears within 5 km — and again when the lights come back. Android via Expo/FCM, iPhone via Web Push |
+| 🍎 **iPhone (PWA)** | Same app as a web app at [luzalerts.lat/app](https://luzalerts.lat/app/) — add it to the Home Screen and get push alerts (iOS 16.4+), no App Store needed |
+| ✋ **"Me too" and closing reports** | Neighbors confirm someone else's report in one tap; authors can close their own report, and stale reports close automatically after 96 h |
+| 🔗 **Share a report** | Short link `luzalerts.lat/r/{code}` with a WhatsApp preview card; on Android it opens straight in the app (App Links) |
+| 📦 **Self-update** | The APK is distributed outside Google Play and checks `dl/latest.json` itself — users get the update prompt in the app |
+| 📊 **Scraper health** | `/status` shows scraper attempts, ANDE ID gaps and coverage; `/events.json` is a public feed of outage events |
 | 💬 **Neighbor comments** | Anonymous comments per outage — useful when the official notice is wrong |
 | 🚀 **Onboarding** | Four-slide intro (welcome, map, legend, notifications) + permission flow on first launch |
 | 🌙 **Dark mode** | Default dark UI — useful when the lights are already out |
@@ -27,12 +32,12 @@ Paraguay has frequent unannounced power cuts. ANDE publishes planned outage noti
 
 | Layer | Tech |
 |---|---|
-| Mobile | React Native (Expo), TypeScript |
+| Mobile | React Native (Expo), TypeScript; iPhone PWA via react-native-web + Leaflet |
 | Backend | Python 3.12, FastAPI, async SQLAlchemy, Alembic, slowapi (rate-limit) |
 | Database | PostgreSQL 16 + PostGIS 3.4 |
 | Scraper | httpx, BeautifulSoup4, pdfplumber, APScheduler |
 | Geocoding | OpenStreetMap Nominatim |
-| Push | Expo Push Notifications → FCM (Android) |
+| Push | Expo Push Notifications → FCM (Android), Web Push / VAPID via pywebpush (iPhone PWA) |
 | Infra | Docker Compose, Caddy (reverse proxy + TLS) |
 | Landing | HTML/CSS/JS + React (CDN) — static, served by Caddy |
 
@@ -97,14 +102,18 @@ PostgreSQL + PostGIS ──► FastAPI ──► React Native app
      │                                   │
      │    push token + GPS location ◄────┘
      ▼
-Expo Push Service → FCM / APNs → user's phone
+Expo Push Service → FCM → Android phone
+Web Push (VAPID) → Apple Push → iPhone PWA (luzalerts.lat/app)
 ```
 
 **Crowdsourced reports:**
 `User taps "Report" → POST /reports → if 3+ reports within 500 m → area confirmed`
 
 **Push notifications:**
-`New outage saved → PostGIS finds users within 5 km → Expo Push API → notification`
+`New outage saved → PostGIS finds users within 5 km → Expo Push API / Web Push → notification`
+
+**Sharing:**
+`Report → share code → luzalerts.lat/r/{code} (server-rendered page with og tags for WhatsApp) → Android opens the app, others see the page`
 
 ---
 
@@ -119,7 +128,10 @@ Expo Push Service → FCM / APNs → user's phone
 │   │   ├── security.py         # Admin authentication
 │   │   ├── crowdsource.py      # Auto-confirmation logic
 │   │   ├── geocoding.py        # Nominatim integration
-│   │   └── notifications.py    # Expo push dispatch
+│   │   ├── sharing.py          # Share codes for reports
+│   │   ├── public_report.py    # Public /r/{code} page (og tags for WhatsApp)
+│   │   ├── templates/          # HTML for the public report page
+│   │   └── notifications.py    # Expo push + Web Push dispatch
 │   ├── scripts/
 │   │   └── migration_smoke.sh  # upgrade head → downgrade base on temp DB
 │   └── tests/                  # parser, comments, REST endpoints
@@ -135,10 +147,21 @@ Expo Push Service → FCM / APNs → user's phone
 │   │   ├── list.tsx            # Outage list
 │   │   └── reports.tsx         # Report form
 │   ├── app/onboarding.tsx      # Four-slide intro + permission requests
+│   ├── app/report/[id].tsx     # Report detail
+│   ├── app/r/[code].tsx        # Shared report link
+│   ├── public/                 # PWA shell: index.html, manifest.json, sw.js, icons
 │   └── src/
 │       ├── api/                # Axios client + types
 │       ├── hooks/              # useDeviceSetup (push + location)
+│       ├── maps/               # Native maps / Leaflet on web
+│       ├── push/               # Web Push subscription for the PWA
+│       ├── share/              # Share sheet for reports
+│       ├── update/             # APK self-update check
 │       └── theme/              # Colors, spacing
+│
+├── scripts/
+│   ├── release-apk.sh          # Publish APK + dl/latest.json (in that order)
+│   └── deploy-pwa.sh           # Build the web app and upload it to luzalerts.lat/app
 │
 ├── web/                        # Static landing site (served by Caddy at luzalerts.lat)
 │   ├── index.html              # Main landing page
@@ -166,10 +189,17 @@ Full interactive docs available at `http://localhost:8000/docs` when running loc
 | `POST` | `/outages/{id}/comments` | Post a comment (≤500 chars) |
 | `POST` | `/reports/` | Submit a user report |
 | `GET` | `/reports/` | Active reports (optional radius filter) |
+| `GET` | `/reports/{id}` | Report detail |
+| `POST` | `/reports/{id}/corroborate` | Confirm a neighbor's report ("me too") |
+| `POST` | `/reports/{id}/resolve` | Author closes their own report |
+| `GET` | `/reports/by-code/{code}` | Resolve a share code (no author address) |
+| `POST` | `/reports/{id}/shared` | Count a share |
+| `GET` | `/r/{code}` | Public report page with WhatsApp preview |
 | `POST` | `/users/` | Register device (push token or Web Push subscription + location) |
 | `DELETE` | `/users/{device_id}/web-push` | Remove the PWA Web Push subscription |
 | `GET` | `/config/vapid-public-key` | Public VAPID key for PWA push subscription |
 | `POST` | `/subscriptions/` | Subscribe to outages near a custom location |
+| `GET` / `DELETE` | `/subscriptions/` | List / remove custom-location subscriptions |
 | `GET` | `/status` | Scraper attempt/success, ANDE ID diff, coverage validity, and 30-day confirmed misses |
 | `GET` | `/events.json` | Public structured event feed for downstream consumers |
 
@@ -187,8 +217,14 @@ Database schema is managed by **Alembic** — run `alembic upgrade head` (or jus
 - [x] Alembic migrations + protected admin endpoints
 - [x] Tests: parser, comments, REST endpoints, migration smoke
 - [x] Landing page live at [luzalerts.lat](https://luzalerts.lat) — privacy policy, terms, 404, favicon
+- [x] Multi-source outage aggregation with ANDE priority
+- [x] "Me too" confirmations, author-closed reports, auto-close after 96 h
+- [x] Report sharing with WhatsApp preview + Android App Links
+- [x] APK self-update outside Google Play
+- [x] Scraper observability (`/status`) and public event feed (`/events.json`)
+- [x] iPhone via PWA at [luzalerts.lat/app](https://luzalerts.lat/app/) with Web Push
 - [ ] **Google Play release (Android)** — store listing, screenshots
-- [ ] iOS / App Store release (post-MVP)
+- [ ] Native iOS / App Store release
 - [ ] Emergency outage API (`consultas.ande.gov.py`)
 - [ ] NIS number → feeder mapping
 
