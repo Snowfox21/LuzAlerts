@@ -8,6 +8,9 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./web:/srv/web:ro
+      # PWA для iOS (app.luzalerts.lat): сюда кладется `expo export -p web`,
+      # см. scripts/deploy-pwa.sh
+      - ./app-web:/srv/app-web:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:

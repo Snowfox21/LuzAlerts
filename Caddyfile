@@ -24,10 +24,35 @@ luzalerts.lat {
     handle /subscriptions* {
         reverse_proxy backend:8000
     }
+    # Публичный VAPID-ключ для Web Push подписки PWA (app.luzalerts.lat).
+    handle /config* {
+        reverse_proxy backend:8000
+    }
 
     handle {
         root * /srv/web
         try_files {path} {path}/index.html {path}.html /404.html
         file_server
     }
+}
+
+# PWA для iOS: тот же код mobile/, собранный `expo export -p web`.
+# API остается на luzalerts.lat (CORS разрешен в backend для этого origin).
+app.luzalerts.lat {
+    encode gzip
+
+    # Бандлы expo export с хэшем в имени — можно кэшировать надолго.
+    @hashed path /_expo/static/*
+    header @hashed Cache-Control "public, max-age=31536000, immutable"
+    # Все остальное (index.html и SPA-фоллбэк на нем, sw.js, manifest.json)
+    # не кэшируем: иначе iOS держит старый sw.js/index.html, и новая сборка
+    # и логика пушей не доезжают до установленных PWA.
+    @nothashed not path /_expo/static/*
+    header @nothashed Cache-Control "no-cache"
+
+    root * /srv/app-web
+    # SPA-фоллбэк на index.html: маршруты разбирает клиентский роутер
+    # expo-router, а не статические страницы как у лендинга.
+    try_files {path} {path}.html /index.html
+    file_server
 }

@@ -82,3 +82,6 @@ web/*.apk
 # нельзя: любой rsync web/ затирает боевой манифест placeholder-ом, и
 # приложения начинают видеть версию, которой на сервере ещё не существует.
 web/dl/latest.json
+
+# Сборка PWA (expo export -p web), раздается Caddy с app.luzalerts.lat
+app-web/

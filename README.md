@@ -68,6 +68,20 @@ Scan the QR code with **Expo Go**, or press `i` / `a` for simulators.
 
 > The app points to `https://luzalerts.lat` in production.
 
+### 3. iOS PWA (Web Push)
+
+iOS gets the same `mobile/` code built for the web (`expo export -p web`) and served at `https://app.luzalerts.lat`. Push goes through Web Push (VAPID) in parallel to Expo Push on Android. Requires iOS 16.4+ and the app installed to the Home Screen (Safari → Share → Add to Home Screen).
+
+One-time setup:
+
+1. DNS: `A` record `app.luzalerts.lat` → the VPS (Caddy gets the TLS certificate itself).
+2. Generate VAPID keys (`npx web-push generate-vapid-keys`) and put `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` into `.env` on the VPS. Without them the PWA cannot subscribe (`GET /config/vapid-public-key` → 503).
+3. Rebuild `backend` and `scraper` (both need `pywebpush`), run migrations (`0007` adds `users.web_push_subscription`) and restart Caddy.
+4. Map tiles: the default is the public OpenStreetMap server, which is not meant for production traffic. Set `EXPO_PUBLIC_MAP_TILE_URL` (and `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`) at build time to your own tile provider.
+5. Deploy: `VPS=user@host ./scripts/deploy-pwa.sh`.
+
+Local dev: `cd mobile && npx expo start --web`. Pushes only reach users who have a known location, so allow geolocation in the app.
+
 ---
 
 ## How it works
@@ -152,7 +166,9 @@ Full interactive docs available at `http://localhost:8000/docs` when running loc
 | `POST` | `/outages/{id}/comments` | Post a comment (≤500 chars) |
 | `POST` | `/reports/` | Submit a user report |
 | `GET` | `/reports/` | Active reports (optional radius filter) |
-| `POST` | `/users/` | Register device (push token + location) |
+| `POST` | `/users/` | Register device (push token or Web Push subscription + location) |
+| `DELETE` | `/users/{device_id}/web-push` | Remove the PWA Web Push subscription |
+| `GET` | `/config/vapid-public-key` | Public VAPID key for PWA push subscription |
 | `POST` | `/subscriptions/` | Subscribe to outages near a custom location |
 | `GET` | `/status` | Scraper attempt/success, ANDE ID diff, coverage validity, and 30-day confirmed misses |
 | `GET` | `/events.json` | Public structured event feed for downstream consumers |
