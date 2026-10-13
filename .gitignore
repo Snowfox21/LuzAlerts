@@ -83,7 +83,7 @@ web/*.apk
 # приложения начинают видеть версию, которой на сервере ещё не существует.
 web/dl/latest.json
 
-# Сборка PWA (expo export -p web), раздается Caddy с app.luzalerts.lat
+# Сборка PWA (expo export -p web), раздается Caddy на luzalerts.lat/app
 app-web/
 
 # Локальные настройки деплоя (адрес VPS)

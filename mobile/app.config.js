@@ -48,6 +48,11 @@ module.exports = {
       favicon: "./assets/favicon.png",
       bundler: "metro",
     },
+    // PWA для iPhone живет на luzalerts.lat/app (лендинг занимает корень).
+    // Влияет только на web-сборку: пути бандлов и маршрутов expo-router.
+    experiments: {
+      baseUrl: "/app",
+    },
     plugins: [
       "expo-router",
       [

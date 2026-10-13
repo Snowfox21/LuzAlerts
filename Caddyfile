@@ -24,9 +24,29 @@ luzalerts.lat {
     handle /subscriptions* {
         reverse_proxy backend:8000
     }
-    # Публичный VAPID-ключ для Web Push подписки PWA (app.luzalerts.lat).
+    # Публичный VAPID-ключ для Web Push подписки PWA (luzalerts.lat/app).
     handle /config* {
         reverse_proxy backend:8000
+    }
+
+    # PWA для iPhone: тот же код mobile/, собранный `expo export -p web`
+    # с experiments.baseUrl=/app (см. scripts/deploy-pwa.sh).
+    redir /app /app/ 308
+    handle_path /app/* {
+        # Бандлы expo export с хэшем в имени — можно кэшировать надолго.
+        @hashed path /_expo/static/*
+        header @hashed Cache-Control "public, max-age=31536000, immutable"
+        # Все остальное (index.html и SPA-фоллбэк на нем, sw.js, manifest.json)
+        # не кэшируем: иначе iOS держит старый sw.js/index.html, и новая сборка
+        # и логика пушей не доезжают до установленных PWA.
+        @nothashed not path /_expo/static/*
+        header @nothashed Cache-Control "no-cache"
+
+        root * /srv/app-web
+        # SPA-фоллбэк на index.html: маршруты разбирает клиентский роутер
+        # expo-router, а не статические страницы как у лендинга.
+        try_files {path} {path}.html /index.html
+        file_server
     }
 
     handle {
@@ -36,23 +56,7 @@ luzalerts.lat {
     }
 }
 
-# PWA для iOS: тот же код mobile/, собранный `expo export -p web`.
-# API остается на luzalerts.lat (CORS разрешен в backend для этого origin).
+# Старый адрес PWA: редирект на luzalerts.lat/app с сохранением пути.
 app.luzalerts.lat {
-    encode gzip
-
-    # Бандлы expo export с хэшем в имени — можно кэшировать надолго.
-    @hashed path /_expo/static/*
-    header @hashed Cache-Control "public, max-age=31536000, immutable"
-    # Все остальное (index.html и SPA-фоллбэк на нем, sw.js, manifest.json)
-    # не кэшируем: иначе iOS держит старый sw.js/index.html, и новая сборка
-    # и логика пушей не доезжают до установленных PWA.
-    @nothashed not path /_expo/static/*
-    header @nothashed Cache-Control "no-cache"
-
-    root * /srv/app-web
-    # SPA-фоллбэк на index.html: маршруты разбирает клиентский роутер
-    # expo-router, а не статические страницы как у лендинга.
-    try_files {path} {path}.html /index.html
-    file_server
+    redir https://luzalerts.lat/app{uri} 308
 }

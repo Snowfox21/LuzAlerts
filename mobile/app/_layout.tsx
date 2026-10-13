@@ -15,7 +15,8 @@ import { UpdateManifest } from '../src/update/manifest';
 import { UpdateSheet } from '../src/update/UpdateSheet';
 
 // Хосты, которые в разборе диплинка отбрасываются как домен, а не сегмент
-// пути: лендинг (App Links на Android) и PWA (app.luzalerts.lat).
+// пути: лендинг (App Links на Android) и PWA (luzalerts.lat/app, раньше
+// app.luzalerts.lat — оттуда теперь редирект).
 const WEB_HOSTS = new Set(['luzalerts.lat', 'app.luzalerts.lat']);
 
 LogBox.ignoreLogs([
@@ -75,7 +76,9 @@ export default function RootLayout() {
         const segments = [hostname, path]
             .filter((part): part is string => typeof part === 'string' && part.length > 0 && !WEB_HOSTS.has(part))
             .join('/')
-            .replace(/^\/+|\/+$/g, '');
+            .replace(/^\/+|\/+$/g, '')
+            // PWA: путь приходит с префиксом baseUrl (/app/r/CODE).
+            .replace(/^app(\/|$)/, '');
         if (!segments) return null;
 
         const direct = segments.match(/^report\/(\d+)$/);

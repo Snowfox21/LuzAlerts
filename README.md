@@ -70,11 +70,11 @@ Scan the QR code with **Expo Go**, or press `i` / `a` for simulators.
 
 ### 3. iOS PWA (Web Push)
 
-iOS gets the same `mobile/` code built for the web (`expo export -p web`) and served at `https://app.luzalerts.lat`. Push goes through Web Push (VAPID) in parallel to Expo Push on Android. Requires iOS 16.4+ and the app installed to the Home Screen (Safari → Share → Add to Home Screen).
+iOS gets the same `mobile/` code built for the web (`expo export -p web`) and served at `https://luzalerts.lat/app/` (`experiments.baseUrl`; the old `app.luzalerts.lat` redirects there). Push goes through Web Push (VAPID) in parallel to Expo Push on Android. Requires iOS 16.4+ and the app installed to the Home Screen (Safari → Share → Add to Home Screen).
 
 One-time setup:
 
-1. DNS: `A` record `app.luzalerts.lat` → the VPS (Caddy gets the TLS certificate itself).
+1. DNS: `A` record `app.luzalerts.lat` → the VPS, kept only for the redirect (Caddy gets the TLS certificate itself).
 2. Generate VAPID keys (`npx web-push generate-vapid-keys`) and put `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` into `.env` on the VPS. Without them the PWA cannot subscribe (`GET /config/vapid-public-key` → 503).
 3. Rebuild `backend` and `scraper` (both need `pywebpush`), run migrations (`0007` adds `users.web_push_subscription`) and restart Caddy.
 4. Map tiles: the default is the public OpenStreetMap server, which is not meant for production traffic. Set `EXPO_PUBLIC_MAP_TILE_URL` (and `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`) at build time to your own tile provider.

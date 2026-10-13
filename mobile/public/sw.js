@@ -28,8 +28,8 @@ self.addEventListener('push', event => {
     const title = payload.title || 'LuzAlerts';
     const options = {
         body: payload.body || '',
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
+        icon: '/app/icons/icon-192.png',
+        badge: '/app/icons/icon-192.png',
         data,
     };
     if (data.lat != null && data.lon != null) {
@@ -46,14 +46,18 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
     event.notification.close();
     const data = event.notification.data || {};
+    // PWA живет под /app/ на том же домене, что и лендинг.
+    const base = self.registration.scope; // https://luzalerts.lat/app/
     const url = data.lat != null && data.lon != null
-        ? `/?focusLat=${encodeURIComponent(data.lat)}&focusLon=${encodeURIComponent(data.lon)}`
-        : '/';
+        ? `${base}?focusLat=${encodeURIComponent(data.lat)}&focusLon=${encodeURIComponent(data.lon)}`
+        : base;
 
     event.waitUntil((async () => {
         const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
         for (const client of windows) {
-            if (!('focus' in client)) continue;
+            // Вкладки лендинга того же домена тоже попадают в matchAll —
+            // сообщение должно уйти только в окно самого приложения.
+            if (!('focus' in client) || !client.url.startsWith(base)) continue;
             await client.focus();
             // Приложение уже открыто: навигацию делает сам expo-router
             // (слушатель в _layout.tsx), без перезагрузки страницы.

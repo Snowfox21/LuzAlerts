@@ -26,7 +26,7 @@ export type WebPushState =
     | 'off' // разрешение есть, но пользователь сам отключил пуши в приложении
     | 'denied';
 
-const SW_URL = '/sw.js';
+const SW_URL = '/app/sw.js';
 const OFF_KEY = 'luzalerts.webpush.off';
 
 // Отключение живет локально: после unsubscribe() разрешение браузера остается
@@ -82,7 +82,7 @@ export function registerServiceWorker(): Promise<ServiceWorkerRegistration | nul
     if (!isWeb() || !('serviceWorker' in navigator)) return Promise.resolve(null);
     if (!registrationPromise) {
         registrationPromise = navigator.serviceWorker
-            .register(SW_URL, { scope: '/' })
+            .register(SW_URL, { scope: '/app/' })
             .then(() => navigator.serviceWorker.ready)
             .catch(err => {
                 console.warn('Service worker registration failed:', err);
