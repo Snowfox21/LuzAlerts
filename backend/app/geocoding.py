@@ -6,7 +6,8 @@ from app.config import settings
 async def reverse_geocode(lat: float, lon: float) -> dict:
     """
     Запрашивает OSM Nominatim для получения адреса по координатам.
-    Возвращает словарь с ключами: barrio, street, city.
+    Возвращает словарь с ключами: barrio, street, city, department, house,
+    country_code. При ошибке все значения None.
     """
     params = {
         "lat": lat,
@@ -31,7 +32,7 @@ async def reverse_geocode(lat: float, lon: float) -> dict:
             # Nominatim can return a list or a dict, but /reverse usually returns a dict
             data = resp.json()
     except Exception:
-        return {"barrio": None, "street": None, "city": None}
+        return dict.fromkeys(("barrio", "street", "city", "department", "house", "country_code"))
 
     address = data.get("address", {})
     barrio = (
@@ -43,7 +44,14 @@ async def reverse_geocode(lat: float, lon: float) -> dict:
     street = address.get("road") or address.get("pedestrian")
     city = address.get("city") or address.get("town") or address.get("municipality")
 
-    return {"barrio": barrio, "street": street, "city": city}
+    return {
+        "barrio": barrio,
+        "street": street,
+        "city": city,
+        "department": address.get("state"),
+        "house": address.get("house_number"),
+        "country_code": (address.get("country_code") or "").upper() or None,
+    }
 
 
 async def forward_geocode(address: str) -> dict:

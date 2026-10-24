@@ -77,6 +77,17 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ---------- Geocode ----------
+
+class ReverseGeocodeOut(BaseModel):
+    barrio: str | None = None
+    street: str | None = None
+    city: str | None = None
+    department: str | None = None
+    house: str | None = None
+    country_code: str | None = Field(default=None, description="ISO 3166-1 alpha-2, например PY")
+
+
 # ---------- Outage ----------
 
 class OutageOut(BaseModel):

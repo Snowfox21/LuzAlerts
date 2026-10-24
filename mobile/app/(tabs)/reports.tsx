@@ -24,6 +24,7 @@ import { getOrCreateDeviceId } from '../../src/utils/device';
 import { addMyReportId, getMyReportIds } from '../../src/utils/myReports';
 import { ageMinutes, relativeTime } from '../../src/utils/date';
 import { formatVecinoId } from '../../src/utils/vecinoId';
+import { reverseGeocode } from '../../src/utils/reverseGeocode';
 import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { ShareBlock } from '../../src/share/ShareBlock';
 
@@ -169,7 +170,9 @@ export default function ReportsScreen() {
 
             const { latitude, longitude } = location.coords;
 
-            const geocoded = await Location.reverseGeocodeAsync({ latitude, longitude });
+            // Сбой геокодера не повод терять координаты: адрес можно ввести руками.
+            const place = await reverseGeocode(latitude, longitude).catch(() => null);
+            const geocoded = place ? [place] : [];
             if (!isWithinParaguay(latitude, longitude) || !isParaguayGeocode(geocoded[0])) {
                 setCoords(null);
                 setAddress({ department: '', city: '', barrio: '', street: '', house: '' });
@@ -187,6 +190,8 @@ export default function ReportsScreen() {
                     street: cleanGeoField(loc.street) || '',
                     house: loc.streetNumber || '',
                 });
+            } else {
+                Alert.alert('Ubicación guardada', 'No pudimos obtener la dirección exacta, pero podés cargarla manualmente.');
             }
         } catch {
             Alert.alert('Error', 'No se pudo obtener la dirección exacta, pero podés cargarla manualmente.');

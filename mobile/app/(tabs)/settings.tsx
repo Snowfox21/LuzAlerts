@@ -18,6 +18,7 @@ import * as Location from 'expo-location';
 import { Bell, ChevronRight, Download, Info, Map, MapPin, Plus, Shield, Trash2, X, Zap } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
+import { reverseGeocode } from '../../src/utils/reverseGeocode';
 import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
@@ -51,14 +52,12 @@ const ZONE_LABEL_KEY = '@luzalerts_zone_label';
 const LOCAL_DATA_KEYS = [PREFS_KEY, ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports'];
 
 async function describeLocation(latitude: number, longitude: number): Promise<string> {
-    // reverseGeocodeAsync в вебе не поддерживается — там остаются координаты.
-    if (Platform.OS !== 'web') {
-        try {
-            const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
-            const parts = [place?.district ?? place?.subregion, place?.city ?? place?.region].filter(Boolean);
-            if (parts.length) return Array.from(new Set(parts)).join(', ');
-        } catch {}
-    }
+    try {
+        const place = await reverseGeocode(latitude, longitude);
+        const parts = [place?.district ?? place?.subregion, place?.city ?? place?.region].filter(Boolean);
+        if (parts.length) return Array.from(new Set(parts)).join(', ');
+    } catch {}
+    // Адрес не определился (нет сети, Nominatim недоступен) — хотя бы координаты.
     return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
 }
 

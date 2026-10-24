@@ -13,7 +13,7 @@ from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models import Outage, OutageSource, ScraperRun, UserReport
-from app.routers import app_config, users, outages, reports, share, subscriptions, comments
+from app.routers import app_config, geocode, users, outages, reports, share, subscriptions, comments
 
 
 app = FastAPI(
@@ -43,6 +43,7 @@ app.include_router(subscriptions.router)
 app.include_router(comments.router)
 app.include_router(share.router)
 app.include_router(app_config.router)
+app.include_router(geocode.router)
 
 
 @app.get("/", tags=["health"])
