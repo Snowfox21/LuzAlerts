@@ -13,19 +13,54 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { Bell, ChevronRight, Download, Info, Map, MapPin, Plus, Shield, Trash2, X, Zap } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
-import { getOrCreateDeviceId } from '../../src/utils/device';
+import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
 import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
 import { UpdateSheet } from '../../src/update/UpdateSheet';
 import { WebPushRow } from '../../src/push/WebPushRow';
+import { disableWebPush } from '../../src/push/webPush';
 
 // Версия сборки, а не строковый литерал: с самообновлением вне стора
 // расхождение экрана и реального APK путает при поддержке.
 // В PWA нативной версии нет: веб-сборка всегда последняя с сервера.
 const appVersion = Platform.OS === 'web' ? 'web' : getInstalledVersionName();
+
+// Шаги радиуса уведомлений; бэкенд принимает 1–20 км (notify_radius_m).
+const RADIUS_STEPS_KM = [1, 3, 5, 10, 20];
+
+interface NotifyPrefs {
+    notify_outages: boolean;
+    notify_resolved: boolean;
+    notify_radius_m: number;
+}
+
+const DEFAULT_PREFS: NotifyPrefs = { notify_outages: true, notify_resolved: true, notify_radius_m: 5000 };
+
+// Локальная копия настроек и подписи зоны: экран рисуется сразу, без
+// ожидания сети, а без связи показывает последнее сохраненное.
+const PREFS_KEY = '@luzalerts_notify_prefs';
+const ZONE_LABEL_KEY = '@luzalerts_zone_label';
+
+// Что стирает "Eliminar mis datos" на устройстве, помимо id.
+// Онбординг и проверку обновлений не трогаем — это не данные человека.
+const LOCAL_DATA_KEYS = [PREFS_KEY, ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports'];
+
+async function describeLocation(latitude: number, longitude: number): Promise<string> {
+    // reverseGeocodeAsync в вебе не поддерживается — там остаются координаты.
+    if (Platform.OS !== 'web') {
+        try {
+            const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+            const parts = [place?.district ?? place?.subregion, place?.city ?? place?.region].filter(Boolean);
+            if (parts.length) return Array.from(new Set(parts)).join(', ');
+        } catch {}
+    }
+    return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+}
 
 interface Subscription {
     id: number;
@@ -40,16 +75,118 @@ export default function SettingsScreen() {
     const [barrioInput, setBarrioInput] = useState('');
     const [submittingBarrio, setSubmittingBarrio] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
-    const [alertsEnabled, setAlertsEnabled] = useState(true);
-    const [resolvedEnabled, setResolvedEnabled] = useState(true);
+    const [prefs, setPrefs] = useState<NotifyPrefs>(DEFAULT_PREFS);
+    const [zoneLabel, setZoneLabel] = useState<string | null>(null);
+    const [locating, setLocating] = useState(false);
+    const [deletingData, setDeletingData] = useState(false);
     const [deviceId, setDeviceId] = useState('');
     const [checkingUpdate, setCheckingUpdate] = useState(false);
     const [update, setUpdate] = useState<UpdateManifest | null>(null);
 
+    const loadPrefs = useCallback(async () => {
+        try {
+            const cached = await AsyncStorage.getItem(PREFS_KEY);
+            if (cached) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(cached) });
+            setZoneLabel(await AsyncStorage.getItem(ZONE_LABEL_KEY));
+        } catch {}
+        try {
+            const id = await getOrCreateDeviceId();
+            const res = await apiClient.get<NotifyPrefs>(`/users/${id}`);
+            const next = {
+                notify_outages: res.data.notify_outages ?? true,
+                notify_resolved: res.data.notify_resolved ?? true,
+                notify_radius_m: res.data.notify_radius_m ?? 5000,
+            };
+            setPrefs(next);
+            AsyncStorage.setItem(PREFS_KEY, JSON.stringify(next)).catch(() => {});
+        } catch {
+            // 404: устройство еще не зарегистрировано — остаются дефолты.
+        }
+    }, []);
+
     useEffect(() => {
         fetchSubscriptions();
+        loadPrefs();
         getOrCreateDeviceId().then(id => setDeviceId(id.slice(0, 8).toUpperCase())).catch(() => {});
     }, []);
+
+    // Оптимистично: переключатель реагирует сразу, при ошибке откатываем.
+    const updatePrefs = async (patch: Partial<NotifyPrefs>) => {
+        const previous = prefs;
+        const next = { ...prefs, ...patch };
+        setPrefs(next);
+        try {
+            const id = await getOrCreateDeviceId();
+            await apiClient.post('/users/', { device_id: id, ...patch });
+            AsyncStorage.setItem(PREFS_KEY, JSON.stringify(next)).catch(() => {});
+        } catch {
+            setPrefs(previous);
+            Alert.alert('Sin conexión', 'No pudimos guardar el ajuste. Probá de nuevo.');
+        }
+    };
+
+    // "Cambiar": зона уведомлений — текущее местоположение устройства.
+    const updateZone = async () => {
+        if (locating) return;
+        setLocating(true);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permiso denegado', 'Necesitamos tu ubicación para avisarte de cortes cerca tuyo.');
+                return;
+            }
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const { latitude, longitude } = pos.coords;
+            const id = await getOrCreateDeviceId();
+            await apiClient.post('/users/', { device_id: id, latitude, longitude });
+            const label = await describeLocation(latitude, longitude);
+            setZoneLabel(label);
+            AsyncStorage.setItem(ZONE_LABEL_KEY, label).catch(() => {});
+        } catch {
+            Alert.alert('Ubicación no disponible', 'Asegurate de que el GPS esté encendido y tengas conexión.');
+        } finally {
+            setLocating(false);
+        }
+    };
+
+    const eraseMyData = async () => {
+        setDeletingData(true);
+        try {
+            // Сначала web push: иначе при следующем запуске PWA сама дошлет
+            // браузерную подписку и устройство снова появится на сервере.
+            if (Platform.OS === 'web') await disableWebPush().catch(() => {});
+            const id = await getOrCreateDeviceId();
+            await apiClient.delete(`/users/${id}/data`);
+            await AsyncStorage.multiRemove(LOCAL_DATA_KEYS).catch(() => {});
+            await resetDeviceId();
+            setSubscriptions([]);
+            setPrefs(DEFAULT_PREFS);
+            setZoneLabel(null);
+            const newId = await getOrCreateDeviceId();
+            setDeviceId(newId.slice(0, 8).toUpperCase());
+            Alert.alert('Datos eliminados', 'Borramos tus reportes, barrios, comentarios y ajustes del servidor.');
+        } catch {
+            Alert.alert('Error', 'No se pudieron eliminar tus datos. Probá de nuevo.');
+        } finally {
+            setDeletingData(false);
+        }
+    };
+
+    const confirmEraseMyData = () => {
+        if (deletingData) return;
+        Alert.alert(
+            '¿Eliminar mis datos?',
+            'Se borrarán tus reportes, barrios, comentarios y ajustes. No se puede deshacer.',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Eliminar', style: 'destructive', onPress: eraseMyData },
+            ],
+        );
+    };
+
+    const radiusKm = prefs.notify_radius_m / 1000;
+    const radiusIndex = Math.max(0, RADIUS_STEPS_KM.indexOf(radiusKm));
+    const radiusPercent = `${(radiusIndex / (RADIUS_STEPS_KM.length - 1)) * 100}%` as const;
 
     const fetchSubscriptions = useCallback(async () => {
         setLoadingSubs(true);
@@ -128,34 +265,53 @@ export default function SettingsScreen() {
                     <SettingRow
                         icon={<Bell size={20} color={DS.amber} />}
                         label="Alertas de cortes"
-                        sub="Recibí avisos cuando hay cortes a menos de 5 km."
-                        right={<Switch value={alertsEnabled} onValueChange={setAlertsEnabled} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={alertsEnabled ? DS.ink : DS.textMuted} />}
+                        sub={`Recibí avisos cuando hay cortes a menos de ${radiusKm} km.`}
+                        right={<Switch value={prefs.notify_outages} onValueChange={v => updatePrefs({ notify_outages: v })} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={prefs.notify_outages ? DS.ink : DS.textMuted} />}
                     />
                     <SettingRow
                         icon={<Zap size={20} color={DS.greenLight} />}
                         label="Aviso cuando vuelve la luz"
                         sub="Te notificamos también cuando un corte cercano se resuelve."
-                        right={<Switch value={resolvedEnabled} onValueChange={setResolvedEnabled} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={resolvedEnabled ? DS.ink : DS.textMuted} />}
+                        right={<Switch value={prefs.notify_resolved} onValueChange={v => updatePrefs({ notify_resolved: v })} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={prefs.notify_resolved ? DS.ink : DS.textMuted} />}
                     />
                     <View style={styles.radiusRow}>
-                        <Text style={styles.radiusLabel}>Radio de alertas: 5 km</Text>
+                        <Text style={styles.radiusLabel}>Radio de alertas: {radiusKm} km</Text>
                         <View style={styles.slider}>
-                            <View style={styles.sliderFill} />
-                            <View style={styles.sliderKnob} />
+                            <View style={[styles.sliderFill, { width: radiusPercent }]} />
+                            <View style={[styles.sliderKnob, { left: radiusPercent }]} />
                         </View>
                         <View style={styles.sliderLabels}>
-                            <Text style={styles.sliderLabel}>1km</Text>
-                            <Text style={styles.sliderLabel}>3km</Text>
-                            <Text style={[styles.sliderLabel, styles.sliderLabelActive]}>5km</Text>
-                            <Text style={styles.sliderLabel}>10km</Text>
-                            <Text style={styles.sliderLabel}>20km</Text>
+                            {RADIUS_STEPS_KM.map(km => (
+                                <TouchableOpacity
+                                    key={km}
+                                    style={styles.sliderStep}
+                                    onPress={() => km !== radiusKm && updatePrefs({ notify_radius_m: km * 1000 })}
+                                    hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Radio ${km} km`}
+                                >
+                                    <Text style={[styles.sliderLabel, km === radiusKm && styles.sliderLabelActive]}>{km}km</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </View>
                 </SettingSection>
 
                 <SettingSection title="Ubicación">
-                    <SettingRow icon={<MapPin size={20} color={DS.amber} />} label="Mi zona actual" sub="Asunción, Capital" right={<Text style={styles.link}>Cambiar</Text>} />
-                    <SettingRow icon={<Map size={20} color={DS.textMuted} />} label="Zonas adicionales" right={<Badge value={subscriptions.length} />} />
+                    <SettingRow
+                        icon={<MapPin size={20} color={DS.amber} />}
+                        label="Mi zona actual"
+                        sub={zoneLabel ?? 'Tocá para usar tu ubicación actual'}
+                        right={locating ? <ActivityIndicator size="small" color={DS.amber} /> : <Text style={styles.link}>Cambiar</Text>}
+                        onPress={updateZone}
+                    />
+                    <SettingRow
+                        icon={<Map size={20} color={DS.textMuted} />}
+                        label="Zonas adicionales"
+                        sub="Barrios de los que también querés recibir avisos."
+                        right={<Badge value={subscriptions.length} />}
+                        onPress={() => setAddingBarrio(true)}
+                    />
                 </SettingSection>
 
                 <SettingSection title="Mis barrios">
@@ -223,7 +379,13 @@ export default function SettingsScreen() {
 
                 <SettingSection title="Datos y privacidad">
                     <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Mi ID anónimo" sub={deviceId ? `#${deviceId}` : 'Cargando...'} />
-                    <SettingRow icon={<Trash2 size={20} color={DS.redLight} />} label="Eliminar mis datos" danger right={<ChevronRight size={16} color={DS.textMuted} />} />
+                    <SettingRow
+                        icon={<Trash2 size={20} color={DS.redLight} />}
+                        label="Eliminar mis datos"
+                        danger
+                        right={deletingData ? <ActivityIndicator size="small" color={DS.redLight} /> : <ChevronRight size={16} color={DS.textMuted} />}
+                        onPress={confirmEraseMyData}
+                    />
                     <SettingRow icon={<Shield size={20} color={DS.textMuted} />} label="Política de privacidad" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.lat/privacy')} />
                     <SettingRow icon={<Info size={20} color={DS.textMuted} />} label="Términos de uso" right={<ChevronRight size={16} color={DS.textMuted} />} onPress={() => Linking.openURL('https://luzalerts.lat/terms')} />
                 </SettingSection>
@@ -351,14 +513,12 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     sliderFill: {
-        width: '45%',
         height: '100%',
         borderRadius: 2,
         backgroundColor: DS.amber,
     },
     sliderKnob: {
         position: 'absolute',
-        left: '45%',
         top: -5,
         width: 14,
         height: 14,
@@ -369,6 +529,9 @@ const styles = StyleSheet.create({
     sliderLabels: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+    },
+    sliderStep: {
+        paddingVertical: 6,
     },
     sliderLabel: {
         color: DS.textMuted,

@@ -57,6 +57,9 @@ class UserCreate(BaseModel):
         return value
     latitude: float | None = Field(default=None, ge=-90, le=90, description="Широта устройства для геолокационных уведомлений.")
     longitude: float | None = Field(default=None, ge=-180, le=180, description="Долгота устройства для геолокационных уведомлений.")
+    notify_outages: bool | None = Field(default=None, description="Пуш о новых отключениях рядом.")
+    notify_resolved: bool | None = Field(default=None, description="Пуш, когда свет вернулся.")
+    notify_radius_m: int | None = Field(default=None, ge=1000, le=20000, description="Радиус уведомлений в метрах (1–20 км).")
 
 
 class UserOut(BaseModel):
@@ -66,6 +69,9 @@ class UserOut(BaseModel):
     nis_number: str | None = Field(description="Номер счета абонента (NIS)")
     feeder_number: str | None = Field(description="Уникальный номер линии (фидера), автоматически определяемый по NIS (пока пустое)")
     web_push_enabled: bool = Field(default=False, description="true, если у устройства сохранена Web Push подписка (PWA)")
+    notify_outages: bool = True
+    notify_resolved: bool = True
+    notify_radius_m: int = 5000
     created_at: datetime
 
     model_config = {"from_attributes": True}

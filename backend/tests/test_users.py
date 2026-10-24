@@ -183,3 +183,43 @@ async def test_cors_allows_pwa_origin(client: AsyncClient):
 async def test_cors_rejects_foreign_origin(client: AsyncClient):
     response = await client.get("/", headers={"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in response.headers
+
+
+@pytest.mark.asyncio
+async def test_notification_preferences_saved_and_kept(client: AsyncClient):
+    res = await client.post("/users/", json={"device_id": "prefs-1"})
+    data = res.json()
+    assert (data["notify_outages"], data["notify_resolved"], data["notify_radius_m"]) == (True, True, 5000)
+
+    res = await client.post("/users/", json={"device_id": "prefs-1", "notify_resolved": False, "notify_radius_m": 10000})
+    assert res.status_code == 201
+    # Регистрация при старте приложения шлет только токен/координаты —
+    # настройки при этом не должны сбрасываться.
+    res = await client.post("/users/", json={"device_id": "prefs-1", "fcm_token": "t"})
+    data = res.json()
+    assert (data["notify_outages"], data["notify_resolved"], data["notify_radius_m"]) == (True, False, 10000)
+
+
+@pytest.mark.asyncio
+async def test_notification_radius_validated(client: AsyncClient):
+    res = await client.post("/users/", json={"device_id": "prefs-2", "notify_radius_m": 500})
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_delete_my_data(client: AsyncClient):
+    device_id = "erase-me"
+    await client.post("/users/", json={"device_id": device_id})
+    sub = await client.post("/subscriptions/", json={"device_id": device_id, "barrio": "Villa Morra"})
+    assert sub.status_code == 201
+    rep = await client.post("/reports/", json={"device_id": device_id, "latitude": -25.71, "longitude": -57.71})
+    assert rep.status_code == 201
+
+    res = await client.delete(f"/users/{device_id}/data")
+    assert res.status_code == 204
+    assert (await client.get(f"/users/{device_id}")).status_code == 404
+    assert (await client.get(f"/subscriptions/?device_id={device_id}")).status_code == 404
+    nearby = await client.get("/reports/?latitude=-25.71&longitude=-57.71&radius_m=200")
+    assert nearby.json() == []
+    # Повторно — тоже 204, без админ-ключа.
+    assert (await client.delete(f"/users/{device_id}/data")).status_code == 204

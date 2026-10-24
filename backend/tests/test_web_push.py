@@ -83,3 +83,33 @@ async def test_notify_sends_web_push_and_drops_expired(db, pwa_users, fake_webpu
 async def test_web_push_skipped_without_private_key(monkeypatch):
     monkeypatch.setattr(settings, "VAPID_PRIVATE_KEY", None)
     assert await notifications._send_web_push([SUB_OK], "t", "b") == []
+
+
+@pytest_asyncio.fixture
+async def pref_users(db):
+    sub = lambda name: SUB_OK.replace("/ok", f"/{name}")
+    users = [
+        # ~3 км от точки: попадает в 5 км, но не в 1 км
+        User(device_id="pref-default", web_push_subscription=sub("default"), latitude=-25.29, longitude=-57.60),
+        User(device_id="pref-1km", web_push_subscription=sub("1km"), latitude=-25.29, longitude=-57.60, notify_radius_m=1000),
+        User(device_id="pref-no-outages", web_push_subscription=sub("no-outages"), latitude=-25.29, longitude=-57.60, notify_outages=False),
+        User(device_id="pref-no-resolved", web_push_subscription=sub("no-resolved"), latitude=-25.29, longitude=-57.60, notify_resolved=False),
+    ]
+    db.add_all(users)
+    await db.commit()
+    yield users
+    for u in users:
+        await db.delete(u)
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_notify_respects_user_preferences(db, pref_users, fake_webpush):
+    await notifications.notify_users_near_outage(db, -25.30, -57.62, "Corte")
+    got = sorted(c[0]["endpoint"].rsplit("/", 1)[1] for c in fake_webpush)
+    assert got == ["default", "no-resolved"]
+
+    fake_webpush.clear()
+    await notifications.notify_users_near_outage(db, -25.30, -57.62, "Volvió", resolved=True)
+    got = sorted(c[0]["endpoint"].rsplit("/", 1)[1] for c in fake_webpush)
+    assert got == ["default", "no-outages"]

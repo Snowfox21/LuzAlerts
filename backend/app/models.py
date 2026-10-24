@@ -43,6 +43,12 @@ class User(Base):
     web_push_subscription: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Настройки уведомлений с экрана "Ajustes". server_default — чтобы
+    # существующие устройства после миграции вели себя как раньше
+    # (все пуши включены, радиус 5 км).
+    notify_outages: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    notify_resolved: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    notify_radius_m: Mapped[int] = mapped_column(Integer, default=5000, server_default="5000", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     reports: Mapped[list["UserReport"]] = relationship(back_populates="user")

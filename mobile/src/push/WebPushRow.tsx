@@ -15,7 +15,7 @@ const COPY: Record<WebPushState, { label: string; sub: string }> = {
     },
     granted: {
         label: 'Notificaciones activadas',
-        sub: 'Te avisamos cuando haya cortes a menos de 5 km. Tocá para desactivarlas.',
+        sub: 'Te avisamos cuando haya cortes cerca tuyo. Tocá para desactivarlas.',
     },
     off: {
         label: 'Notificaciones desactivadas',

@@ -71,3 +71,14 @@ export const getOrCreateDeviceId = async (): Promise<string> => {
 
     return inFlight;
 };
+
+// "Eliminar mis datos": забываем id, следующий вызов выдаст новый.
+// На Android он снова выведется из ANDROID_ID — данные на сервере при этом
+// уже стерты, так что это просто чистая регистрация.
+export const resetDeviceId = async (): Promise<void> => {
+    cachedDeviceId = null;
+    inFlight = null;
+    try {
+        await AsyncStorage.removeItem(DEVICE_ID_KEY);
+    } catch {}
+};

@@ -150,6 +150,7 @@ async def mark_resolved_outages() -> None:
                 title=title,
                 body=RESOLVED_PUSH_BODY,
                 push_title=RESOLVED_PUSH_TITLE,
+                resolved=True,
             )
 
     logger.info(f"Marked {len(candidates)} outages as resolved.")

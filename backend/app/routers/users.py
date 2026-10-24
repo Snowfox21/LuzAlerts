@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.limiter import limiter
-from app.models import User
+from app.models import OutageComment, Subscription, User, UserReport
 from app.schemas import UserCreate, UserOut
 from app.security import require_admin_key
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+# Настройки уведомлений: None в запросе = "не менять".
+_PREFERENCE_FIELDS = ("notify_outages", "notify_resolved", "notify_radius_m")
 
 
 @router.post("/", response_model=UserOut, status_code=201)
@@ -27,6 +30,10 @@ async def create_or_update_user(request: Request, payload: UserCreate, db: Async
             latitude=payload.latitude,
             longitude=payload.longitude,
         )
+        for field in _PREFERENCE_FIELDS:
+            value = getattr(payload, field)
+            if value is not None:
+                setattr(user, field, value)
         db.add(user)
     else:
         if payload.nis_number is not None:
@@ -39,6 +46,10 @@ async def create_or_update_user(request: Request, payload: UserCreate, db: Async
             user.latitude = payload.latitude
         if payload.longitude is not None:
             user.longitude = payload.longitude
+        for field in _PREFERENCE_FIELDS:
+            value = getattr(payload, field)
+            if value is not None:
+                setattr(user, field, value)
 
     await db.commit()
     await db.refresh(user)
@@ -68,6 +79,24 @@ async def delete_web_push_subscription(request: Request, device_id: str, db: Asy
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     user.web_push_subscription = None
+    await db.commit()
+
+
+@router.delete("/{device_id}/data", status_code=204)
+@limiter.limit("5/hour")
+async def delete_my_data(request: Request, device_id: str, db: AsyncSession = Depends(get_db)):
+    """"Eliminar mis datos": устройство стирает о себе все.
+
+    Удаляются подписки, метки, комментарии и сама запись устройства (токены,
+    координаты, настройки). Без админ-ключа: device_id знает только само
+    устройство. Идемпотентно — неизвестный device_id тоже отвечает 204.
+    """
+    await db.execute(delete(OutageComment).where(OutageComment.device_id == device_id))
+    user = (await db.execute(select(User).where(User.device_id == device_id))).scalar_one_or_none()
+    if user is not None:
+        await db.execute(delete(Subscription).where(Subscription.user_id == user.id))
+        await db.execute(delete(UserReport).where(UserReport.user_id == user.id))
+        await db.execute(delete(User).where(User.id == user.id))
     await db.commit()
 
 

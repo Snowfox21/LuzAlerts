@@ -13,11 +13,14 @@ import { setPendingLink } from '../src/utils/pendingLink';
 import { checkForUpdate } from '../src/update/checkForUpdate';
 import { UpdateManifest } from '../src/update/manifest';
 import { UpdateSheet } from '../src/update/UpdateSheet';
+import { installWebAlert } from '../src/utils/webAlert';
 
 // Хосты, которые в разборе диплинка отбрасываются как домен, а не сегмент
 // пути: лендинг (App Links на Android) и PWA (luzalerts.lat/app, раньше
 // app.luzalerts.lat — оттуда теперь редирект).
 const WEB_HOSTS = new Set(['luzalerts.lat', 'app.luzalerts.lat']);
+
+installWebAlert();
 
 LogBox.ignoreLogs([
     'expo-notifications: Android Push notifications',

@@ -11,7 +11,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
-NOTIFY_RADIUS_M = 5000  # 5 km
+NOTIFY_RADIUS_M = 5000  # 5 km, радиус по умолчанию (users.notify_radius_m)
 
 
 DEFAULT_PUSH_TITLE = "⚡ Corte de luz cercano"
@@ -26,25 +26,32 @@ async def notify_users_near_outage(
     title: str,
     body: str | None = None,
     push_title: str = DEFAULT_PUSH_TITLE,
+    resolved: bool = False,
 ) -> None:
-    """Find users within NOTIFY_RADIUS_M of (lat, lon) and send them a push notification.
+    """Find users within their notify radius of (lat, lon) and send them a push notification.
+
+    Радиус и типы пушей — личные настройки устройства (notify_radius_m,
+    notify_outages / notify_resolved). resolved=True — пуш "вернулся свет".
 
     Два канала параллельно: Expo Push (нативный Android, fcm_token) и
     Web Push (PWA на iOS, web_push_subscription). Один SELECT на оба.
     """
+    # Колонка выбирается кодом, не из ввода — f-string здесь безопасен.
+    pref_column = "notify_resolved" if resolved else "notify_outages"
     result = await session.execute(
-        text("""
+        text(f"""
             SELECT fcm_token, web_push_subscription FROM users
             WHERE (fcm_token IS NOT NULL OR web_push_subscription IS NOT NULL)
+              AND {pref_column}
               AND latitude IS NOT NULL
               AND longitude IS NOT NULL
               AND ST_DWithin(
                 ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
                 ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
-                :radius_m
+                COALESCE(notify_radius_m, :default_radius_m)
               )
         """),
-        {"lat": lat, "lon": lon, "radius_m": NOTIFY_RADIUS_M},
+        {"lat": lat, "lon": lon, "default_radius_m": NOTIFY_RADIUS_M},
     )
     rows = result.all()
     tokens = [row[0] for row in rows if row[0]]
