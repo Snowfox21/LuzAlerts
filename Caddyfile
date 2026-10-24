@@ -28,6 +28,10 @@ luzalerts.lat {
     handle /config* {
         reverse_proxy backend:8000
     }
+    # Адрес по координатам для PWA (в браузере нет reverseGeocodeAsync).
+    handle /geocode* {
+        reverse_proxy backend:8000
+    }
 
     # PWA для iPhone: тот же код mobile/, собранный `expo export -p web`
     # с experiments.baseUrl=/app (см. scripts/deploy-pwa.sh).
