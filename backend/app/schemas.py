@@ -1,4 +1,5 @@
 import json
+from typing import Literal
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
@@ -86,10 +87,21 @@ PY_LAT = (-27.7, -19.0)
 PY_LON = (-62.9, -54.1)
 
 
+PlaceRadius = Literal[1000, 2000, 5000, 10000]  # = models.PLACE_RADIUS_STEPS_M
+
+
 class TrackedPlaceCreate(BaseModel):
     label: str = Field(..., min_length=1, max_length=128, description="Подпись: \"Casa de mamá\", barrio и т.п.")
     latitude: float = Field(..., ge=PY_LAT[0], le=PY_LAT[1])
     longitude: float = Field(..., ge=PY_LON[0], le=PY_LON[1])
+    radius_m: PlaceRadius = Field(default=2000, description="Радиус пушей вокруг места, м")
+    enabled: bool = True
+
+
+class TrackedPlaceUpdate(BaseModel):
+    """PATCH: None = не менять."""
+    radius_m: PlaceRadius | None = None
+    enabled: bool | None = None
 
 
 class TrackedPlaceOut(BaseModel):
@@ -97,6 +109,8 @@ class TrackedPlaceOut(BaseModel):
     label: str
     latitude: float
     longitude: float
+    radius_m: int
+    enabled: bool
 
     model_config = {"from_attributes": True}
 
