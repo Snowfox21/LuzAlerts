@@ -123,9 +123,9 @@ async def test_notify_via_tracked_place(db, fake_webpush):
     abroad = User(device_id="abroad", web_push_subscription=SUB_OK.replace("/ok", "/abroad"), latitude=40.41, longitude=-3.70)
     db.add(abroad)
     await db.commit()
-    db.add(TrackedPlace(user_id=abroad.id, label="Casa de mamá", latitude=-25.2637, longitude=-57.5759))
+    db.add(TrackedPlace(user_id=abroad.id, label="Casa de mamá", latitude=-25.2637, longitude=-57.5759, radius_m=2000))
     # Два места рядом с отключением — пуш все равно один.
-    db.add(TrackedPlace(user_id=abroad.id, label="Abuela", latitude=-25.2640, longitude=-57.5760))
+    db.add(TrackedPlace(user_id=abroad.id, label="Abuela", latitude=-25.2640, longitude=-57.5760, radius_m=2000))
     await db.commit()
     try:
         await notifications.notify_users_near_outage(db, -25.2637, -57.5759, "Corte")
@@ -133,4 +133,34 @@ async def test_notify_via_tracked_place(db, fake_webpush):
         assert endpoints.count("https://web.push.apple.com/abroad") == 1
     finally:
         await db.delete(abroad)
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_tracked_place_radius_and_enabled(db, fake_webpush):
+    from app.models import TrackedPlace
+
+    sub = lambda name: SUB_OK.replace("/ok", f"/{name}")
+    # Основные точки всех трех — в Мадриде; решают только места.
+    users = {
+        name: User(device_id=f"place-{name}", web_push_subscription=sub(name), latitude=40.41, longitude=-3.70)
+        for name in ("near1km", "far1km", "off")
+    }
+    db.add_all(users.values())
+    await db.commit()
+    # Отключение в (-25.30, -57.62); место в ~2.3 км от него.
+    place = dict(latitude=-25.29, longitude=-57.60)
+    db.add_all([
+        TrackedPlace(user_id=users["near1km"].id, label="a", radius_m=5000, **place),
+        TrackedPlace(user_id=users["far1km"].id, label="b", radius_m=1000, **place),
+        TrackedPlace(user_id=users["off"].id, label="c", radius_m=10000, enabled=False, **place),
+    ])
+    await db.commit()
+    try:
+        await notifications.notify_users_near_outage(db, -25.30, -57.62, "Corte")
+        got = sorted(c[0]["endpoint"].rsplit("/", 1)[1] for c in fake_webpush)
+        assert got == ["near1km"]
+    finally:
+        for u in users.values():
+            await db.delete(u)
         await db.commit()

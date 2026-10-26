@@ -39,7 +39,8 @@ async def notify_users_near_outage(
     # Колонка выбирается кодом, не из ввода — f-string здесь безопасен.
     pref_column = "notify_resolved" if resolved else "notify_outages"
     # Устройство получает пуш, если отключение в его радиусе от основной
-    # точки ИЛИ от любого из отслеживаемых мест (tracked_places). Выборка
+    # точки ИЛИ от любого включенного отслеживаемого места (у места свой
+    # радиус, tracked_places.radius_m). Выборка
     # идет по users, поэтому при нескольких совпадениях пуш все равно один.
     result = await session.execute(
         text(f"""
@@ -59,10 +60,11 @@ async def notify_users_near_outage(
                 OR EXISTS (
                   SELECT 1 FROM tracked_places p
                   WHERE p.user_id = u.id
+                    AND p.enabled
                     AND ST_DWithin(
                       ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)::geography,
                       ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
-                      COALESCE(u.notify_radius_m, :default_radius_m)
+                      p.radius_m
                     )
                 )
               )

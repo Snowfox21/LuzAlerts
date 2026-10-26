@@ -164,10 +164,16 @@ class TrackedPlace(Base):
     label: Mapped[str] = mapped_column(String(128))
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
+    # Свой радиус и выключатель у каждого места (экран "Mis zonas"):
+    # "Mi zona" живет на users.notify_radius_m, места — на своих.
+    radius_m: Mapped[int] = mapped_column(Integer, default=2000, server_default="2000", nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
 
 MAX_TRACKED_PLACES = 2
+# Шаги радиуса места — чипы 1/2/5/10 км в "Mis zonas".
+PLACE_RADIUS_STEPS_M = (1000, 2000, 5000, 10000)
 
 
 class ScraperRun(Base):
