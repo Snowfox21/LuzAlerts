@@ -63,7 +63,8 @@ export function buildOutageShareMessage(outage: Outage, url: string): string {
         `⚡ ${STATUS_LINE[outage.status] ?? STATUS_LINE[OutageStatus.ACTIVE]} · ${source}`,
         `📍 ${place}`,
     ];
-    if (schedule) lines.push(`🕘 ${schedule}`);
+    // Расписание ANDE — местное время Парагвая; родные могут читать из-за границы.
+    if (schedule) lines.push(`🕘 ${schedule} (hora PY)`);
     lines.push('', `Mirá el mapa y los detalles en LuzAlerts 👇`, url);
     return lines.join('\n');
 }
