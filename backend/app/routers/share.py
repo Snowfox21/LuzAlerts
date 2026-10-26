@@ -21,7 +21,6 @@ from app.database import get_db
 from app.models import Outage, OutageStatus, UserReport
 from app.public_report import to_public_report
 from app.report_lifecycle import apply_auto_resolution
-from app.schemas import utc_iso
 from app.sharing import outage_share_url, share_url
 
 router = APIRouter(tags=["share"])
@@ -128,7 +127,23 @@ async def outage_share_page(
             "pwa_url": f"{site_url}/app/outage/{outage.id}",
             "download_url": f"{site_url}/dl/",
             "site_url": site_url,
-            "start_iso": utc_iso(outage.scheduled_start),
-            "end_iso": utc_iso(outage.scheduled_end),
+            "start_label": _py_time_label(outage.scheduled_start),
+            "end_label": _py_time_label(outage.scheduled_end),
         },
     )
+
+
+_WEEKDAYS_ES = ("lun", "mar", "mié", "jue", "vie", "sáb", "dom")
+
+
+def _py_time_label(value) -> str | None:
+    """"lun 27/10 11:00" — как есть, без перевода в пояс читателя.
+
+    Время отключений ANDE хранится так, как его публикует ANDE: местное
+    время Парагвая без пояса (в отличие от created_at, который UTC).
+    Переводить нечего, а ссылку часто открывают родные за границей —
+    поэтому страница подписывает "hora de Paraguay".
+    """
+    if value is None:
+        return None
+    return f"{_WEEKDAYS_ES[value.weekday()]} {value:%d/%m %H:%M}"

@@ -106,10 +106,11 @@
 
     {% if outage.title and outage.title != place %}<p class="place">{{ outage.title }}</p>{% endif %}
 
-    {% if start_iso or end_iso %}
+    {% if start_label or end_label %}
       <div class="meter">
-        <div class="meter-row"><span>Desde</span><strong id="start">—</strong></div>
-        <div class="meter-row"><span>Hasta</span><strong id="end">—</strong></div>
+        <div class="meter-row"><span>Desde</span><strong>{{ start_label or "—" }}</strong></div>
+        <div class="meter-row"><span>Hasta</span><strong>{{ end_label or "—" }}</strong></div>
+        <div class="meter-row"><span></span><span>hora de Paraguay</span></div>
       </div>
     {% endif %}
 
@@ -125,19 +126,6 @@
 </div>
 
 <script>
-  // Время в часовом поясе читателя: сервер отдает UTC.
-  (function () {
-    var fmt = function (iso) {
-      var d = new Date(iso);
-      return isNaN(d) ? '—' : d.toLocaleString('es-PY', {
-        weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false
-      });
-    };
-    var s = document.getElementById('start'), e = document.getElementById('end');
-    {% if start_iso %}if (s) s.textContent = fmt("{{ start_iso }}");{% endif %}
-    {% if end_iso %}if (e) e.textContent = fmt("{{ end_iso }}");{% endif %}
-  })();
-
   // iPhone: нативного приложения нет — сразу в PWA. Остальным — диплинк
   // с фолбэком на скачивание APK (как на странице метки /r/).
   (function () {

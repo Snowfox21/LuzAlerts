@@ -35,7 +35,9 @@ async def test_outage_share_url_and_page(client: AsyncClient, db):
         assert 'property="og:title" content="🗓️ Corte programado en Barrio Obrero"' in html
         assert f'luzalerts://outage/{outage.id}' in html
         assert f'/app/outage/{outage.id}' in html
-        assert "2026-10-27T11:00:00Z" in html
+        # Время ANDE — местное парагвайское, без сдвига поясов.
+        assert "mar 27/10 11:00" in html and "mar 27/10 15:00" in html
+        assert "hora de Paraguay" in html
     finally:
         await db.delete(outage)
         await db.commit()
