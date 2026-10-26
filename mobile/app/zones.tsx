@@ -8,6 +8,7 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     TouchableOpacity,
@@ -15,22 +16,27 @@ import {
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, MapPin, Plus, X } from 'lucide-react-native';
+import { Home, MapPin, Plus } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { DS, PrimaryButton } from '../src/components/DesignSystem';
 import {
-    addTrackedPlace,
     listTrackedPlaces,
     MAX_TRACKED_PLACES,
     removeTrackedPlace,
     searchAddress,
-    TrackedPlace,
 } from '../src/places/places';
+import {
+    addTrackedPlaceWithRadius,
+    DEFAULT_PLACE_RADIUS_M,
+    PLACE_RADIUS_STEPS_M,
+    TrackedPlaceWithSettings,
+    updateTrackedPlace,
+} from '../src/places/placeSettings';
 import { getHomeZone, HomeZone } from '../src/utils/homeZone';
 
-// Те же ключ и дефолт, что в Ajustes: радиус один на все места (бэкенд
-// берет notify_radius_m пользователя и для своей зоны, и для мест).
+// Те же ключ и дефолт, что в Ajustes: радиус "Mi zona" (notify_radius_m).
+// У мест свой radius_m; на старом бэкенде его нет — тогда показываем этот.
 const PREFS_KEY = '@luzalerts_notify_prefs';
 const DEFAULT_RADIUS_M = 5000;
 
@@ -43,11 +49,12 @@ const PLACE_COLORS = [DS.blue, '#F472B6'];
  */
 export default function ZonesScreen() {
     const [home, setHome] = useState<HomeZone | null>(null);
-    const [places, setPlaces] = useState<TrackedPlace[]>([]);
+    const [places, setPlaces] = useState<TrackedPlaceWithSettings[]>([]);
     const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_M / 1000);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
-    const [removingId, setRemovingId] = useState<number | null>(null);
+    const [editing, setEditing] = useState<TrackedPlaceWithSettings | null>(null);
+    const [busyId, setBusyId] = useState<number | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -69,21 +76,49 @@ export default function ZonesScreen() {
 
     useEffect(() => { load(); }, [load]);
 
-    const remove = (place: TrackedPlace) => {
+    const replacePlace = (updated: TrackedPlaceWithSettings) =>
+        setPlaces(prev => prev.map(p => (p.id === updated.id ? { ...p, ...updated } : p)));
+
+    // Оптимистично: переключатель реагирует сразу, при ошибке откатываем.
+    const toggle = async (place: TrackedPlaceWithSettings, enabled: boolean) => {
+        replacePlace({ ...place, enabled });
+        try {
+            replacePlace(await updateTrackedPlace(place.id, { enabled }));
+        } catch {
+            replacePlace(place);
+            Alert.alert('Sin conexión', 'No pudimos guardar el cambio. Probá de nuevo.');
+        }
+    };
+
+    const changeRadius = async (place: TrackedPlaceWithSettings, radius_m: number) => {
+        setBusyId(place.id);
+        try {
+            const updated = await updateTrackedPlace(place.id, { radius_m });
+            replacePlace(updated);
+            setEditing(null);
+        } catch {
+            Alert.alert('Sin conexión', 'No pudimos guardar el radio. Probá de nuevo.');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const remove = (place: TrackedPlaceWithSettings) => {
         Alert.alert('Dejar de seguir', `¿Dejar de recibir avisos de "${place.label}"?`, [
             { text: 'Cancelar', style: 'cancel' },
             {
                 text: 'Quitar',
                 style: 'destructive',
                 onPress: async () => {
-                    setRemovingId(place.id);
+                    setBusyId(place.id);
                     try {
                         await removeTrackedPlace(place.id);
                         setPlaces(prev => prev.filter(p => p.id !== place.id));
+                        setEditing(null);
                     } catch {
                         Alert.alert('Error', 'No se pudo quitar el lugar.');
                     } finally {
-                        setRemovingId(null);
+                        setBusyId(null);
                     }
                 },
             },
@@ -91,7 +126,7 @@ export default function ZonesScreen() {
     };
 
     const canAdd = places.length < MAX_TRACKED_PLACES;
-    const radius = `radio ${radiusKm} km`;
+    const radiusLabel = (m?: number) => `radio ${(m ?? radiusKm * 1000) / 1000} km`;
 
     return (
         <View style={styles.screen}>
@@ -112,7 +147,7 @@ export default function ZonesScreen() {
                     color={DS.amber}
                     name="Mi zona"
                     place={home?.label ?? (home ? 'Tu ubicación actual' : 'Sin definir')}
-                    radius={radius}
+                    radius={radiusLabel()}
                     gps={!!home && !home.manual}
                 />
 
@@ -125,19 +160,20 @@ export default function ZonesScreen() {
                             Icon={Home}
                             color={PLACE_COLORS[i % PLACE_COLORS.length]}
                             name={place.label}
-                            radius={radius}
-                            right={removingId === place.id ? (
+                            radius={radiusLabel(place.radius_m)}
+                            off={place.enabled === false}
+                            onPress={() => setEditing(place)}
+                            right={busyId === place.id ? (
                                 <ActivityIndicator size="small" color={DS.textMuted} />
-                            ) : (
-                                <TouchableOpacity
-                                    onPress={() => remove(place)}
-                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Dejar de seguir ${place.label}`}
-                                >
-                                    <X size={20} color={DS.textMuted} />
-                                </TouchableOpacity>
-                            )}
+                            ) : place.enabled !== undefined ? (
+                                <Switch
+                                    value={place.enabled}
+                                    onValueChange={v => toggle(place, v)}
+                                    trackColor={{ true: DS.amber, false: DS.surfaceVar }}
+                                    thumbColor={place.enabled ? DS.ink : DS.textMuted}
+                                    accessibilityLabel={`Avisos de ${place.label}`}
+                                />
+                            ) : null}
                         />
                     ))
                 )}
@@ -161,15 +197,22 @@ export default function ZonesScreen() {
             <NewPlaceSheet
                 visible={adding}
                 used={places.length}
-                radiusKm={radiusKm}
                 onClose={() => setAdding(false)}
                 onAdded={place => { setPlaces(prev => [...prev, place]); setAdding(false); }}
+            />
+
+            <PlaceSheet
+                place={editing}
+                busy={editing != null && busyId === editing.id}
+                onClose={() => setEditing(null)}
+                onRadius={radius_m => editing && changeRadius(editing, radius_m)}
+                onRemove={() => editing && remove(editing)}
             />
         </View>
     );
 }
 
-function ZoneCard({ Icon, color, name, place, radius, gps, right }: {
+function ZoneCard({ Icon, color, name, place, radius, gps, off, onPress, right }: {
     Icon: typeof Home;
     color: string;
     name: string;
@@ -177,10 +220,14 @@ function ZoneCard({ Icon, color, name, place, radius, gps, right }: {
     place?: string;
     radius: string;
     gps?: boolean;
+    /** Место выключено: пуши по нему не приходят. */
+    off?: boolean;
+    onPress?: () => void;
     right?: React.ReactNode;
 }) {
+    const Wrapper = onPress ? TouchableOpacity : View;
     return (
-        <View style={styles.card}>
+        <Wrapper style={[styles.card, off && styles.cardOff]} onPress={onPress as any} activeOpacity={0.75}>
             <View style={[styles.cardIcon, { backgroundColor: `${color}22` }]}>
                 <Icon size={20} color={color} />
             </View>
@@ -192,26 +239,80 @@ function ZoneCard({ Icon, color, name, place, radius, gps, right }: {
                 <Text style={styles.cardSub} numberOfLines={1}>{place ? `${place} · ${radius}` : radius}</Text>
             </View>
             {right}
+        </Wrapper>
+    );
+}
+
+function RadiusChips({ value, onChange, disabled }: { value: number; onChange: (m: number) => void; disabled?: boolean }) {
+    return (
+        <View style={styles.chips}>
+            {PLACE_RADIUS_STEPS_M.map(m => {
+                const active = m === value;
+                return (
+                    <TouchableOpacity
+                        key={m}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => onChange(m)}
+                        disabled={disabled}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                    >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{m / 1000} km</Text>
+                    </TouchableOpacity>
+                );
+            })}
         </View>
     );
 }
 
+/** Нижняя панель места: поменять радиус или перестать следить. */
+function PlaceSheet({ place, busy, onClose, onRadius, onRemove }: {
+    place: TrackedPlaceWithSettings | null;
+    busy: boolean;
+    onClose: () => void;
+    onRadius: (radius_m: number) => void;
+    onRemove: () => void;
+}) {
+    const { bottom } = useSafeAreaInsets();
+    return (
+        <Modal visible={place != null} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+            <View style={styles.sheetRoot}>
+                <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Cerrar" />
+                <View style={[styles.sheet, { paddingBottom: bottom + 24 }]}>
+                    <View style={styles.handle} />
+                    <Text style={styles.sheetTitle} numberOfLines={1}>{place?.label}</Text>
+                    {/* Старый бэкенд radius_m не отдает и PATCH не знает — тогда только удалить. */}
+                    {place?.radius_m != null && (
+                        <View style={styles.field}>
+                            <Text style={styles.fieldLabel}>RADIO DE AVISO</Text>
+                            <RadiusChips value={place.radius_m} onChange={onRadius} disabled={busy} />
+                        </View>
+                    )}
+                    <TouchableOpacity style={styles.removeButton} onPress={onRemove} disabled={busy}>
+                        {busy ? <ActivityIndicator color={DS.redLight} /> : <Text style={styles.removeText}>Dejar de seguir este lugar</Text>}
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 /** Нижняя панель "Nuevo lugar": имя + адрес → поиск координат → сохранить. */
-function NewPlaceSheet({ visible, used, radiusKm, onClose, onAdded }: {
+function NewPlaceSheet({ visible, used, onClose, onAdded }: {
     visible: boolean;
     used: number;
-    radiusKm: number;
     onClose: () => void;
-    onAdded: (place: TrackedPlace) => void;
+    onAdded: (place: TrackedPlaceWithSettings) => void;
 }) {
     const { bottom } = useSafeAreaInsets();
     const [name, setName] = useState('');
     const [address, setAddress] = useState('');
     const [focused, setFocused] = useState<'name' | 'address' | null>(null);
+    const [radius, setRadius] = useState(DEFAULT_PLACE_RADIUS_M);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        if (!visible) { setName(''); setAddress(''); setFocused(null); }
+        if (!visible) { setName(''); setAddress(''); setFocused(null); setRadius(DEFAULT_PLACE_RADIUS_M); }
     }, [visible]);
 
     const save = async () => {
@@ -225,7 +326,7 @@ function NewPlaceSheet({ visible, used, radiusKm, onClose, onAdded }: {
                 return;
             }
             // Свое имя ("Casa de mamá") понятнее адреса, особенно в пуше.
-            onAdded(await addTrackedPlace({ ...found, label: name.trim() || found.label }));
+            onAdded(await addTrackedPlaceWithRadius({ ...found, label: name.trim() || found.label }, radius));
         } catch (err: any) {
             const detail = err?.response?.data?.detail;
             Alert.alert('Error', typeof detail === 'string' ? detail : 'No se pudo agregar el lugar.');
@@ -274,9 +375,12 @@ function NewPlaceSheet({ visible, used, radiusKm, onClose, onAdded }: {
                         </View>
                     </View>
 
-                    <Text style={styles.sheetHint}>
-                        Te avisamos de cortes a menos de {radiusKm} km, igual que en tu zona. · {used + 1} de {MAX_TRACKED_PLACES}
-                    </Text>
+                    <View style={styles.field}>
+                        <Text style={styles.fieldLabel}>RADIO DE AVISO</Text>
+                        <RadiusChips value={radius} onChange={setRadius} />
+                    </View>
+
+                    <Text style={styles.sheetHint}>{used + 1} de {MAX_TRACKED_PLACES} lugares</Text>
 
                     <PrimaryButton
                         label={saving ? undefined : 'Guardar lugar'}
@@ -318,6 +422,9 @@ const styles = StyleSheet.create({
         backgroundColor: DS.surface,
         borderRadius: 14,
         padding: 14,
+    },
+    cardOff: {
+        opacity: 0.6,
     },
     cardIcon: {
         width: 40,
@@ -444,6 +551,44 @@ const styles = StyleSheet.create({
         height: '100%',
         color: DS.text,
         fontSize: 15,
+    },
+    chips: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    chip: {
+        flex: 1,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#475569',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    chipActive: {
+        backgroundColor: DS.amber,
+        borderColor: DS.amber,
+    },
+    chipText: {
+        color: DS.textMid,
+        fontSize: 14,
+    },
+    chipTextActive: {
+        color: DS.ink,
+        fontWeight: '700',
+    },
+    removeButton: {
+        height: 48,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(239,68,68,0.45)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    removeText: {
+        color: DS.redLight,
+        fontSize: 15,
+        fontWeight: '600',
     },
     sheetHint: {
         color: DS.textMuted,
