@@ -13,6 +13,15 @@ import { buildShareMessage, ShareMessageContext } from './messages';
  */
 
 const WHATSAPP_SCHEME = 'whatsapp://send';
+// PWA: в браузере whatsapp:// без установленного WhatsApp не бросает
+// исключение — Safari просто показывает ошибку, и откат на share sheet не
+// срабатывает. Универсальная ссылка wa.me открывает приложение, если оно
+// есть, а иначе — страницу WhatsApp.
+const WHATSAPP_WEB = 'https://wa.me/';
+
+/** Ссылка "открыть WhatsApp с текстом" для текущей платформы. */
+export const whatsAppSendUrl = (message: string): string =>
+    `${Platform.OS === 'web' ? WHATSAPP_WEB : WHATSAPP_SCHEME}?text=${encodeURIComponent(message)}`;
 const FACEBOOK_SHARER = 'https://www.facebook.com/sharer/sharer.php';
 
 export interface ShareTarget extends ShareMessageContext {
@@ -33,7 +42,7 @@ const trackShare = (reportId?: number): void => {
  */
 export const shareToWhatsApp = async (target: ShareTarget): Promise<boolean> => {
     const message = buildShareMessage(target);
-    const url = `${WHATSAPP_SCHEME}?text=${encodeURIComponent(message)}`;
+    const url = whatsAppSendUrl(message);
 
     try {
         // canOpenURL на Android требует whatsapp в queries манифеста, и без

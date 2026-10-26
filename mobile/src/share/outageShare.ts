@@ -3,7 +3,7 @@ import { Linking, Share } from 'react-native';
 import apiClient from '../api/client';
 import { Outage, OutageSource, OutageStatus } from '../api/types';
 import { parseApiLocalDate } from '../utils/date';
-import { shareWithFallback } from './shareReport';
+import { shareWithFallback, whatsAppSendUrl } from './shareReport';
 
 /**
  * Шеринг корта (ANDE или вечинального) в WhatsApp: "Abu, mañana cortan la
@@ -91,7 +91,7 @@ export async function shareOutage(outage: Outage, via: 'whatsapp' | 'sheet' = 'w
     if (via === 'whatsapp') {
         try {
             // canOpenURL без queries в манифесте врет на Android — сразу открываем.
-            await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(message)}`);
+            await Linking.openURL(whatsAppSendUrl(message));
             return true;
         } catch {
             // WhatsApp не установлен — дальше системный лист.
