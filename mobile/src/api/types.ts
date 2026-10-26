@@ -27,4 +27,6 @@ export interface Outage {
     // but let's assume we get lat/lon if needed for the map
     latitude?: number;
     longitude?: number;
+    /** Публичная ссылка для WhatsApp: https://luzalerts.lat/o/{id} (у меток — /r/{code}). */
+    share_url?: string | null;
 }

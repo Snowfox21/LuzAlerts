@@ -21,6 +21,8 @@ import { ANDE_WHATSAPP_NUMBER, FEATURES } from '../../src/constants/features';
 import { darkMapStyle } from '../../src/theme/mapStyle';
 import { formatLocalDateTime24, relativeTime } from '../../src/utils/date';
 import { formatVecinoId } from '../../src/utils/vecinoId';
+import { shareOutage } from '../../src/share/outageShare';
+import { WhatsAppButton } from '../../src/share/WhatsAppButton';
 import { getOrCreateDeviceId } from '../../src/utils/device';
 import { DS, SectionCard, StatusChip, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 
@@ -186,7 +188,16 @@ export default function OutageDetailScreen() {
                     headerStyle: { backgroundColor: DS.bg },
                     headerTintColor: DS.text,
                     headerShadowVisible: false,
-                    headerRight: () => <Share2 size={20} color={DS.textMuted} />,
+                    headerRight: () => (
+                        <TouchableOpacity
+                            onPress={() => shareOutage(outage, 'sheet')}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Compartir"
+                        >
+                            <Share2 size={20} color={DS.textMuted} />
+                        </TouchableOpacity>
+                    ),
                 }}
             />
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -202,6 +213,7 @@ export default function OutageDetailScreen() {
                             {outage.source === OutageSource.CROWDSOURCE ? 'Reportado por vecinos' : 'Fuente: ANDE'}
                         </Text>
                     </View>
+                    <WhatsAppButton style={styles.shareButton} onPress={() => shareOutage(outage)} />
                 </View>
 
                 <MiniMap location={effectiveLocation} color={meta.color} />
@@ -389,6 +401,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 5,
         marginTop: 10,
+    },
+    shareButton: {
+        marginTop: 14,
     },
     sourceText: {
         fontSize: 12,

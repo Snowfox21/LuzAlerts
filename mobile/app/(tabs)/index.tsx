@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { MapMarker, Marker, MapPressEvent, Region } from '../../src/maps';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -12,6 +12,9 @@ import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
 import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 import { darkMapStyle } from '../../src/theme/mapStyle';
+import { getHomeZone, isWithinParaguay } from '../../src/utils/homeZone';
+import { shareOutage } from '../../src/share/outageShare';
+import { WhatsAppButton } from '../../src/share/WhatsAppButton';
 
 // react-native-maps на новой архитектуре не сообщает нативной стороне размер вьюхи маркера
 // (MapMarkerManager.updateExtraData вызывается только из шэдоу-ноды старой архитектуры),
@@ -52,6 +55,9 @@ export default function MapScreen() {
     // глобальные параметры: навигация идет на группу (tabs), сегмент может отличаться
     const { focusLat, focusLon } = useGlobalSearchParams<{ focusLat?: string; focusLon?: string }>();
     const pendingFocusRef = useRef<{ latitude: number; longitude: number } | null>(null);
+    // Карту открыли на конкретной точке (пуш, ссылка): стартовое
+    // позиционирование по GPS/"Mi zona" ее больше не перебивает.
+    const explicitFocusRef = useRef(false);
     const mapReadyRef = useRef(false);
     const savedRegionRef = useRef<Region>(ASUNCION);
     const restoringRegionRef = useRef(true);
@@ -99,6 +105,9 @@ export default function MapScreen() {
                         created_at: r.created_at,
                         latitude: r.latitude,
                         longitude: r.longitude,
+                        // Ссылка метки (/r/{code}): id здесь синтетический,
+                        // и /o/{id} для него вел бы на 404.
+                        share_url: r.share_url ?? null,
                     }));
             } catch (err) {
                 console.warn('Error fetching user reports:', err);
@@ -112,24 +121,41 @@ export default function MapScreen() {
         }
     };
 
+    // Куда смотреть, если телефон не в Парагвае (или геолокации нет):
+    // на "Mi zona" из Ajustes, иначе на Асунсьон. Отключения бывают только
+    // в Парагвае, и карта вокруг Мадрида выглядела бы просто пустой.
+    const homeRegion = useCallback(async (): Promise<Region> => {
+        const home = await getHomeZone();
+        return home ? { latitude: home.latitude, longitude: home.longitude, latitudeDelta: 0.1, longitudeDelta: 0.1 } : ASUNCION;
+    }, []);
+
     useEffect(() => {
         fetchOutages();
-        Location.requestForegroundPermissionsAsync().then(({ status }) => {
-            if (status !== 'granted') return;
-            Location.getLastKnownPositionAsync()
-                .then(pos => pos ?? Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
-                .then(pos => {
-                    if (!pos) return;
+        (async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                const pos = status === 'granted'
+                    ? (await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
+                    : null;
+                // GPS отвечает асинхронно и может опоздать к фокусу из пуша.
+                if (explicitFocusRef.current) return;
+                if (pos && isWithinParaguay(pos.coords.latitude, pos.coords.longitude)) {
                     saveRegion({
                         latitude: pos.coords.latitude,
                         longitude: pos.coords.longitude,
                         latitudeDelta: 0.1,
                         longitudeDelta: 0.1,
                     });
-                })
-                .catch(() => {});
-        });
-    }, [saveRegion]);
+                    return;
+                }
+            } catch {}
+            const region = await homeRegion();
+            if (explicitFocusRef.current) return;
+            saveRegion(region);
+            // Карта могла уже смонтироваться на Асунсьоне, пока ждали GPS.
+            if (mapReadyRef.current) mapRef.current?.animateToRegion(region, 0);
+        })();
+    }, [saveRegion, homeRegion]);
 
     useEffect(() => {
         const interval = setInterval(fetchOutages, 5 * 60 * 1000);
@@ -186,6 +212,7 @@ export default function MapScreen() {
         const longitude = parseFloat(focusLon);
         if (Number.isNaN(latitude) || Number.isNaN(longitude)) return;
         pendingFocusRef.current = { latitude, longitude };
+        explicitFocusRef.current = true;
         // Убираем обработанные параметры, чтобы те же координаты можно было открыть повторно
         router.setParams({ focusLat: undefined, focusLon: undefined });
         applyFocus();
@@ -210,6 +237,13 @@ export default function MapScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!isWithinParaguay(pos.coords.latitude, pos.coords.longitude)) {
+            const home = await homeRegion();
+            saveRegion(home);
+            mapRef.current?.animateToRegion(home, 650);
+            Alert.alert('Estás fuera de Paraguay', 'LuzAlerts muestra cortes solo en Paraguay, así que te llevamos a tu zona. Podés cambiarla en Ajustes.');
+            return;
+        }
         const region = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
@@ -369,15 +403,18 @@ export default function MapScreen() {
                             ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
                             : () => router.push(`/outage/${selectedOutage.id}`)}
                     />
-                    <TouchableOpacity
-                        style={styles.sheetAction}
-                        activeOpacity={0.8}
-                        onPress={selectedOutage.source === OutageSource.CROWDSOURCE
-                            ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
-                            : () => router.push(`/outage/${selectedOutage.id}`)}
-                    >
-                        <Text style={styles.sheetActionText}>Ver detalles</Text>
-                    </TouchableOpacity>
+                    <View style={styles.sheetActions}>
+                        <TouchableOpacity
+                            style={styles.sheetAction}
+                            activeOpacity={0.8}
+                            onPress={selectedOutage.source === OutageSource.CROWDSOURCE
+                                ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
+                                : () => router.push(`/outage/${selectedOutage.id}`)}
+                        >
+                            <Text style={styles.sheetActionText}>Ver detalles</Text>
+                        </TouchableOpacity>
+                        <WhatsAppButton compact label="Compartir" onPress={() => shareOutage(selectedOutage)} />
+                    </View>
                 </View>
             )}
         </View>
@@ -506,7 +543,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#475569',
         marginBottom: 2,
     },
+    sheetActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
     sheetAction: {
+        flex: 1,
         height: 44,
         alignItems: 'center',
         justifyContent: 'center',
@@ -517,6 +559,6 @@ const styles = StyleSheet.create({
     sheetActionText: {
         color: DS.text,
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: '500',
     },
 });

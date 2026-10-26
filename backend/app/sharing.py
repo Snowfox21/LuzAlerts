@@ -24,3 +24,12 @@ def share_url(share_code: str | None) -> str | None:
     if not share_code:
         return None
     return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/r/{share_code}"
+
+
+def outage_share_url(outage_id: int) -> str:
+    """Публичный URL отключения: https://luzalerts.lat/o/{id}.
+
+    Здесь id, а не случайный код: отключения ANDE и так публичны (их видно
+    на карте всем), перебирать по ним нечего.
+    """
+    return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/o/{outage_id}"

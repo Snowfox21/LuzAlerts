@@ -17,6 +17,7 @@ import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import apiClient from '../api/client';
 import { getOrCreateDeviceId } from '../utils/device';
+import { zoneFromGps } from '../utils/homeZone';
 
 export type WebPushState =
     | 'unsupported' // не веб или браузер без Push API
@@ -141,7 +142,8 @@ async function getCoordsIfGranted(): Promise<{ latitude: number; longitude: numb
         const pos =
             (await Location.getLastKnownPositionAsync()) ??
             (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
-        return pos ? { latitude: pos.coords.latitude, longitude: pos.coords.longitude } : null;
+        // Та же политика, что в useDeviceSetup: дом за границей не переезжает.
+        return pos ? await zoneFromGps(pos.coords.latitude, pos.coords.longitude) : null;
     } catch {
         return null;
     }

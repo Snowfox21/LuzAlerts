@@ -25,6 +25,7 @@ import { addMyReportId, getMyReportIds } from '../../src/utils/myReports';
 import { ageMinutes, relativeTime } from '../../src/utils/date';
 import { formatVecinoId } from '../../src/utils/vecinoId';
 import { reverseGeocode } from '../../src/utils/reverseGeocode';
+import { isWithinParaguay } from '../../src/utils/homeZone';
 import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { ShareBlock } from '../../src/share/ShareBlock';
 
@@ -58,13 +59,6 @@ const EXPIRING_AFTER_MINUTES = 48 * 60;
 // Столько независимых репортов в радиусе 500 м подтверждают отключение.
 // Совпадает с REPORT_THRESHOLD на бэкенде.
 const CONFIRMATION_THRESHOLD = 3;
-
-const PARAGUAY_BOUNDS = {
-    minLat: -27.7,
-    maxLat: -19.0,
-    minLon: -62.9,
-    maxLon: -54.1,
-};
 
 export default function ReportsScreen() {
     const router = useRouter();
@@ -542,13 +536,6 @@ function formatAddress(report: Report): string {
 }
 
 const avatarColors = [DS.violet, DS.blue, DS.green, DS.red];
-
-function isWithinParaguay(lat: number, lon: number): boolean {
-    return lat >= PARAGUAY_BOUNDS.minLat
-        && lat <= PARAGUAY_BOUNDS.maxLat
-        && lon >= PARAGUAY_BOUNDS.minLon
-        && lon <= PARAGUAY_BOUNDS.maxLon;
-}
 
 const PLUS_CODE_RE = /^[23456789CFGHJMPQRVWX]{4,}\+[23456789CFGHJMPQRVWX]{2,}$/i;
 function cleanGeoField(value: string | null | undefined): string {

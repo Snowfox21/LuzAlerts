@@ -38,17 +38,35 @@ async def notify_users_near_outage(
     """
     # Колонка выбирается кодом, не из ввода — f-string здесь безопасен.
     pref_column = "notify_resolved" if resolved else "notify_outages"
+    # Устройство получает пуш, если отключение в его радиусе от основной
+    # точки ИЛИ от любого включенного отслеживаемого места (у места свой
+    # радиус, tracked_places.radius_m). Выборка
+    # идет по users, поэтому при нескольких совпадениях пуш все равно один.
     result = await session.execute(
         text(f"""
-            SELECT fcm_token, web_push_subscription FROM users
-            WHERE (fcm_token IS NOT NULL OR web_push_subscription IS NOT NULL)
-              AND {pref_column}
-              AND latitude IS NOT NULL
-              AND longitude IS NOT NULL
-              AND ST_DWithin(
-                ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
-                ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
-                COALESCE(notify_radius_m, :default_radius_m)
+            SELECT u.fcm_token, u.web_push_subscription FROM users u
+            WHERE (u.fcm_token IS NOT NULL OR u.web_push_subscription IS NOT NULL)
+              AND u.{pref_column}
+              AND (
+                (
+                  u.latitude IS NOT NULL
+                  AND u.longitude IS NOT NULL
+                  AND ST_DWithin(
+                    ST_SetSRID(ST_MakePoint(u.longitude, u.latitude), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
+                    COALESCE(u.notify_radius_m, :default_radius_m)
+                  )
+                )
+                OR EXISTS (
+                  SELECT 1 FROM tracked_places p
+                  WHERE p.user_id = u.id
+                    AND p.enabled
+                    AND ST_DWithin(
+                      ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)::geography,
+                      ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
+                      p.radius_m
+                    )
+                )
               )
         """),
         {"lat": lat, "lon": lon, "default_radius_m": NOTIFY_RADIUS_M},

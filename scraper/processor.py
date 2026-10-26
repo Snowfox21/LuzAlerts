@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,19 @@ def build_geocode_queries(zona: str) -> list[str]:
 
     return result
 
+# Время отключений ANDE ("De 07:00 a 17:00") хранится как есть — местное
+# время Парагвая без пояса. Сравнивать его с datetime.utcnow() нельзя: UTC
+# на 3 часа впереди, и отключение до 17:00 закрывалось (с пушем "volvió la
+# luz") уже в 14:00. С октября 2024 Парагвай постоянно в UTC-3, без летнего
+# времени — фиксированное смещение надежнее старой tzdata в образе.
+PARAGUAY_TZ = timezone(timedelta(hours=-3))
+
+
+def paraguay_now() -> datetime:
+    """Текущее местное время Парагвая, naive — в той же шкале, что scheduled_*."""
+    return datetime.now(PARAGUAY_TZ).replace(tzinfo=None)
+
+
 def parse_spanish_date(title: str) -> datetime | None:
     """Extracts date from 'Trabajos programados en la Región... para el Martes, 24 de febrero de 2026'."""
     match = re.search(r"(\d{1,2})\s+de\s+([a-zA-Z]+)\s+de\s+(\d{4})", title, re.IGNORECASE)
@@ -121,7 +134,10 @@ async def mark_resolved_outages() -> None:
     )
     from sqlalchemy import select
 
-    now = datetime.utcnow()
+    # Для сравнения с scheduled_end — местное время; resolved_at, как и
+    # остальные служебные метки, остается в UTC.
+    now = paraguay_now()
+    resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
     async with AsyncSessionLocal() as session:
         stmt = select(Outage).where(
             Outage.scheduled_end != None,
@@ -136,7 +152,7 @@ async def mark_resolved_outages() -> None:
         notify_targets: list[tuple[float, float, str]] = []
         for outage in candidates:
             outage.status = OutageStatus.resolved
-            outage.resolved_at = now
+            outage.resolved_at = resolved_at
             if outage.latitude is not None and outage.longitude is not None:
                 notify_targets.append((outage.latitude, outage.longitude, outage.title))
 
@@ -229,8 +245,8 @@ async def normalize_and_save_outages(raw_outages: list[dict[str, Any]]) -> dict[
                 start_time, end_time = parse_time_range(horario, base_date)
 
             # Skip historical outages — ANDE keeps old articles on their site.
-            # Allow 1-day grace period to cover Paraguay's UTC-4 offset.
-            if end_time and end_time < datetime.utcnow() - timedelta(days=1):
+            # 1 день запаса, как и раньше; сравниваем в местном времени Парагвая.
+            if end_time and end_time < paraguay_now() - timedelta(days=1):
                 logger.info("Skipping historical outage '%s' (ended %s)", title, end_time)
                 continue
             if is_ande_row:
@@ -318,7 +334,7 @@ async def warn_if_no_upcoming_outages(stale_after_days: int = 2) -> None:
     from app.models import Outage, OutageSource
     from sqlalchemy import func, select
 
-    now = datetime.utcnow()
+    now = paraguay_now()  # scheduled_end — местное время Парагвая
     async with AsyncSessionLocal() as session:
         upcoming_stmt = select(func.count()).select_from(Outage).where(
             Outage.source == OutageSource.ande_official,

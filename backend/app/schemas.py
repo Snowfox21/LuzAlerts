@@ -1,8 +1,10 @@
 import json
+from typing import Literal
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
 
+from app.sharing import outage_share_url
 from app.sharing import share_url as build_share_url
 
 
@@ -77,6 +79,42 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ---------- Tracked places ----------
+
+# Та же рамка, что PARAGUAY_BOUNDS в mobile/src/utils/homeZone.ts:
+# отключения бывают только в Парагвае, следить за Мадридом бессмысленно.
+PY_LAT = (-27.7, -19.0)
+PY_LON = (-62.9, -54.1)
+
+
+PlaceRadius = Literal[1000, 2000, 5000, 10000]  # = models.PLACE_RADIUS_STEPS_M
+
+
+class TrackedPlaceCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=128, description="Подпись: \"Casa de mamá\", barrio и т.п.")
+    latitude: float = Field(..., ge=PY_LAT[0], le=PY_LAT[1])
+    longitude: float = Field(..., ge=PY_LON[0], le=PY_LON[1])
+    radius_m: PlaceRadius = Field(default=2000, description="Радиус пушей вокруг места, м")
+    enabled: bool = True
+
+
+class TrackedPlaceUpdate(BaseModel):
+    """PATCH: None = не менять."""
+    radius_m: PlaceRadius | None = None
+    enabled: bool | None = None
+
+
+class TrackedPlaceOut(BaseModel):
+    id: int
+    label: str
+    latitude: float
+    longitude: float
+    radius_m: int
+    enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
 # ---------- Geocode ----------
 
 class ReverseGeocodeOut(BaseModel):
@@ -86,6 +124,13 @@ class ReverseGeocodeOut(BaseModel):
     department: str | None = None
     house: str | None = None
     country_code: str | None = Field(default=None, description="ISO 3166-1 alpha-2, например PY")
+
+
+class ForwardGeocodeOut(BaseModel):
+    lat: float
+    lon: float
+    display_name: str | None = None
+    barrio: str | None = None
 
 
 # ---------- Outage ----------
@@ -107,6 +152,12 @@ class OutageOut(BaseModel):
     resolved_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def share_url(self) -> str:
+        """Ссылка для WhatsApp: страница /o/{id} с og-тегами для превью."""
+        return outage_share_url(self.id)
 
 
 # ---------- UserReport ----------

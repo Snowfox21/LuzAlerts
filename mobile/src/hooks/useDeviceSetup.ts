@@ -6,6 +6,7 @@ import apiClient from '../api/client';
 import { getWebPushSubscription, registerServiceWorker } from '../push/webPush';
 // Единая реализация id устройства: своя копия здесь давала гонку на старте
 import { getOrCreateDeviceId } from '../utils/device';
+import { zoneFromGps } from '../utils/homeZone';
 
 async function getExpoPushToken(): Promise<string | null> {
     // PWA пушится через Web Push (VAPID), не через Expo: см. getWebPushSubscription
@@ -54,11 +55,14 @@ export function useDeviceSetup() {
                     getUserLocation(),
                 ]);
 
+                // За границей или при зоне, выбранной руками, координаты не
+                // шлем: на сервере остается дом, и пуши о нем продолжают приходить.
+                const zone = location ? await zoneFromGps(location.latitude, location.longitude) : null;
                 const payload: Record<string, unknown> = {
                     device_id: deviceId,
                     fcm_token: pushToken,
-                    latitude: location?.latitude ?? null,
-                    longitude: location?.longitude ?? null,
+                    latitude: zone?.latitude ?? null,
+                    longitude: zone?.longitude ?? null,
                 };
 
                 if (Platform.OS === 'web') {

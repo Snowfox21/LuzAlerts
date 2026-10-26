@@ -90,6 +90,11 @@ export default function RootLayout() {
         const shared = segments.match(/^r\/([A-Za-z0-9]+)$/);
         if (shared) return `/r/${shared[1]}`;
 
+        // Официальное отключение: luzalerts://outage/123 и
+        // https://luzalerts.lat/o/123 (ссылка из WhatsApp).
+        const outage = segments.match(/^(?:outage|o)\/(\d+)$/);
+        if (outage) return `/outage/${outage[1]}`;
+
         return null;
     }, []);
 

@@ -21,6 +21,10 @@ luzalerts.lat {
     handle /r/* {
         reverse_proxy backend:8000
     }
+    # То же для официального отключения ANDE (шеринг семье в WhatsApp).
+    handle /o/* {
+        reverse_proxy backend:8000
+    }
     handle /subscriptions* {
         reverse_proxy backend:8000
     }
