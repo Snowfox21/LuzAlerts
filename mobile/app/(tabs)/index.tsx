@@ -55,6 +55,9 @@ export default function MapScreen() {
     // глобальные параметры: навигация идет на группу (tabs), сегмент может отличаться
     const { focusLat, focusLon } = useGlobalSearchParams<{ focusLat?: string; focusLon?: string }>();
     const pendingFocusRef = useRef<{ latitude: number; longitude: number } | null>(null);
+    // Карту открыли на конкретной точке (пуш, ссылка): стартовое
+    // позиционирование по GPS/"Mi zona" ее больше не перебивает.
+    const explicitFocusRef = useRef(false);
     const mapReadyRef = useRef(false);
     const savedRegionRef = useRef<Region>(ASUNCION);
     const restoringRegionRef = useRef(true);
@@ -134,6 +137,8 @@ export default function MapScreen() {
                 const pos = status === 'granted'
                     ? (await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
                     : null;
+                // GPS отвечает асинхронно и может опоздать к фокусу из пуша.
+                if (explicitFocusRef.current) return;
                 if (pos && isWithinParaguay(pos.coords.latitude, pos.coords.longitude)) {
                     saveRegion({
                         latitude: pos.coords.latitude,
@@ -145,6 +150,7 @@ export default function MapScreen() {
                 }
             } catch {}
             const region = await homeRegion();
+            if (explicitFocusRef.current) return;
             saveRegion(region);
             // Карта могла уже смонтироваться на Асунсьоне, пока ждали GPS.
             if (mapReadyRef.current) mapRef.current?.animateToRegion(region, 0);
@@ -206,6 +212,7 @@ export default function MapScreen() {
         const longitude = parseFloat(focusLon);
         if (Number.isNaN(latitude) || Number.isNaN(longitude)) return;
         pendingFocusRef.current = { latitude, longitude };
+        explicitFocusRef.current = true;
         // Убираем обработанные параметры, чтобы те же координаты можно было открыть повторно
         router.setParams({ focusLat: undefined, focusLon: undefined });
         applyFocus();
