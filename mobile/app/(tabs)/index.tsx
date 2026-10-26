@@ -13,6 +13,8 @@ import { OutageCard } from '../../src/components/OutageCard';
 import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 import { darkMapStyle } from '../../src/theme/mapStyle';
 import { getHomeZone, isWithinParaguay } from '../../src/utils/homeZone';
+import { shareOutage } from '../../src/share/outageShare';
+import { WhatsAppButton } from '../../src/share/WhatsAppButton';
 
 // react-native-maps на новой архитектуре не сообщает нативной стороне размер вьюхи маркера
 // (MapMarkerManager.updateExtraData вызывается только из шэдоу-ноды старой архитектуры),
@@ -391,15 +393,18 @@ export default function MapScreen() {
                             ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
                             : () => router.push(`/outage/${selectedOutage.id}`)}
                     />
-                    <TouchableOpacity
-                        style={styles.sheetAction}
-                        activeOpacity={0.8}
-                        onPress={selectedOutage.source === OutageSource.CROWDSOURCE
-                            ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
-                            : () => router.push(`/outage/${selectedOutage.id}`)}
-                    >
-                        <Text style={styles.sheetActionText}>Ver detalles</Text>
-                    </TouchableOpacity>
+                    <View style={styles.sheetActions}>
+                        <TouchableOpacity
+                            style={styles.sheetAction}
+                            activeOpacity={0.8}
+                            onPress={selectedOutage.source === OutageSource.CROWDSOURCE
+                                ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
+                                : () => router.push(`/outage/${selectedOutage.id}`)}
+                        >
+                            <Text style={styles.sheetActionText}>Ver detalles</Text>
+                        </TouchableOpacity>
+                        <WhatsAppButton compact label="Compartir" onPress={() => shareOutage(selectedOutage)} />
+                    </View>
                 </View>
             )}
         </View>
@@ -528,7 +533,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#475569',
         marginBottom: 2,
     },
+    sheetActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
     sheetAction: {
+        flex: 1,
         height: 44,
         alignItems: 'center',
         justifyContent: 'center',
@@ -539,6 +549,6 @@ const styles = StyleSheet.create({
     sheetActionText: {
         color: DS.text,
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: '500',
     },
 });
