@@ -77,6 +77,29 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ---------- Tracked places ----------
+
+# Та же рамка, что PARAGUAY_BOUNDS в mobile/src/utils/homeZone.ts:
+# отключения бывают только в Парагвае, следить за Мадридом бессмысленно.
+PY_LAT = (-27.7, -19.0)
+PY_LON = (-62.9, -54.1)
+
+
+class TrackedPlaceCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=128, description="Подпись: \"Casa de mamá\", barrio и т.п.")
+    latitude: float = Field(..., ge=PY_LAT[0], le=PY_LAT[1])
+    longitude: float = Field(..., ge=PY_LON[0], le=PY_LON[1])
+
+
+class TrackedPlaceOut(BaseModel):
+    id: int
+    label: str
+    latitude: float
+    longitude: float
+
+    model_config = {"from_attributes": True}
+
+
 # ---------- Geocode ----------
 
 class ReverseGeocodeOut(BaseModel):

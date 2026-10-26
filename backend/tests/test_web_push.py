@@ -113,3 +113,24 @@ async def test_notify_respects_user_preferences(db, pref_users, fake_webpush):
     await notifications.notify_users_near_outage(db, -25.30, -57.62, "Volvió", resolved=True)
     got = sorted(c[0]["endpoint"].rsplit("/", 1)[1] for c in fake_webpush)
     assert got == ["default", "no-outages"]
+
+
+@pytest.mark.asyncio
+async def test_notify_via_tracked_place(db, fake_webpush):
+    from app.models import TrackedPlace
+
+    # Человек в Мадриде (основная точка далеко), но следит за домом мамы.
+    abroad = User(device_id="abroad", web_push_subscription=SUB_OK.replace("/ok", "/abroad"), latitude=40.41, longitude=-3.70)
+    db.add(abroad)
+    await db.commit()
+    db.add(TrackedPlace(user_id=abroad.id, label="Casa de mamá", latitude=-25.2637, longitude=-57.5759))
+    # Два места рядом с отключением — пуш все равно один.
+    db.add(TrackedPlace(user_id=abroad.id, label="Abuela", latitude=-25.2640, longitude=-57.5760))
+    await db.commit()
+    try:
+        await notifications.notify_users_near_outage(db, -25.2637, -57.5759, "Corte")
+        endpoints = [c[0]["endpoint"] for c in fake_webpush]
+        assert endpoints.count("https://web.push.apple.com/abroad") == 1
+    finally:
+        await db.delete(abroad)
+        await db.commit()

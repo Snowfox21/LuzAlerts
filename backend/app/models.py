@@ -150,6 +150,26 @@ class Subscription(Base):
     user: Mapped["User"] = relationship(back_populates="subscriptions")
 
 
+class TrackedPlace(Base):
+    """Дополнительное место, за которым следит устройство (дом родных и т.п.).
+
+    Пуши уходят и по нему, вдобавок к основной точке users.latitude/longitude.
+    Не больше MAX_TRACKED_PLACES на устройство — это защита рассылки, а не
+    ограничение продукта: "дом + 1-2 места" покрывает семью.
+    """
+    __tablename__ = "tracked_places"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str] = mapped_column(String(128))
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+MAX_TRACKED_PLACES = 2
+
+
 class ScraperRun(Base):
     """One observable scraper attempt, including pre-filter source metrics."""
 

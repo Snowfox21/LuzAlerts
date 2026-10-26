@@ -9,17 +9,16 @@ import {
     StyleSheet,
     Switch,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
-import { Bell, ChevronRight, Download, Info, Map, MapPin, Plus, Shield, Trash2, X, Zap } from 'lucide-react-native';
+import { Bell, ChevronRight, Download, Info, MapPin, Shield, Trash2, Zap } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
-import { reverseGeocode } from '../../src/utils/reverseGeocode';
-import { getHomeZone, HOME_ZONE_KEY, isWithinParaguay, setHomeZone } from '../../src/utils/homeZone';
+import { getHomeZone, HOME_ZONE_KEY } from '../../src/utils/homeZone';
+import { HomeZoneEditor } from '../../src/places/HomeZoneEditor';
+import { TrackedPlacesEditor } from '../../src/places/TrackedPlacesEditor';
 import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
@@ -53,35 +52,12 @@ const LEGACY_ZONE_LABEL_KEY = '@luzalerts_zone_label';
 // Онбординг и проверку обновлений не трогаем — это не данные человека.
 const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports'];
 
-async function describeLocation(latitude: number, longitude: number): Promise<string> {
-    try {
-        const place = await reverseGeocode(latitude, longitude);
-        const parts = [place?.district ?? place?.subregion, place?.city ?? place?.region].filter(Boolean);
-        if (parts.length) return Array.from(new Set(parts)).join(', ');
-    } catch {}
-    // Адрес не определился (нет сети, Nominatim недоступен) — хотя бы координаты.
-    return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-}
-
-interface Subscription {
-    id: number;
-    barrio: string | null;
-    feeder_number: string | null;
-}
-
 export default function SettingsScreen() {
-    const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-    const [loadingSubs, setLoadingSubs] = useState(true);
-    const [addingBarrio, setAddingBarrio] = useState(false);
-    const [barrioInput, setBarrioInput] = useState('');
-    const [submittingBarrio, setSubmittingBarrio] = useState(false);
-    const [deletingId, setDeletingId] = useState<number | null>(null);
     const [prefs, setPrefs] = useState<NotifyPrefs>(DEFAULT_PREFS);
     const [zoneLabel, setZoneLabel] = useState<string | null>(null);
-    const [locating, setLocating] = useState(false);
-    const [zoneOutsidePy, setZoneOutsidePy] = useState(false);
     const [editingZone, setEditingZone] = useState(false);
-    const [zoneQuery, setZoneQuery] = useState('');
+    // Смена ключа перечитывает список мест (после "Eliminar mis datos").
+    const [placesKey, setPlacesKey] = useState(0);
     const [deletingData, setDeletingData] = useState(false);
     const [deviceId, setDeviceId] = useState('');
     const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -112,7 +88,6 @@ export default function SettingsScreen() {
     }, []);
 
     useEffect(() => {
-        fetchSubscriptions();
         loadPrefs();
         getOrCreateDeviceId().then(id => setDeviceId(id.slice(0, 8).toUpperCase())).catch(() => {});
     }, []);
@@ -132,68 +107,6 @@ export default function SettingsScreen() {
         }
     };
 
-    // Зону выбрали руками — сохраняем на сервере (точка для пушей) и
-    // локально (на нее открывается карта, если телефон за границей).
-    const saveZone = async (latitude: number, longitude: number, label: string) => {
-        const id = await getOrCreateDeviceId();
-        await apiClient.post('/users/', { device_id: id, latitude, longitude });
-        await setHomeZone({ latitude, longitude, label, manual: true });
-        setZoneLabel(label);
-        setEditingZone(false);
-        setZoneQuery('');
-    };
-
-    // "Cambiar" → "Usar mi ubicación": только внутри Парагвая. За границей
-    // GPS дал бы точку, где отключений не бывает, и пуши о доме пропали бы.
-    const applyGpsZone = async () => {
-        if (locating) return;
-        setLocating(true);
-        setZoneOutsidePy(false);
-        try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert('Permiso denegado', 'Sin permiso de ubicación podés buscar tu zona por dirección.');
-                return;
-            }
-            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            const { latitude, longitude } = pos.coords;
-            if (!isWithinParaguay(latitude, longitude)) {
-                setZoneOutsidePy(true);
-                return;
-            }
-            await saveZone(latitude, longitude, await describeLocation(latitude, longitude));
-        } catch {
-            Alert.alert('Ubicación no disponible', 'Asegurate de que el GPS esté encendido y tengas conexión.');
-        } finally {
-            setLocating(false);
-        }
-    };
-
-    // Поиск зоны по адресу: для тех, кто за границей следит за домом
-    // или выставляет зону родным.
-    const searchZone = async () => {
-        const q = zoneQuery.trim();
-        if (q.length < 3 || locating) return;
-        setLocating(true);
-        try {
-            const { data } = await apiClient.get<{ lat: number; lon: number; display_name: string | null; barrio: string | null }>(
-                '/geocode/search',
-                { params: { q } },
-            );
-            const parts = (data.display_name ?? q).split(',').map(p => p.trim()).filter(Boolean);
-            const label = parts.slice(0, 2).join(', ') || q;
-            await saveZone(data.lat, data.lon, label);
-        } catch (err: any) {
-            if (err?.response?.status === 404) {
-                Alert.alert('No encontrada', 'No encontramos esa dirección en Paraguay. Probá con barrio y ciudad, por ejemplo "Villa Morra, Asunción".');
-            } else {
-                Alert.alert('Sin conexión', 'No pudimos buscar la dirección. Probá de nuevo.');
-            }
-        } finally {
-            setLocating(false);
-        }
-    };
-
     const eraseMyData = async () => {
         setDeletingData(true);
         try {
@@ -204,13 +117,13 @@ export default function SettingsScreen() {
             await apiClient.delete(`/users/${id}/data`);
             await AsyncStorage.multiRemove(LOCAL_DATA_KEYS).catch(() => {});
             await resetDeviceId();
-            setSubscriptions([]);
+            setPlacesKey(k => k + 1);
             setPrefs(DEFAULT_PREFS);
             setZoneLabel(null);
             setEditingZone(false);
             const newId = await getOrCreateDeviceId();
             setDeviceId(newId.slice(0, 8).toUpperCase());
-            Alert.alert('Datos eliminados', 'Borramos tus reportes, barrios, comentarios y ajustes del servidor.');
+            Alert.alert('Datos eliminados', 'Borramos tus reportes, lugares, comentarios y ajustes del servidor.');
         } catch {
             Alert.alert('Error', 'No se pudieron eliminar tus datos. Probá de nuevo.');
         } finally {
@@ -222,7 +135,7 @@ export default function SettingsScreen() {
         if (deletingData) return;
         Alert.alert(
             '¿Eliminar mis datos?',
-            'Se borrarán tus reportes, barrios, comentarios y ajustes. No se puede deshacer.',
+            'Se borrarán tus reportes, lugares, comentarios y ajustes. No se puede deshacer.',
             [
                 { text: 'Cancelar', style: 'cancel' },
                 { text: 'Eliminar', style: 'destructive', onPress: eraseMyData },
@@ -233,53 +146,6 @@ export default function SettingsScreen() {
     const radiusKm = prefs.notify_radius_m / 1000;
     const radiusIndex = Math.max(0, RADIUS_STEPS_KM.indexOf(radiusKm));
     const radiusPercent = `${(radiusIndex / (RADIUS_STEPS_KM.length - 1)) * 100}%` as const;
-
-    const fetchSubscriptions = useCallback(async () => {
-        setLoadingSubs(true);
-        try {
-            const id = await getOrCreateDeviceId();
-            const res = await apiClient.get<Subscription[]>(`/subscriptions/?device_id=${id}`);
-            setSubscriptions((res.data || []).filter(s => s.barrio));
-        } catch {
-            // No subscriptions yet or backend unreachable.
-        } finally {
-            setLoadingSubs(false);
-        }
-    }, []);
-
-    const addBarrio = async () => {
-        const barrio = barrioInput.trim();
-        if (!barrio) return;
-        setSubmittingBarrio(true);
-        try {
-            const id = await getOrCreateDeviceId();
-            try {
-                await apiClient.post('/users/', { device_id: id });
-            } catch {}
-            await apiClient.post('/subscriptions/', { device_id: id, barrio });
-            setBarrioInput('');
-            setAddingBarrio(false);
-            await fetchSubscriptions();
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail;
-            Alert.alert('Error', detail || 'No se pudo agregar la suscripción.');
-        } finally {
-            setSubmittingBarrio(false);
-        }
-    };
-
-    const deleteSubscription = async (id: number) => {
-        setDeletingId(id);
-        try {
-            const currentDeviceId = await getOrCreateDeviceId();
-            await apiClient.delete(`/subscriptions/${id}?device_id=${currentDeviceId}`);
-            setSubscriptions(prev => prev.filter(s => s.id !== id));
-        } catch {
-            Alert.alert('Error', 'No se pudo eliminar la suscripción.');
-        } finally {
-            setDeletingId(null);
-        }
-    };
 
     // Ручная проверка: игнорирует и суточный интервал, и ранее нажатое
     // "Después" — человек пришел за обновлением осознанно.
@@ -304,6 +170,27 @@ export default function SettingsScreen() {
         <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScreenHeader title="Ajustes" />
             <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                {/* Первым блоком: "где я получаю avisos" — главное, что человек
+                    настраивает, особенно если следит за домом родных. */}
+                <SettingSection title="Mis lugares">
+                    <SettingRow
+                        icon={<MapPin size={20} color={DS.amber} />}
+                        label="Mi zona"
+                        sub={zoneLabel ?? 'Elegí dónde querés recibir avisos'}
+                        right={<Text style={styles.link}>{editingZone ? 'Cerrar' : 'Cambiar'}</Text>}
+                        onPress={() => setEditingZone(v => !v)}
+                    />
+                    {editingZone && (
+                        <View style={styles.zonePanel}>
+                            <HomeZoneEditor onSaved={place => { setZoneLabel(place.label); setEditingZone(false); }} />
+                        </View>
+                    )}
+                    <Text style={styles.placesHint}>
+                        También te avisamos de cortes cerca de estos lugares — por ejemplo, la casa de tus padres.
+                    </Text>
+                    <TrackedPlacesEditor reloadKey={placesKey} />
+                </SettingSection>
+
                 <SettingSection title="Notificaciones">
                     {/* PWA (iOS): включение Web Push только по тапу — iOS не
                         дает спросить разрешение без жеста пользователя. */}
@@ -341,98 +228,6 @@ export default function SettingsScreen() {
                             ))}
                         </View>
                     </View>
-                </SettingSection>
-
-                <SettingSection title="Ubicación">
-                    <SettingRow
-                        icon={<MapPin size={20} color={DS.amber} />}
-                        label="Mi zona"
-                        sub={zoneLabel ?? 'Elegí dónde querés recibir avisos'}
-                        right={locating && !editingZone ? <ActivityIndicator size="small" color={DS.amber} /> : <Text style={styles.link}>{editingZone ? 'Cerrar' : 'Cambiar'}</Text>}
-                        onPress={() => { setEditingZone(v => !v); setZoneOutsidePy(false); }}
-                    />
-                    {editingZone && (
-                        <View style={styles.zonePanel}>
-                            <TouchableOpacity style={styles.zoneGpsButton} onPress={applyGpsZone} disabled={locating}>
-                                <MapPin size={16} color={DS.amber} />
-                                <Text style={styles.addBarrioText}>Usar mi ubicación actual</Text>
-                            </TouchableOpacity>
-                            {zoneOutsidePy && (
-                                <Text style={styles.zoneHint}>
-                                    Estás fuera de Paraguay. Buscá tu casa (o la de tu familia) por dirección y te avisamos de los cortes ahí.
-                                </Text>
-                            )}
-                            <Text style={styles.zoneHint}>O buscá por dirección:</Text>
-                            <View style={styles.zoneSearchRow}>
-                                <TextInput
-                                    style={styles.barrioInput}
-                                    value={zoneQuery}
-                                    onChangeText={setZoneQuery}
-                                    placeholder="Ej: Villa Morra, Asunción"
-                                    placeholderTextColor={DS.textMuted}
-                                    returnKeyType="search"
-                                    onSubmitEditing={searchZone}
-                                />
-                                <TouchableOpacity style={[styles.saveButton, (locating || zoneQuery.trim().length < 3) && { opacity: 0.6 }]} onPress={searchZone} disabled={locating || zoneQuery.trim().length < 3}>
-                                    {locating ? <ActivityIndicator color={DS.ink} size="small" /> : <Text style={styles.saveText}>Buscar</Text>}
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-                    <SettingRow
-                        icon={<Map size={20} color={DS.textMuted} />}
-                        label="Zonas adicionales"
-                        sub="Barrios de los que también querés recibir avisos."
-                        right={<Badge value={subscriptions.length} />}
-                        onPress={() => setAddingBarrio(true)}
-                    />
-                </SettingSection>
-
-                <SettingSection title="Mis barrios">
-                    {loadingSubs ? (
-                        <ActivityIndicator color={DS.amber} style={styles.loader} />
-                    ) : subscriptions.length === 0 && !addingBarrio ? (
-                        <Text style={styles.emptyText}>No estás suscripto a ningún barrio todavía.</Text>
-                    ) : (
-                        subscriptions.map(sub => (
-                            <View key={sub.id} style={styles.barrioRow}>
-                                <Text style={styles.barrioText}>{sub.barrio}</Text>
-                                {deletingId === sub.id ? (
-                                    <ActivityIndicator size="small" color={DS.textMuted} />
-                                ) : (
-                                    <TouchableOpacity onPress={() => deleteSubscription(sub.id)}>
-                                        <X size={20} color={DS.textMuted} />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        ))
-                    )}
-
-                    {addingBarrio ? (
-                        <View style={styles.addRow}>
-                            <TextInput
-                                style={styles.barrioInput}
-                                value={barrioInput}
-                                onChangeText={setBarrioInput}
-                                placeholder="Ej: Villa Morra"
-                                placeholderTextColor={DS.textMuted}
-                                autoFocus
-                                returnKeyType="done"
-                                onSubmitEditing={addBarrio}
-                            />
-                            <TouchableOpacity style={[styles.saveButton, submittingBarrio && { opacity: 0.6 }]} onPress={addBarrio} disabled={submittingBarrio}>
-                                {submittingBarrio ? <ActivityIndicator color={DS.ink} size="small" /> : <Text style={styles.saveText}>OK</Text>}
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => { setAddingBarrio(false); setBarrioInput(''); }}>
-                                <X size={20} color={DS.textMuted} />
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <TouchableOpacity style={styles.addBarrioButton} onPress={() => setAddingBarrio(true)}>
-                            <Plus size={18} color={DS.amber} />
-                            <Text style={styles.addBarrioText}>Agregar barrio</Text>
-                        </TouchableOpacity>
-                    )}
                 </SettingSection>
 
                 {/* Самообновление = сайдлоад APK, в PWA смысла не имеет:
@@ -511,17 +306,6 @@ function SettingRow({
             </View>
             {right}
         </Wrapper>
-    );
-}
-
-function Badge({ value }: { value: number }) {
-    return (
-        <View style={styles.badgeWrap}>
-            <View style={styles.badge}>
-                <Text style={styles.badgeText}>{value}</Text>
-            </View>
-            <ChevronRight size={16} color={DS.textMuted} />
-        </View>
     );
 }
 
@@ -620,109 +404,18 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
     },
-    badgeWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    badge: {
-        borderRadius: 10,
-        paddingHorizontal: 7,
-        paddingVertical: 2,
-        backgroundColor: DS.amber,
-    },
-    badgeText: {
-        color: DS.ink,
-        fontSize: 11,
-        fontWeight: '800',
-    },
-    loader: {
-        padding: 16,
-    },
-    emptyText: {
-        color: DS.textMuted,
-        fontSize: 14,
-        padding: 16,
-        textAlign: 'center',
-    },
-    barrioRow: {
-        minHeight: 48,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: DS.border,
-    },
-    barrioText: {
-        flex: 1,
-        color: DS.text,
-        fontSize: 15,
-    },
-    addRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        padding: 12,
-    },
-    barrioInput: {
-        flex: 1,
-        minHeight: 42,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: DS.border,
-        color: DS.text,
-        backgroundColor: DS.bg,
-        paddingHorizontal: 10,
-        fontSize: 14,
-    },
-    saveButton: {
-        minWidth: 58,
-        height: 38,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: DS.amber,
-    },
-    saveText: {
-        color: DS.ink,
-        fontSize: 13,
-        fontWeight: '800',
-    },
     zonePanel: {
         paddingHorizontal: 16,
         paddingVertical: 12,
-        gap: 8,
         borderBottomWidth: 1,
         borderBottomColor: DS.border,
     },
-    zoneGpsButton: {
-        minHeight: 40,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    zoneHint: {
+    placesHint: {
         color: DS.textMuted,
         fontSize: 12,
         lineHeight: 17,
-    },
-    zoneSearchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    addBarrioButton: {
-        minHeight: 48,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
         paddingHorizontal: 16,
-    },
-    addBarrioText: {
-        color: DS.amber,
-        fontSize: 15,
-        fontWeight: '700',
+        paddingTop: 12,
     },
     footer: {
         alignItems: 'center',
