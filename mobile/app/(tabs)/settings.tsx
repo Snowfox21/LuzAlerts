@@ -19,6 +19,7 @@ import { Bell, ChevronRight, Download, Info, Map, MapPin, Plus, Shield, Trash2, 
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
 import { reverseGeocode } from '../../src/utils/reverseGeocode';
+import { getHomeZone, HOME_ZONE_KEY, isWithinParaguay, setHomeZone } from '../../src/utils/homeZone';
 import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
@@ -45,11 +46,12 @@ const DEFAULT_PREFS: NotifyPrefs = { notify_outages: true, notify_resolved: true
 // Локальная копия настроек и подписи зоны: экран рисуется сразу, без
 // ожидания сети, а без связи показывает последнее сохраненное.
 const PREFS_KEY = '@luzalerts_notify_prefs';
-const ZONE_LABEL_KEY = '@luzalerts_zone_label';
+// Подпись зоны из 1.2.4 до появления HOME_ZONE_KEY: читаем как запасную.
+const LEGACY_ZONE_LABEL_KEY = '@luzalerts_zone_label';
 
 // Что стирает "Eliminar mis datos" на устройстве, помимо id.
 // Онбординг и проверку обновлений не трогаем — это не данные человека.
-const LOCAL_DATA_KEYS = [PREFS_KEY, ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports'];
+const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports'];
 
 async function describeLocation(latitude: number, longitude: number): Promise<string> {
     try {
@@ -77,6 +79,9 @@ export default function SettingsScreen() {
     const [prefs, setPrefs] = useState<NotifyPrefs>(DEFAULT_PREFS);
     const [zoneLabel, setZoneLabel] = useState<string | null>(null);
     const [locating, setLocating] = useState(false);
+    const [zoneOutsidePy, setZoneOutsidePy] = useState(false);
+    const [editingZone, setEditingZone] = useState(false);
+    const [zoneQuery, setZoneQuery] = useState('');
     const [deletingData, setDeletingData] = useState(false);
     const [deviceId, setDeviceId] = useState('');
     const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -86,7 +91,10 @@ export default function SettingsScreen() {
         try {
             const cached = await AsyncStorage.getItem(PREFS_KEY);
             if (cached) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(cached) });
-            setZoneLabel(await AsyncStorage.getItem(ZONE_LABEL_KEY));
+            const home = await getHomeZone();
+            setZoneLabel(home
+                ? home.label ?? (home.manual ? 'Zona elegida' : 'Tu ubicación actual')
+                : await AsyncStorage.getItem(LEGACY_ZONE_LABEL_KEY));
         } catch {}
         try {
             const id = await getOrCreateDeviceId();
@@ -124,25 +132,63 @@ export default function SettingsScreen() {
         }
     };
 
-    // "Cambiar": зона уведомлений — текущее местоположение устройства.
-    const updateZone = async () => {
+    // Зону выбрали руками — сохраняем на сервере (точка для пушей) и
+    // локально (на нее открывается карта, если телефон за границей).
+    const saveZone = async (latitude: number, longitude: number, label: string) => {
+        const id = await getOrCreateDeviceId();
+        await apiClient.post('/users/', { device_id: id, latitude, longitude });
+        await setHomeZone({ latitude, longitude, label, manual: true });
+        setZoneLabel(label);
+        setEditingZone(false);
+        setZoneQuery('');
+    };
+
+    // "Cambiar" → "Usar mi ubicación": только внутри Парагвая. За границей
+    // GPS дал бы точку, где отключений не бывает, и пуши о доме пропали бы.
+    const applyGpsZone = async () => {
         if (locating) return;
         setLocating(true);
+        setZoneOutsidePy(false);
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permiso denegado', 'Necesitamos tu ubicación para avisarte de cortes cerca tuyo.');
+                Alert.alert('Permiso denegado', 'Sin permiso de ubicación podés buscar tu zona por dirección.');
                 return;
             }
             const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const { latitude, longitude } = pos.coords;
-            const id = await getOrCreateDeviceId();
-            await apiClient.post('/users/', { device_id: id, latitude, longitude });
-            const label = await describeLocation(latitude, longitude);
-            setZoneLabel(label);
-            AsyncStorage.setItem(ZONE_LABEL_KEY, label).catch(() => {});
+            if (!isWithinParaguay(latitude, longitude)) {
+                setZoneOutsidePy(true);
+                return;
+            }
+            await saveZone(latitude, longitude, await describeLocation(latitude, longitude));
         } catch {
             Alert.alert('Ubicación no disponible', 'Asegurate de que el GPS esté encendido y tengas conexión.');
+        } finally {
+            setLocating(false);
+        }
+    };
+
+    // Поиск зоны по адресу: для тех, кто за границей следит за домом
+    // или выставляет зону родным.
+    const searchZone = async () => {
+        const q = zoneQuery.trim();
+        if (q.length < 3 || locating) return;
+        setLocating(true);
+        try {
+            const { data } = await apiClient.get<{ lat: number; lon: number; display_name: string | null; barrio: string | null }>(
+                '/geocode/search',
+                { params: { q } },
+            );
+            const parts = (data.display_name ?? q).split(',').map(p => p.trim()).filter(Boolean);
+            const label = parts.slice(0, 2).join(', ') || q;
+            await saveZone(data.lat, data.lon, label);
+        } catch (err: any) {
+            if (err?.response?.status === 404) {
+                Alert.alert('No encontrada', 'No encontramos esa dirección en Paraguay. Probá con barrio y ciudad, por ejemplo "Villa Morra, Asunción".');
+            } else {
+                Alert.alert('Sin conexión', 'No pudimos buscar la dirección. Probá de nuevo.');
+            }
         } finally {
             setLocating(false);
         }
@@ -161,6 +207,7 @@ export default function SettingsScreen() {
             setSubscriptions([]);
             setPrefs(DEFAULT_PREFS);
             setZoneLabel(null);
+            setEditingZone(false);
             const newId = await getOrCreateDeviceId();
             setDeviceId(newId.slice(0, 8).toUpperCase());
             Alert.alert('Datos eliminados', 'Borramos tus reportes, barrios, comentarios y ajustes del servidor.');
@@ -299,11 +346,39 @@ export default function SettingsScreen() {
                 <SettingSection title="Ubicación">
                     <SettingRow
                         icon={<MapPin size={20} color={DS.amber} />}
-                        label="Mi zona actual"
-                        sub={zoneLabel ?? 'Tocá para usar tu ubicación actual'}
-                        right={locating ? <ActivityIndicator size="small" color={DS.amber} /> : <Text style={styles.link}>Cambiar</Text>}
-                        onPress={updateZone}
+                        label="Mi zona"
+                        sub={zoneLabel ?? 'Elegí dónde querés recibir avisos'}
+                        right={locating && !editingZone ? <ActivityIndicator size="small" color={DS.amber} /> : <Text style={styles.link}>{editingZone ? 'Cerrar' : 'Cambiar'}</Text>}
+                        onPress={() => { setEditingZone(v => !v); setZoneOutsidePy(false); }}
                     />
+                    {editingZone && (
+                        <View style={styles.zonePanel}>
+                            <TouchableOpacity style={styles.zoneGpsButton} onPress={applyGpsZone} disabled={locating}>
+                                <MapPin size={16} color={DS.amber} />
+                                <Text style={styles.addBarrioText}>Usar mi ubicación actual</Text>
+                            </TouchableOpacity>
+                            {zoneOutsidePy && (
+                                <Text style={styles.zoneHint}>
+                                    Estás fuera de Paraguay. Buscá tu casa (o la de tu familia) por dirección y te avisamos de los cortes ahí.
+                                </Text>
+                            )}
+                            <Text style={styles.zoneHint}>O buscá por dirección:</Text>
+                            <View style={styles.zoneSearchRow}>
+                                <TextInput
+                                    style={styles.barrioInput}
+                                    value={zoneQuery}
+                                    onChangeText={setZoneQuery}
+                                    placeholder="Ej: Villa Morra, Asunción"
+                                    placeholderTextColor={DS.textMuted}
+                                    returnKeyType="search"
+                                    onSubmitEditing={searchZone}
+                                />
+                                <TouchableOpacity style={[styles.saveButton, (locating || zoneQuery.trim().length < 3) && { opacity: 0.6 }]} onPress={searchZone} disabled={locating || zoneQuery.trim().length < 3}>
+                                    {locating ? <ActivityIndicator color={DS.ink} size="small" /> : <Text style={styles.saveText}>Buscar</Text>}
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
                     <SettingRow
                         icon={<Map size={20} color={DS.textMuted} />}
                         label="Zonas adicionales"
@@ -613,6 +688,29 @@ const styles = StyleSheet.create({
         color: DS.ink,
         fontSize: 13,
         fontWeight: '800',
+    },
+    zonePanel: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: DS.border,
+    },
+    zoneGpsButton: {
+        minHeight: 40,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    zoneHint: {
+        color: DS.textMuted,
+        fontSize: 12,
+        lineHeight: 17,
+    },
+    zoneSearchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     addBarrioButton: {
         minHeight: 48,

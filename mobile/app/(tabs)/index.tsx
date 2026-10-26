@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { MapMarker, Marker, MapPressEvent, Region } from '../../src/maps';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -12,6 +12,7 @@ import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
 import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 import { darkMapStyle } from '../../src/theme/mapStyle';
+import { getHomeZone, isWithinParaguay } from '../../src/utils/homeZone';
 
 // react-native-maps на новой архитектуре не сообщает нативной стороне размер вьюхи маркера
 // (MapMarkerManager.updateExtraData вызывается только из шэдоу-ноды старой архитектуры),
@@ -112,24 +113,38 @@ export default function MapScreen() {
         }
     };
 
+    // Куда смотреть, если телефон не в Парагвае (или геолокации нет):
+    // на "Mi zona" из Ajustes, иначе на Асунсьон. Отключения бывают только
+    // в Парагвае, и карта вокруг Мадрида выглядела бы просто пустой.
+    const homeRegion = useCallback(async (): Promise<Region> => {
+        const home = await getHomeZone();
+        return home ? { latitude: home.latitude, longitude: home.longitude, latitudeDelta: 0.1, longitudeDelta: 0.1 } : ASUNCION;
+    }, []);
+
     useEffect(() => {
         fetchOutages();
-        Location.requestForegroundPermissionsAsync().then(({ status }) => {
-            if (status !== 'granted') return;
-            Location.getLastKnownPositionAsync()
-                .then(pos => pos ?? Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
-                .then(pos => {
-                    if (!pos) return;
+        (async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                const pos = status === 'granted'
+                    ? (await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }))
+                    : null;
+                if (pos && isWithinParaguay(pos.coords.latitude, pos.coords.longitude)) {
                     saveRegion({
                         latitude: pos.coords.latitude,
                         longitude: pos.coords.longitude,
                         latitudeDelta: 0.1,
                         longitudeDelta: 0.1,
                     });
-                })
-                .catch(() => {});
-        });
-    }, [saveRegion]);
+                    return;
+                }
+            } catch {}
+            const region = await homeRegion();
+            saveRegion(region);
+            // Карта могла уже смонтироваться на Асунсьоне, пока ждали GPS.
+            if (mapReadyRef.current) mapRef.current?.animateToRegion(region, 0);
+        })();
+    }, [saveRegion, homeRegion]);
 
     useEffect(() => {
         const interval = setInterval(fetchOutages, 5 * 60 * 1000);
@@ -210,6 +225,13 @@ export default function MapScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!isWithinParaguay(pos.coords.latitude, pos.coords.longitude)) {
+            const home = await homeRegion();
+            saveRegion(home);
+            mapRef.current?.animateToRegion(home, 650);
+            Alert.alert('Estás fuera de Paraguay', 'LuzAlerts muestra cortes solo en Paraguay, así que te llevamos a tu zona. Podés cambiarla en Ajustes.');
+            return;
+        }
         const region = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,

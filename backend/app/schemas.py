@@ -88,6 +88,13 @@ class ReverseGeocodeOut(BaseModel):
     country_code: str | None = Field(default=None, description="ISO 3166-1 alpha-2, например PY")
 
 
+class ForwardGeocodeOut(BaseModel):
+    lat: float
+    lon: float
+    display_name: str | None = None
+    barrio: str | None = None
+
+
 # ---------- Outage ----------
 
 class OutageOut(BaseModel):

@@ -54,10 +54,11 @@ async def reverse_geocode(lat: float, lon: float) -> dict:
     }
 
 
-async def forward_geocode(address: str) -> dict:
+async def forward_geocode(address: str, country: str | None = None) -> dict:
     """
     Запрашивает OSM Nominatim для получения координат по адресу.
-    Возвращает словарь с ключами: lat, lon, display_name.
+    Возвращает словарь с ключами: lat, lon, display_name, barrio.
+    country — ISO-код (например "py"), чтобы искать только в этой стране.
     """
     params = {
         "q": address,
@@ -65,6 +66,8 @@ async def forward_geocode(address: str) -> dict:
         "limit": 1,
         "addressdetails": 1,
     }
+    if country:
+        params["countrycodes"] = country
     headers = {
         "User-Agent": f"LuzAlerts/1.0 ({settings.NOMINATIM_EMAIL})",
         "Accept-Language": "es",
