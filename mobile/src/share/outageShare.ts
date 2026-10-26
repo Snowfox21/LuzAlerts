@@ -1,4 +1,4 @@
-import { Linking, Share } from 'react-native';
+import { Alert, Linking, Share } from 'react-native';
 
 import apiClient from '../api/client';
 import { Outage, OutageSource, OutageStatus } from '../api/types';
@@ -29,8 +29,19 @@ const STATUS_LINE: Record<OutageStatus, string> = {
 const pad = (n: number) => String(n).padStart(2, '0');
 const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
+/**
+ * Текущее время Парагвая (UTC-3, без летнего времени с 2024) как локальный
+ * Date: его getDate()/getHours() показывают парагвайские часы. В той же шкале
+ * parseApiLocalDate разбирает расписание ANDE (оно без пояса), так что
+ * "hoy"/"mañana" верны и когда отправитель за границей.
+ */
+export function paraguayNow(nowMs = Date.now()): Date {
+    const offsetMin = new Date(nowMs).getTimezoneOffset(); // для UTC-3 это 180
+    return new Date(nowMs + (offsetMin - 180) * 60000);
+}
+
 /** "hoy", "mañana" или "jue 30/10" — так пишут в семейном чате, не "30.10.2026". */
-function dayLabel(d: Date, now = new Date()): string {
+function dayLabel(d: Date, now = paraguayNow()): string {
     const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const days = Math.round((startOf(d) - startOf(now)) / 86400000);
     if (days === 0) return 'hoy';
@@ -75,17 +86,27 @@ export function buildOutageShareMessage(outage: Outage, url: string): string {
  */
 export async function shareOutage(outage: Outage, via: 'whatsapp' | 'sheet' = 'whatsapp'): Promise<boolean> {
     if (outage.source === OutageSource.CROWDSOURCE && outage.id > CROWDSOURCE_ID_OFFSET) {
+        // Вечинальная метка: id синтетический, ссылки /o/{id} для нее нет
+        // (бэкенд ищет там только корты ANDE — был бы 404). Только /r/{code}.
         const reportId = outage.id - CROWDSOURCE_ID_OFFSET;
-        try {
-            const { data } = await apiClient.get<{ share_url?: string | null; barrio?: string | null; city?: string | null }>(
-                `/reports/${reportId}`,
-            );
-            if (data?.share_url) {
-                return shareWithFallback({ reportId, url: data.share_url, place: data.barrio ?? data.city });
+        let url = outage.share_url ?? null;
+        let place: string | null | undefined = outage.barrio;
+        if (!url) {
+            try {
+                const { data } = await apiClient.get<{ share_url?: string | null; barrio?: string | null; city?: string | null }>(
+                    `/reports/${reportId}`,
+                );
+                url = data?.share_url ?? null;
+                place = data?.barrio ?? data?.city ?? place;
+            } catch {
+                // Нет сети — ниже честно говорим, что ссылки нет.
             }
-        } catch {
-            // Нет сети или старая метка без кода — шерим как обычный корт.
         }
+        if (!url) {
+            Alert.alert('No se pudo compartir', 'No pudimos obtener el enlace de este reporte. Probá de nuevo en un rato.');
+            return false;
+        }
+        return shareWithFallback({ reportId, url, place });
     }
 
     const message = buildOutageShareMessage(outage, outageShareUrl(outage));

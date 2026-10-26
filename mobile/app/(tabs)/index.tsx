@@ -102,6 +102,9 @@ export default function MapScreen() {
                         created_at: r.created_at,
                         latitude: r.latitude,
                         longitude: r.longitude,
+                        // Ссылка метки (/r/{code}): id здесь синтетический,
+                        // и /o/{id} для него вел бы на 404.
+                        share_url: r.share_url ?? null,
                     }));
             } catch (err) {
                 console.warn('Error fetching user reports:', err);
