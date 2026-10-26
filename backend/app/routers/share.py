@@ -18,10 +18,11 @@ from starlette.requests import Request
 
 from app.config import settings
 from app.database import get_db
-from app.models import UserReport
+from app.models import Outage, OutageStatus, UserReport
 from app.public_report import to_public_report
 from app.report_lifecycle import apply_auto_resolution
-from app.sharing import share_url
+from app.schemas import utc_iso
+from app.sharing import outage_share_url, share_url
 
 router = APIRouter(tags=["share"])
 
@@ -78,5 +79,56 @@ async def report_share_page(
             "deep_link": f"{settings.APP_SCHEME}://report/{report.id}",
             "download_url": f"{settings.PUBLIC_BASE_URL.rstrip('/')}/dl/",
             "site_url": settings.PUBLIC_BASE_URL.rstrip("/"),
+        },
+    )
+
+
+@router.get("/o/{outage_id}", response_class=HTMLResponse)
+async def outage_share_page(
+    outage_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Страница отключения для того, кому переслали ссылку в WhatsApp.
+
+    Тон другой, чем у /r/: это не "сосед зовет соседей подтвердить", а
+    "пересылаю семье, что у них отключение". Подтверждать тут нечего —
+    отключения ANDE официальные.
+    """
+    outage = await db.get(Outage, outage_id)
+    if outage is None:
+        raise HTTPException(status_code=404, detail="Corte no encontrado")
+
+    place = outage.barrio or outage.title or "tu zona"
+    status = outage.status.value if isinstance(outage.status, OutageStatus) else str(outage.status)
+    if status == OutageStatus.resolved.value:
+        og_title = f"La luz ya volvió en {place}"
+        og_description = "Mirá en LuzAlerts si hay otros cortes cerca."
+    elif status == OutageStatus.planned.value:
+        og_title = f"🗓️ Corte programado en {place}"
+        og_description = "La ANDE anunció un corte. Mirá el horario en LuzAlerts."
+    else:
+        og_title = f"⚡ Corte de luz en {place}"
+        og_description = "Seguí el estado del corte en LuzAlerts y enterate cuando vuelva la luz."
+
+    site_url = settings.PUBLIC_BASE_URL.rstrip("/")
+    return templates.TemplateResponse(
+        request,
+        "outage_share.html",
+        {
+            "outage": outage,
+            "status": status,
+            "place": place,
+            "og_title": og_title,
+            "og_description": og_description,
+            "og_image": f"{site_url}/og-report.png",
+            "page_url": outage_share_url(outage.id),
+            "deep_link": f"{settings.APP_SCHEME}://outage/{outage.id}",
+            # iPhone: нативного приложения нет, открываем PWA.
+            "pwa_url": f"{site_url}/app/outage/{outage.id}",
+            "download_url": f"{site_url}/dl/",
+            "site_url": site_url,
+            "start_iso": utc_iso(outage.scheduled_start),
+            "end_iso": utc_iso(outage.scheduled_end),
         },
     )

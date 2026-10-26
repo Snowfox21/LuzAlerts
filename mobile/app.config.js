@@ -33,7 +33,12 @@ module.exports = {
         {
           action: "VIEW",
           autoVerify: true,
-          data: [{ scheme: "https", host: "luzalerts.lat", pathPrefix: "/r" }],
+          data: [
+            { scheme: "https", host: "luzalerts.lat", pathPrefix: "/r" },
+            // Отключения ANDE, которыми делятся в WhatsApp (/o/{id}). Со слэшем:
+            // иначе приложение перехватывало бы и /og-report.png.
+            { scheme: "https", host: "luzalerts.lat", pathPrefix: "/o/" },
+          ],
           category: ["BROWSABLE", "DEFAULT"],
         },
       ],

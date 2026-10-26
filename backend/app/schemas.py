@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
 
+from app.sharing import outage_share_url
 from app.sharing import share_url as build_share_url
 
 
@@ -137,6 +138,12 @@ class OutageOut(BaseModel):
     resolved_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def share_url(self) -> str:
+        """Ссылка для WhatsApp: страница /o/{id} с og-тегами для превью."""
+        return outage_share_url(self.id)
 
 
 # ---------- UserReport ----------
