@@ -225,21 +225,25 @@ function ZoneCard({ Icon, color, name, place, radius, gps, off, onPress, right }
     onPress?: () => void;
     right?: React.ReactNode;
 }) {
+    // Нажимается только иконка с текстом: переключатель справа — отдельная
+    // цель, иначе на вебе его клик всплывает и открывает панель места.
     const Wrapper = onPress ? TouchableOpacity : View;
     return (
-        <Wrapper style={[styles.card, off && styles.cardOff]} onPress={onPress as any} activeOpacity={0.75}>
-            <View style={[styles.cardIcon, { backgroundColor: `${color}22` }]}>
-                <Icon size={20} color={color} />
-            </View>
-            <View style={styles.cardText}>
-                <View style={styles.cardNameRow}>
-                    <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
-                    {gps && <Text style={styles.gpsBadge}>GPS</Text>}
+        <View style={[styles.card, off && styles.cardOff]}>
+            <Wrapper style={styles.cardMain} onPress={onPress as any} activeOpacity={0.75}>
+                <View style={[styles.cardIcon, { backgroundColor: `${color}22` }]}>
+                    <Icon size={20} color={color} />
                 </View>
-                <Text style={styles.cardSub} numberOfLines={1}>{place ? `${place} · ${radius}` : radius}</Text>
-            </View>
+                <View style={styles.cardText}>
+                    <View style={styles.cardNameRow}>
+                        <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
+                        {gps && <Text style={styles.gpsBadge}>GPS</Text>}
+                    </View>
+                    <Text style={styles.cardSub} numberOfLines={1}>{place ? `${place} · ${radius}` : radius}</Text>
+                </View>
+            </Wrapper>
             {right}
-        </Wrapper>
+        </View>
     );
 }
 
@@ -422,6 +426,13 @@ const styles = StyleSheet.create({
         backgroundColor: DS.surface,
         borderRadius: 14,
         padding: 14,
+    },
+    cardMain: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
     cardOff: {
         opacity: 0.6,
