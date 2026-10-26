@@ -13,12 +13,13 @@ import {
     View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Bell, ChevronRight, Download, Info, MapPin, Shield, Trash2, Zap } from 'lucide-react-native';
+import { Bell, ChevronRight, Download, Info, Map as MapIcon, MapPin, Shield, Trash2, Zap } from 'lucide-react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
 import { getHomeZone, HOME_ZONE_KEY } from '../../src/utils/homeZone';
 import { HomeZoneEditor } from '../../src/places/HomeZoneEditor';
-import { TrackedPlacesEditor } from '../../src/places/TrackedPlacesEditor';
+import { listTrackedPlaces, MAX_TRACKED_PLACES } from '../../src/places/places';
 import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
@@ -57,7 +58,9 @@ export default function SettingsScreen() {
     const [zoneLabel, setZoneLabel] = useState<string | null>(null);
     const [editingZone, setEditingZone] = useState(false);
     // Смена ключа перечитывает список мест (после "Eliminar mis datos").
-    const [placesKey, setPlacesKey] = useState(0);
+    // Сколько мест отслеживается — для счетчика N/2 у строки "Mis zonas".
+    const [placesCount, setPlacesCount] = useState<number | null>(null);
+    const router = useRouter();
     const [deletingData, setDeletingData] = useState(false);
     const [deviceId, setDeviceId] = useState('');
     const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -86,6 +89,10 @@ export default function SettingsScreen() {
             // 404: устройство еще не зарегистрировано — остаются дефолты.
         }
     }, []);
+
+    useFocusEffect(useCallback(() => {
+        listTrackedPlaces().then(list => setPlacesCount(list.length)).catch(() => {});
+    }, []));
 
     useEffect(() => {
         loadPrefs();
@@ -117,7 +124,7 @@ export default function SettingsScreen() {
             await apiClient.delete(`/users/${id}/data`);
             await AsyncStorage.multiRemove(LOCAL_DATA_KEYS).catch(() => {});
             await resetDeviceId();
-            setPlacesKey(k => k + 1);
+            setPlacesCount(0);
             setPrefs(DEFAULT_PREFS);
             setZoneLabel(null);
             setEditingZone(false);
@@ -185,10 +192,20 @@ export default function SettingsScreen() {
                             <HomeZoneEditor onSaved={place => { setZoneLabel(place.label); setEditingZone(false); }} />
                         </View>
                     )}
-                    <Text style={styles.placesHint}>
-                        También te avisamos de cortes cerca de estos lugares — por ejemplo, la casa de tus padres.
-                    </Text>
-                    <TrackedPlacesEditor reloadKey={placesKey} />
+                    <SettingRow
+                        icon={<MapIcon size={20} color={DS.textMuted} />}
+                        label="Mis zonas"
+                        sub="Familia, trabajo y más"
+                        right={
+                            <View style={styles.zonesRight}>
+                                {placesCount != null && (
+                                    <Text style={styles.zonesCount}>{placesCount}/{MAX_TRACKED_PLACES}</Text>
+                                )}
+                                <ChevronRight size={16} color={DS.textMuted} />
+                            </View>
+                        }
+                        onPress={() => router.push('/zones')}
+                    />
                 </SettingSection>
 
                 <SettingSection title="Notificaciones">
@@ -410,12 +427,20 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: DS.border,
     },
-    placesHint: {
-        color: DS.textMuted,
-        fontSize: 12,
-        lineHeight: 17,
-        paddingHorizontal: 16,
-        paddingTop: 12,
+    zonesRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    zonesCount: {
+        color: DS.ink,
+        backgroundColor: DS.amber,
+        borderRadius: 10,
+        overflow: 'hidden',
+        fontSize: 11,
+        fontWeight: '700',
+        paddingHorizontal: 7,
+        paddingVertical: 2,
     },
     footer: {
         alignItems: 'center',
