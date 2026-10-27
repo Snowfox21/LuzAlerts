@@ -156,9 +156,12 @@
       border-radius: 16px; background: transparent;
       position: relative; overflow: hidden; align-self: center;
     }
+    /* En el flujo y no en absolute: con la fuente del sistema agrandada
+       (Chrome en Android escala el texto) la leyenda ocupa varias líneas
+       y crecía hacia arriba, encima del teléfono. */
     .hero-disclaimer {
-      position: absolute; bottom: 28px; left: 0; right: 0;
-      text-align: center; font-size: 12px; color: var(--text-muted); padding: 0 24px;
+      max-width: 1200px; margin: 40px auto 0; width: 100%;
+      text-align: center; font-size: 12px; color: var(--text-muted);
     }
     .hero-disclaimer span { margin: 0 6px; opacity: 0.4; }
     @media (min-width: 1024px) {
@@ -580,6 +583,7 @@
   <script type="text/babel" src="luzscreens.jsx"></script>
   <script type="text/babel" src="luzscreens-a.jsx"></script>
   <script type="text/babel" src="luzscreens-b.jsx"></script>
+  <script type="text/babel" src="luzscreens-c.jsx"></script>
   <script type="text/babel">
     const ScaledScreen = ({ children, devW = 393, devH = 852, contW, contH }) => {
       const scale = Math.min(contW / devW, contH / devH);
