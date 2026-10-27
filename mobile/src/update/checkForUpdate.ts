@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
+import { SELF_UPDATE_ENABLED } from './distribution';
+
 import {
     UpdateManifest,
     fetchManifest,
@@ -52,6 +54,8 @@ export const checkForUpdate = async (
 ): Promise<UpdateCheckResult | null> => {
     // Механизм существует только ради сайдлоада APK.
     if (Platform.OS !== 'android') return null;
+    // La build de Google Play se actualiza solo desde la tienda.
+    if (!SELF_UPDATE_ENABLED) return null;
 
     const installed = getInstalledVersionCode();
     if (installed === null) return null;

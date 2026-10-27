@@ -13,6 +13,7 @@ import { setPendingLink } from '../src/utils/pendingLink';
 import { checkForUpdate } from '../src/update/checkForUpdate';
 import { UpdateManifest } from '../src/update/manifest';
 import { UpdateSheet } from '../src/update/UpdateSheet';
+import { SELF_UPDATE_ENABLED } from '../src/update/distribution';
 import { installWebAlert } from '../src/utils/webAlert';
 
 // Хосты, которые в разборе диплинка отбрасываются как домен, а не сегмент
@@ -215,6 +216,8 @@ export default function RootLayout() {
     // открытии, а шторка "скачать APK" поверх нее только путала бы.
     useEffect(() => {
         if (Platform.OS !== 'android') return;
+        // La build de Google Play se actualiza solo desde la tienda.
+        if (!SELF_UPDATE_ENABLED) return;
         if (!onboardingDone) return;
         const timer = setTimeout(() => {
             checkForUpdate()
@@ -241,7 +244,7 @@ export default function RootLayout() {
                 <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             </Stack>
-            {Platform.OS === 'android' && (
+            {Platform.OS === 'android' && SELF_UPDATE_ENABLED && (
                 <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />
             )}
         </GestureHandlerRootView>
