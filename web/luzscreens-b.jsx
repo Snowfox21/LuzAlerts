@@ -177,9 +177,9 @@ const ScreenSettings = () => (
       </SettingSection>
       <SettingSection title="Ubicación">
         <SettingRow icon={IPin} iconColor={C.amber} label="Mi zona actual" sub="Asunción, Capital" right={<span style={{ fontSize: 13, color: C.amber }}>Cambiar</span>}/>
-        <SettingRow icon={IMap} iconColor={C.textMuted} label="Zonas adicionales" divider={false} right={
+        <SettingRow icon={IMap} iconColor={C.textMuted} label="Mis zonas" sub="Familia, trabajo y más" divider={false} right={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ background: C.amber, color: '#0F172A', borderRadius: 10, fontSize: 11, fontWeight: 700, padding: '2px 7px' }}>2</span>
+            <span style={{ background: C.amber, color: '#0F172A', borderRadius: 10, fontSize: 11, fontWeight: 700, padding: '2px 7px' }}>2/2</span>
             <IRight size={16} color={C.textMuted}/>
           </div>
         }/>
