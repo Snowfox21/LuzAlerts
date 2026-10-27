@@ -13,6 +13,7 @@
 - **Nunca hagas push a `main`**: ni fast-forward, ni merge, ni force push. Todo cambio va en una rama aparte. El merge a `main` lo decide el dueño, a través de un PR.
 - En una rama ajena (de otro agente o persona): solo commits normales encima, sin rebase ni force push. Avisá al dueño de la rama antes de hacer push.
 - Antes de hacer push: tests del backend (`pytest` en `backend/`, necesita PostGIS) y `node --stack-size=8000 node_modules/typescript/bin/tsc --noEmit` en `mobile/`.
+- Apenas abrís un PR, dejá en él un comentario `@codex review` para pedir la revisión de Codex. Respondé sus observaciones en español y, después de corregirlas, volvé a pedirla con otro `@codex review`.
 
 ## Después de que se mergea un PR
 
