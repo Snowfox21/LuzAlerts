@@ -1,8 +1,14 @@
+// Canal de distribución de Android: "site" (APK de luzalerts.lat, con
+// autoactualización) o "play" (Google Play, sin autoactualización y sin
+// REQUEST_INSTALL_PACKAGES). Lo fija eas.json por perfil; por defecto, site.
+const DISTRIBUTION = process.env.DISTRIBUTION === "play" ? "play" : "site";
+const IS_PLAY = DISTRIBUTION === "play";
+
 module.exports = {
   expo: {
     name: "LuzAlerts",
     slug: "luzalerts",
-    version: "1.2.4",
+    version: "1.2.5",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
@@ -20,15 +26,20 @@ module.exports = {
       // versionCode — единственный источник истины для самообновления:
       // приложение сравнивает его с web/dl/latest.json. Инкрементировать
       // при каждом релизе APK, иначе обновление никому не приедет.
-      versionCode: 17,
+      versionCode: 19,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#151718",
       },
       edgeToEdgeEnabled: true,
-      // Установка APK своими силами: стора вне Google Play нет.
-      permissions: ["REQUEST_INSTALL_PACKAGES"],
+      // Instalar el APK por nuestra cuenta solo hace falta en la build del sitio.
+      // Google Play prohíbe que la app se actualice por fuera de la tienda: en
+      // play el permiso no se pide y además se quita del manifiesto final
+      // (blockedPermissions = tools:node="remove"), aunque lo traiga alguna
+      // librería.
+      permissions: IS_PLAY ? [] : ["REQUEST_INSTALL_PACKAGES"],
+      ...(IS_PLAY ? { blockedPermissions: ["android.permission.REQUEST_INSTALL_PACKAGES"] } : {}),
       intentFilters: [
         {
           action: "VIEW",
@@ -70,6 +81,7 @@ module.exports = {
     ],
     extra: {
       router: {},
+      distribution: DISTRIBUTION,
       eas: {
         projectId: "e7df9178-6158-48fd-8075-bd20ec3dc622",
       },

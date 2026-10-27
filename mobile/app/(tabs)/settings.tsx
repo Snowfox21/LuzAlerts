@@ -24,6 +24,7 @@ import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSyste
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
 import { UpdateSheet } from '../../src/update/UpdateSheet';
+import { SELF_UPDATE_ENABLED } from '../../src/update/distribution';
 import { WebPushRow } from '../../src/push/WebPushRow';
 import { disableWebPush } from '../../src/push/webPush';
 
@@ -251,15 +252,25 @@ export default function SettingsScreen() {
                     веб-версия обновляется сама при следующем открытии. */}
                 {Platform.OS !== 'web' && (
                     <SettingSection title="Aplicación">
-                        <SettingRow
-                            icon={<Download size={20} color={DS.textMuted} />}
-                            label="Buscar actualizaciones"
-                            sub={`Versión ${appVersion}`}
-                            right={checkingUpdate
-                                ? <ActivityIndicator size="small" color={DS.amber} />
-                                : <ChevronRight size={16} color={DS.textMuted} />}
-                            onPress={handleCheckUpdate}
-                        />
+                        {/* La build de Google Play se actualiza desde la tienda:
+                            solo mostramos la versión, sin buscar el APK. */}
+                        {SELF_UPDATE_ENABLED ? (
+                            <SettingRow
+                                icon={<Download size={20} color={DS.textMuted} />}
+                                label="Buscar actualizaciones"
+                                sub={`Versión ${appVersion}`}
+                                right={checkingUpdate
+                                    ? <ActivityIndicator size="small" color={DS.amber} />
+                                    : <ChevronRight size={16} color={DS.textMuted} />}
+                                onPress={handleCheckUpdate}
+                            />
+                        ) : (
+                            <SettingRow
+                                icon={<Info size={20} color={DS.textMuted} />}
+                                label="Versión"
+                                sub={appVersion}
+                            />
+                        )}
                     </SettingSection>
                 )}
 
@@ -284,7 +295,7 @@ export default function SettingsScreen() {
                     <Text style={styles.footerText}>Proyecto independiente. No afiliado a la ANDE.</Text>
                 </View>
             </ScrollView>
-            {Platform.OS !== 'web' && <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />}
+            {Platform.OS !== 'web' && SELF_UPDATE_ENABLED && <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />}
         </KeyboardAvoidingView>
     );
 }
