@@ -296,14 +296,16 @@ function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
     onDragStateChange: (dragging: boolean) => void;
 }) {
     const [dragIndex, setDragIndex] = useState<number | null>(null);
-    const valueIndex = Math.max(0, RADIUS_STEPS_KM.indexOf(valueKm));
+    // Бэкенд принимает любой радиус 1–20 км, не только ступени: такой
+    // показываем как есть, а ползунок ставим на ближайшую ступень.
+    const valueIndex = nearestRadiusStep(valueKm);
     const index = dragIndex ?? valueIndex;
-    const shownKm = RADIUS_STEPS_KM[index];
+    const shownKm = dragIndex != null ? RADIUS_STEPS_KM[dragIndex] : valueKm;
     const percent = `${(index / (RADIUS_STEPS_KM.length - 1)) * 100}%` as const;
 
     // PanResponder создается один раз, поэтому свежие значения читаем из ref.
-    const latest = useRef({ valueIndex, onChange, onDragStateChange });
-    latest.current = { valueIndex, onChange, onDragStateChange };
+    const latest = useRef({ valueKm, valueIndex, onChange, onDragStateChange });
+    latest.current = { valueKm, valueIndex, onChange, onDragStateChange };
     const trackWidth = useRef(0);
     const startX = useRef(0);
     const currentIndex = useRef<number | null>(null);
@@ -320,7 +322,7 @@ function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
         currentIndex.current = null;
         setDragIndex(null);
         latest.current.onDragStateChange(false);
-        if (commit && finalIndex != null && finalIndex !== latest.current.valueIndex) {
+        if (commit && finalIndex != null && RADIUS_STEPS_KM[finalIndex] !== latest.current.valueKm) {
             latest.current.onChange(RADIUS_STEPS_KM[finalIndex]);
         }
     };
@@ -373,7 +375,7 @@ function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
                 onAccessibilityAction={e => {
                     const step = e.nativeEvent.actionName === 'increment' ? 1 : -1;
                     const next = Math.min(RADIUS_STEPS_KM.length - 1, Math.max(0, valueIndex + step));
-                    if (next !== valueIndex) onChange(RADIUS_STEPS_KM[next]);
+                    if (RADIUS_STEPS_KM[next] !== valueKm) onChange(RADIUS_STEPS_KM[next]);
                 }}
                 {...webTapTarget}
                 {...responder.panHandlers}
@@ -397,6 +399,14 @@ function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
             </View>
         </View>
     );
+}
+
+function nearestRadiusStep(km: number) {
+    let best = 0;
+    RADIUS_STEPS_KM.forEach((step, i) => {
+        if (Math.abs(step - km) < Math.abs(RADIUS_STEPS_KM[best] - km)) best = i;
+    });
+    return best;
 }
 
 // В браузере без touch-action: none палец прокручивает страницу вместо
