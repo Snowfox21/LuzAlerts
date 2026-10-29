@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
+    LayoutChangeEvent,
     Linking,
+    PanResponder,
     Platform,
     ScrollView,
     StyleSheet,
@@ -66,6 +68,9 @@ export default function SettingsScreen() {
     const [deviceId, setDeviceId] = useState('');
     const [checkingUpdate, setCheckingUpdate] = useState(false);
     const [update, setUpdate] = useState<UpdateManifest | null>(null);
+    // Пока тянут ползунок радиуса, вертикальный скролл отключаем:
+    // иначе на Android ScrollView перехватывает жест.
+    const [draggingRadius, setDraggingRadius] = useState(false);
 
     const loadPrefs = useCallback(async () => {
         try {
@@ -152,8 +157,6 @@ export default function SettingsScreen() {
     };
 
     const radiusKm = prefs.notify_radius_m / 1000;
-    const radiusIndex = Math.max(0, RADIUS_STEPS_KM.indexOf(radiusKm));
-    const radiusPercent = `${(radiusIndex / (RADIUS_STEPS_KM.length - 1)) * 100}%` as const;
 
     // Ручная проверка: игнорирует и суточный интервал, и ранее нажатое
     // "Después" — человек пришел за обновлением осознанно.
@@ -177,7 +180,7 @@ export default function SettingsScreen() {
     return (
         <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScreenHeader title="Ajustes" />
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" scrollEnabled={!draggingRadius}>
                 {/* Первым блоком: "где я получаю avisos" — главное, что человек
                     настраивает, особенно если следит за домом родных. */}
                 <SettingSection title="Mis lugares">
@@ -225,27 +228,11 @@ export default function SettingsScreen() {
                         sub="Te notificamos también cuando un corte cercano se resuelve."
                         right={<Switch value={prefs.notify_resolved} onValueChange={v => updatePrefs({ notify_resolved: v })} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={prefs.notify_resolved ? DS.ink : DS.textMuted} />}
                     />
-                    <View style={styles.radiusRow}>
-                        <Text style={styles.radiusLabel}>Radio de alertas: {radiusKm} km</Text>
-                        <View style={styles.slider}>
-                            <View style={[styles.sliderFill, { width: radiusPercent }]} />
-                            <View style={[styles.sliderKnob, { left: radiusPercent }]} />
-                        </View>
-                        <View style={styles.sliderLabels}>
-                            {RADIUS_STEPS_KM.map(km => (
-                                <TouchableOpacity
-                                    key={km}
-                                    style={styles.sliderStep}
-                                    onPress={() => km !== radiusKm && updatePrefs({ notify_radius_m: km * 1000 })}
-                                    hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Radio ${km} km`}
-                                >
-                                    <Text style={[styles.sliderLabel, km === radiusKm && styles.sliderLabelActive]}>{km}km</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
+                    <RadiusSlider
+                        valueKm={radiusKm}
+                        onChange={km => updatePrefs({ notify_radius_m: km * 1000 })}
+                        onDragStateChange={setDraggingRadius}
+                    />
                 </SettingSection>
 
                 {/* Самообновление = сайдлоад APK, в PWA смысла не имеет:
@@ -297,6 +284,119 @@ export default function SettingsScreen() {
             </ScrollView>
             {Platform.OS !== 'web' && SELF_UPDATE_ENABLED && <UpdateSheet manifest={update} onDismiss={() => setUpdate(null)} />}
         </KeyboardAvoidingView>
+    );
+}
+
+// Ползунок радиуса со ступенями RADIUS_STEPS_KM. В APK его можно зажать и
+// тянуть; на сервер уходит только итоговое значение, когда палец отпущен.
+// В PWA оставляем прежнее поведение: выбор тапом по подписям.
+function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
+    valueKm: number;
+    onChange: (km: number) => void;
+    onDragStateChange: (dragging: boolean) => void;
+}) {
+    const draggable = Platform.OS !== 'web';
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const valueIndex = Math.max(0, RADIUS_STEPS_KM.indexOf(valueKm));
+    const index = dragIndex ?? valueIndex;
+    const shownKm = RADIUS_STEPS_KM[index];
+    const percent = `${(index / (RADIUS_STEPS_KM.length - 1)) * 100}%` as const;
+
+    // PanResponder создается один раз, поэтому свежие значения читаем из ref.
+    const latest = useRef({ valueIndex, onChange, onDragStateChange });
+    latest.current = { valueIndex, onChange, onDragStateChange };
+    const trackWidth = useRef(0);
+    const startX = useRef(0);
+    const currentIndex = useRef<number | null>(null);
+
+    const indexAt = (x: number) => {
+        const width = trackWidth.current;
+        if (width <= 0) return latest.current.valueIndex;
+        const ratio = Math.min(1, Math.max(0, x / width));
+        return Math.round(ratio * (RADIUS_STEPS_KM.length - 1));
+    };
+
+    const finish = (commit: boolean) => {
+        const finalIndex = currentIndex.current;
+        currentIndex.current = null;
+        setDragIndex(null);
+        latest.current.onDragStateChange(false);
+        if (commit && finalIndex != null && finalIndex !== latest.current.valueIndex) {
+            latest.current.onChange(RADIUS_STEPS_KM[finalIndex]);
+        }
+    };
+
+    const responder = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: evt => {
+            // У детей трека pointerEvents="none", поэтому locationX
+            // всегда отсчитывается от самого трека.
+            startX.current = evt.nativeEvent.locationX;
+            currentIndex.current = indexAt(startX.current);
+            setDragIndex(currentIndex.current);
+            latest.current.onDragStateChange(true);
+        },
+        onPanResponderMove: (_evt, gesture) => {
+            const next = indexAt(startX.current + gesture.dx);
+            if (next !== currentIndex.current) {
+                currentIndex.current = next;
+                setDragIndex(next);
+            }
+        },
+        onPanResponderRelease: () => finish(true),
+        onPanResponderTerminate: () => finish(true),
+    })).current;
+
+    const onTrackLayout = (e: LayoutChangeEvent) => {
+        trackWidth.current = e.nativeEvent.layout.width;
+    };
+
+    const track = (
+        <View style={styles.slider} pointerEvents="none">
+            <View style={[styles.sliderFill, { width: percent }]} />
+            <View style={[styles.sliderKnob, dragIndex != null && styles.sliderKnobActive, { left: percent }]} />
+        </View>
+    );
+
+    return (
+        <View style={styles.radiusRow}>
+            <Text style={styles.radiusLabel}>Radio de alertas: {shownKm} km</Text>
+            {draggable ? (
+                <View
+                    style={styles.sliderTouchArea}
+                    onLayout={onTrackLayout}
+                    accessible
+                    accessibilityRole="adjustable"
+                    accessibilityLabel="Radio de alertas"
+                    accessibilityValue={{ text: `${shownKm} km` }}
+                    accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+                    onAccessibilityAction={e => {
+                        const step = e.nativeEvent.actionName === 'increment' ? 1 : -1;
+                        const next = Math.min(RADIUS_STEPS_KM.length - 1, Math.max(0, valueIndex + step));
+                        if (next !== valueIndex) onChange(RADIUS_STEPS_KM[next]);
+                    }}
+                    {...responder.panHandlers}
+                >
+                    {track}
+                </View>
+            ) : track}
+            <View style={styles.sliderLabels}>
+                {RADIUS_STEPS_KM.map(km => (
+                    <TouchableOpacity
+                        key={km}
+                        style={styles.sliderStep}
+                        onPress={() => km !== valueKm && onChange(km)}
+                        hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Radio ${km} km`}
+                    >
+                        <Text style={[styles.sliderLabel, km === shownKm && styles.sliderLabelActive]}>{km}km</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        </View>
     );
 }
 
@@ -411,6 +511,20 @@ const styles = StyleSheet.create({
         marginLeft: -7,
         borderRadius: 7,
         backgroundColor: DS.amber,
+    },
+    // Высокая зона касания вокруг тонкого трека: проще попасть пальцем.
+    sliderTouchArea: {
+        height: 32,
+        justifyContent: 'center',
+        marginTop: -10,
+        marginBottom: -10,
+    },
+    sliderKnobActive: {
+        top: -9,
+        width: 22,
+        height: 22,
+        marginLeft: -11,
+        borderRadius: 11,
     },
     sliderLabels: {
         flexDirection: 'row',
