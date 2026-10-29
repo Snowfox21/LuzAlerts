@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
+    LayoutChangeEvent,
     Linking,
+    PanResponder,
     Platform,
     ScrollView,
     StyleSheet,
@@ -66,6 +68,9 @@ export default function SettingsScreen() {
     const [deviceId, setDeviceId] = useState('');
     const [checkingUpdate, setCheckingUpdate] = useState(false);
     const [update, setUpdate] = useState<UpdateManifest | null>(null);
+    // Пока тянут ползунок радиуса, вертикальный скролл отключаем:
+    // иначе на Android ScrollView перехватывает жест.
+    const [draggingRadius, setDraggingRadius] = useState(false);
 
     const loadPrefs = useCallback(async () => {
         try {
@@ -152,8 +157,6 @@ export default function SettingsScreen() {
     };
 
     const radiusKm = prefs.notify_radius_m / 1000;
-    const radiusIndex = Math.max(0, RADIUS_STEPS_KM.indexOf(radiusKm));
-    const radiusPercent = `${(radiusIndex / (RADIUS_STEPS_KM.length - 1)) * 100}%` as const;
 
     // Ручная проверка: игнорирует и суточный интервал, и ранее нажатое
     // "Después" — человек пришел за обновлением осознанно.
@@ -177,7 +180,7 @@ export default function SettingsScreen() {
     return (
         <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScreenHeader title="Ajustes" />
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" scrollEnabled={!draggingRadius}>
                 {/* Первым блоком: "где я получаю avisos" — главное, что человек
                     настраивает, особенно если следит за домом родных. */}
                 <SettingSection title="Mis lugares">
@@ -225,27 +228,11 @@ export default function SettingsScreen() {
                         sub="Te notificamos también cuando un corte cercano se resuelve."
                         right={<Switch value={prefs.notify_resolved} onValueChange={v => updatePrefs({ notify_resolved: v })} trackColor={{ true: DS.amber, false: DS.surfaceVar }} thumbColor={prefs.notify_resolved ? DS.ink : DS.textMuted} />}
                     />
-                    <View style={styles.radiusRow}>
-                        <Text style={styles.radiusLabel}>Radio de alertas: {radiusKm} km</Text>
-                        <View style={styles.slider}>
-                            <View style={[styles.sliderFill, { width: radiusPercent }]} />
-                            <View style={[styles.sliderKnob, { left: radiusPercent }]} />
-                        </View>
-                        <View style={styles.sliderLabels}>
-                            {RADIUS_STEPS_KM.map(km => (
-                                <TouchableOpacity
-                                    key={km}
-                                    style={styles.sliderStep}
-                                    onPress={() => km !== radiusKm && updatePrefs({ notify_radius_m: km * 1000 })}
-                                    hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Radio ${km} km`}
-                                >
-                                    <Text style={[styles.sliderLabel, km === radiusKm && styles.sliderLabelActive]}>{km}km</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
+                    <RadiusSlider
+                        valueKm={radiusKm}
+                        onChange={km => updatePrefs({ notify_radius_m: km * 1000 })}
+                        onDragStateChange={setDraggingRadius}
+                    />
                 </SettingSection>
 
                 {/* Самообновление = сайдлоад APK, в PWA смысла не имеет:
@@ -299,6 +286,137 @@ export default function SettingsScreen() {
         </KeyboardAvoidingView>
     );
 }
+
+// Ползунок радиуса со ступенями RADIUS_STEPS_KM: его можно зажать и тянуть
+// (в APK и в PWA), на сервер уходит только итоговое значение, когда палец
+// отпущен. Тап по подписям под ним тоже работает.
+function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
+    valueKm: number;
+    onChange: (km: number) => void;
+    onDragStateChange: (dragging: boolean) => void;
+}) {
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    // Бэкенд принимает любой радиус 1–20 км, не только ступени: такой
+    // показываем как есть, а ползунок ставим на ближайшую ступень.
+    const valueIndex = nearestRadiusStep(valueKm);
+    const index = dragIndex ?? valueIndex;
+    const shownKm = dragIndex != null ? RADIUS_STEPS_KM[dragIndex] : valueKm;
+    const percent = `${(index / (RADIUS_STEPS_KM.length - 1)) * 100}%` as const;
+
+    // PanResponder создается один раз, поэтому свежие значения читаем из ref.
+    const latest = useRef({ valueKm, valueIndex, onChange, onDragStateChange });
+    latest.current = { valueKm, valueIndex, onChange, onDragStateChange };
+    const trackWidth = useRef(0);
+    const startX = useRef(0);
+    const currentIndex = useRef<number | null>(null);
+
+    const indexAt = (x: number) => {
+        const width = trackWidth.current;
+        if (width <= 0) return latest.current.valueIndex;
+        const ratio = Math.min(1, Math.max(0, x / width));
+        return Math.round(ratio * (RADIUS_STEPS_KM.length - 1));
+    };
+
+    const finish = (commit: boolean) => {
+        const finalIndex = currentIndex.current;
+        currentIndex.current = null;
+        setDragIndex(null);
+        latest.current.onDragStateChange(false);
+        if (commit && finalIndex != null && RADIUS_STEPS_KM[finalIndex] !== latest.current.valueKm) {
+            latest.current.onChange(RADIUS_STEPS_KM[finalIndex]);
+        }
+    };
+
+    const responder = useRef(PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: evt => {
+            // У детей трека pointerEvents="none", поэтому locationX
+            // всегда отсчитывается от самого трека.
+            startX.current = evt.nativeEvent.locationX;
+            currentIndex.current = indexAt(startX.current);
+            setDragIndex(currentIndex.current);
+            latest.current.onDragStateChange(true);
+        },
+        onPanResponderMove: (_evt, gesture) => {
+            const next = indexAt(startX.current + gesture.dx);
+            if (next !== currentIndex.current) {
+                currentIndex.current = next;
+                setDragIndex(next);
+            }
+        },
+        onPanResponderRelease: () => finish(true),
+        onPanResponderTerminate: () => finish(true),
+    })).current;
+
+    const onTrackLayout = (e: LayoutChangeEvent) => {
+        trackWidth.current = e.nativeEvent.layout.width;
+    };
+
+    const track = (
+        <View style={styles.slider} pointerEvents="none">
+            <View style={[styles.sliderFill, { width: percent }]} />
+            <View style={[styles.sliderKnob, dragIndex != null && styles.sliderKnobActive, { left: percent }]} />
+        </View>
+    );
+
+    return (
+        <View style={styles.radiusRow}>
+            <Text style={styles.radiusLabel}>Radio de alertas: {shownKm} km</Text>
+            <View
+                style={[styles.sliderTouchArea, webDragStyle]}
+                onLayout={onTrackLayout}
+                accessible
+                accessibilityRole="adjustable"
+                accessibilityLabel="Radio de alertas"
+                accessibilityValue={{ text: `${shownKm} km` }}
+                accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+                onAccessibilityAction={e => {
+                    const step = e.nativeEvent.actionName === 'increment' ? 1 : -1;
+                    const next = Math.min(RADIUS_STEPS_KM.length - 1, Math.max(0, valueIndex + step));
+                    if (RADIUS_STEPS_KM[next] !== valueKm) onChange(RADIUS_STEPS_KM[next]);
+                }}
+                {...webTapTarget}
+                {...responder.panHandlers}
+            >
+                {track}
+            </View>
+            <View style={styles.sliderLabels}>
+                {RADIUS_STEPS_KM.map(km => (
+                    <TouchableOpacity
+                        key={km}
+                        style={styles.sliderStep}
+                        onPress={() => km !== valueKm && onChange(km)}
+                        // Сверху без запаса: иначе подписи перекрывают зону ползунка.
+                        hitSlop={{ top: 0, bottom: 10, left: 4, right: 4 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Radio ${km} km`}
+                    >
+                        <Text style={[styles.sliderLabel, km === shownKm && styles.sliderLabelActive]}>{km}km</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        </View>
+    );
+}
+
+function nearestRadiusStep(km: number) {
+    let best = 0;
+    RADIUS_STEPS_KM.forEach((step, i) => {
+        if (Math.abs(step - km) < Math.abs(RADIUS_STEPS_KM[best] - km)) best = i;
+    });
+    return best;
+}
+
+// В браузере без touch-action: none палец прокручивает страницу вместо
+// ползунка, а мышь выделяет текст. В RN этих свойств в типах нет.
+const webDragStyle = Platform.OS === 'web'
+    ? ({ touchAction: 'none', userSelect: 'none', cursor: 'pointer' } as object)
+    : null;
+// Chrome на телефоне "доводит" касание до ближайшего кликабельного элемента:
+// без обработчика клика палец на полоске уходит в подписи км под ней.
+const webTapTarget = Platform.OS === 'web' ? { onClick: () => {} } : null;
 
 function SettingSection({ title, children }: { title: string; children: React.ReactNode }) {
     return (
@@ -411,6 +529,20 @@ const styles = StyleSheet.create({
         marginLeft: -7,
         borderRadius: 7,
         backgroundColor: DS.amber,
+    },
+    // Высокая зона касания вокруг тонкого трека: проще попасть пальцем.
+    sliderTouchArea: {
+        height: 32,
+        justifyContent: 'center',
+        marginTop: -10,
+        marginBottom: -10,
+    },
+    sliderKnobActive: {
+        top: -9,
+        width: 22,
+        height: 22,
+        marginLeft: -11,
+        borderRadius: 11,
     },
     sliderLabels: {
         flexDirection: 'row',
