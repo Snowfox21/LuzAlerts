@@ -287,15 +287,14 @@ export default function SettingsScreen() {
     );
 }
 
-// Ползунок радиуса со ступенями RADIUS_STEPS_KM. В APK его можно зажать и
-// тянуть; на сервер уходит только итоговое значение, когда палец отпущен.
-// В PWA оставляем прежнее поведение: выбор тапом по подписям.
+// Ползунок радиуса со ступенями RADIUS_STEPS_KM: его можно зажать и тянуть
+// (в APK и в PWA), на сервер уходит только итоговое значение, когда палец
+// отпущен. Тап по подписям под ним тоже работает.
 function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
     valueKm: number;
     onChange: (km: number) => void;
     onDragStateChange: (dragging: boolean) => void;
 }) {
-    const draggable = Platform.OS !== 'web';
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     const valueIndex = Math.max(0, RADIUS_STEPS_KM.indexOf(valueKm));
     const index = dragIndex ?? valueIndex;
@@ -363,32 +362,32 @@ function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
     return (
         <View style={styles.radiusRow}>
             <Text style={styles.radiusLabel}>Radio de alertas: {shownKm} km</Text>
-            {draggable ? (
-                <View
-                    style={styles.sliderTouchArea}
-                    onLayout={onTrackLayout}
-                    accessible
-                    accessibilityRole="adjustable"
-                    accessibilityLabel="Radio de alertas"
-                    accessibilityValue={{ text: `${shownKm} km` }}
-                    accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-                    onAccessibilityAction={e => {
-                        const step = e.nativeEvent.actionName === 'increment' ? 1 : -1;
-                        const next = Math.min(RADIUS_STEPS_KM.length - 1, Math.max(0, valueIndex + step));
-                        if (next !== valueIndex) onChange(RADIUS_STEPS_KM[next]);
-                    }}
-                    {...responder.panHandlers}
-                >
-                    {track}
-                </View>
-            ) : track}
+            <View
+                style={[styles.sliderTouchArea, webDragStyle]}
+                onLayout={onTrackLayout}
+                accessible
+                accessibilityRole="adjustable"
+                accessibilityLabel="Radio de alertas"
+                accessibilityValue={{ text: `${shownKm} km` }}
+                accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+                onAccessibilityAction={e => {
+                    const step = e.nativeEvent.actionName === 'increment' ? 1 : -1;
+                    const next = Math.min(RADIUS_STEPS_KM.length - 1, Math.max(0, valueIndex + step));
+                    if (next !== valueIndex) onChange(RADIUS_STEPS_KM[next]);
+                }}
+                {...webTapTarget}
+                {...responder.panHandlers}
+            >
+                {track}
+            </View>
             <View style={styles.sliderLabels}>
                 {RADIUS_STEPS_KM.map(km => (
                     <TouchableOpacity
                         key={km}
                         style={styles.sliderStep}
                         onPress={() => km !== valueKm && onChange(km)}
-                        hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                        // Сверху без запаса: иначе подписи перекрывают зону ползунка.
+                        hitSlop={{ top: 0, bottom: 10, left: 4, right: 4 }}
                         accessibilityRole="button"
                         accessibilityLabel={`Radio ${km} km`}
                     >
@@ -399,6 +398,15 @@ function RadiusSlider({ valueKm, onChange, onDragStateChange }: {
         </View>
     );
 }
+
+// В браузере без touch-action: none палец прокручивает страницу вместо
+// ползунка, а мышь выделяет текст. В RN этих свойств в типах нет.
+const webDragStyle = Platform.OS === 'web'
+    ? ({ touchAction: 'none', userSelect: 'none', cursor: 'pointer' } as object)
+    : null;
+// Chrome на телефоне "доводит" касание до ближайшего кликабельного элемента:
+// без обработчика клика палец на полоске уходит в подписи км под ней.
+const webTapTarget = Platform.OS === 'web' ? { onClick: () => {} } : null;
 
 function SettingSection({ title, children }: { title: string; children: React.ReactNode }) {
     return (
