@@ -134,6 +134,9 @@ export function OutageDetail({ id, embedded = false, reloadToken = 0 }: {
     const [submitting, setSubmitting] = useState(false);
     const [geocodedLocation, setGeocodedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
     const loadedIdRef = useRef<string | null>(null);
+    // La ubicación buscada por la descripción, para no repetir la búsqueda
+    // en cada recarga pero sí reintentarla si todavía no se encontró.
+    const geocodedRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
     useEffect(() => {
         // En la tablet el mismo componente pasa de un corte a otro: limpiamos
@@ -150,6 +153,7 @@ export function OutageDetail({ id, embedded = false, reloadToken = 0 }: {
             setComments([]);
             setCommentText('');
             setGeocodedLocation(null);
+            geocodedRef.current = null;
         }
 
         apiClient.get<Outage>(`/outages/${id}`)
@@ -158,8 +162,14 @@ export function OutageDetail({ id, embedded = false, reloadToken = 0 }: {
                 setOutage(r.data);
                 // Una recarga exitosa saca la pantalla de error de un intento anterior.
                 setError(null);
-                if (!reload && (r.data.latitude == null || r.data.longitude == null)) {
-                    geocodeZona(r.data).then(loc => { if (active && loc) setGeocodedLocation(loc); });
+                if ((r.data.latitude == null || r.data.longitude == null) && !geocodedRef.current) {
+                    // Se guarda aunque llegue después de una recarga del mismo
+                    // corte: solo se descarta si ya se eligió otro.
+                    geocodeZona(r.data).then(loc => {
+                        if (!loc || loadedIdRef.current !== id) return;
+                        geocodedRef.current = loc;
+                        setGeocodedLocation(loc);
+                    });
                 }
             })
             // Si falla una recarga, dejamos los datos que ya se veían.
