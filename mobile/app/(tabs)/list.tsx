@@ -65,6 +65,9 @@ export default function ListScreen() {
     const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
     const [systemStatusHeight, setSystemStatusHeight] = useState(0);
     const [selectedId, setSelectedId] = useState<number | null>(null);
+    // Sube con cada actualización de la lista: el detalle de la tablet se
+    // recarga con ella para no quedar con datos viejos.
+    const [reloadToken, setReloadToken] = useState(0);
     const router = useRouter();
     const tabBarHeight = useBottomTabBarHeight();
     const { width } = useWindowDimensions();
@@ -113,6 +116,7 @@ export default function ListScreen() {
         } finally {
             setLoading(false);
             setRefreshing(false);
+            setReloadToken(token => token + 1);
         }
     };
 
@@ -283,9 +287,9 @@ export default function ListScreen() {
                                 <Text style={styles.detailEmpty}>Elegí un corte de la lista para ver el detalle.</Text>
                             </View>
                         ) : selected.source === OutageSource.CROWDSOURCE ? (
-                            <ReportDetail key={selected.id} id={String(selected.id - REPORT_ID_OFFSET)} embedded />
+                            <ReportDetail key={selected.id} id={String(selected.id - REPORT_ID_OFFSET)} embedded reloadToken={reloadToken} />
                         ) : (
-                            <OutageDetail key={selected.id} id={String(selected.id)} embedded />
+                            <OutageDetail key={selected.id} id={String(selected.id)} embedded reloadToken={reloadToken} />
                         )}
                     </View>
                 )}

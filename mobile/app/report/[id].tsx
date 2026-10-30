@@ -51,7 +51,12 @@ export default function ReportDetailScreen() {
  * tablet se muestra embebido en el panel derecho de la lista: ahí no hay
  * encabezado propio ni botón "Volver".
  */
-export function ReportDetail({ id, embedded = false }: { id: string; embedded?: boolean }) {
+export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
+    id: string;
+    embedded?: boolean;
+    /** Cambia cuando la lista se actualiza: recargamos sin limpiar la pantalla. */
+    reloadToken?: number;
+}) {
     const router = useRouter();
     const navigation = useNavigation();
     const [report, setReport] = useState<Report | null>(null);
@@ -62,17 +67,24 @@ export function ReportDetail({ id, embedded = false }: { id: string; embedded?: 
     const [corroborating, setCorroborating] = useState(false);
     const [corroborated, setCorroborated] = useState(false);
     const activeReportIdRef = useRef<number | null>(null);
+    const loadedIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         let active = true;
-        activeReportIdRef.current = null;
-        setReport(null);
-        setLoading(true);
-        setError(null);
-        setMine(false);
-        setResolving(false);
-        setCorroborating(false);
-        setCorroborated(false);
+        // Mismo id: la lista se actualizó y solo traemos el contador nuevo,
+        // sin borrar la pantalla ni cortar una acción en curso.
+        const reload = loadedIdRef.current === id;
+        loadedIdRef.current = id;
+        if (!reload) {
+            activeReportIdRef.current = null;
+            setReport(null);
+            setLoading(true);
+            setError(null);
+            setMine(false);
+            setResolving(false);
+            setCorroborating(false);
+            setCorroborated(false);
+        }
 
         (async () => {
             try {
@@ -97,13 +109,14 @@ export function ReportDetail({ id, embedded = false }: { id: string; embedded?: 
                 // только после успешного создания метки с этого устройства.
                 setMine(res.data.is_mine === true || localMine);
             } catch {
-                if (active) setError('No se pudo cargar el reporte.');
+                // Si falla una recarga, dejamos el reporte que ya se veía.
+                if (active && !reload) setError('No se pudo cargar el reporte.');
             } finally {
                 if (active) setLoading(false);
             }
         })();
         return () => { active = false; };
-    }, [id]);
+    }, [id, reloadToken]);
 
     const handleResolve = () => {
         if (!report || resolving) return;
