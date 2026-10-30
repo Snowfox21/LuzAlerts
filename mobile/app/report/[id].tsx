@@ -100,6 +100,8 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
                 if (!active) return;
                 activeReportIdRef.current = res.data.id;
                 setReport(res.data);
+                // Una recarga exitosa saca la pantalla de error de un intento anterior.
+                setError(null);
                 setCorroborated(alreadyCorroborated);
                 // Локальный реестр — не запасной вариант, а второй независимый
                 // признак: если device_id до сервера не доехал (его не выдал

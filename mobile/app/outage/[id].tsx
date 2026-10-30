@@ -156,6 +156,8 @@ export function OutageDetail({ id, embedded = false, reloadToken = 0 }: {
             .then(r => {
                 if (!active) return;
                 setOutage(r.data);
+                // Una recarga exitosa saca la pantalla de error de un intento anterior.
+                setError(null);
                 if (!reload && (r.data.latitude == null || r.data.longitude == null)) {
                     geocodeZona(r.data).then(loc => { if (active && loc) setGeocodedLocation(loc); });
                 }

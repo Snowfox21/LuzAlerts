@@ -59,7 +59,10 @@ const formatDateTime = (iso: string | null | undefined): string => {
 
 export default function ListScreen() {
     const [outages, setOutages] = useState<Outage[]>([]);
-    const [loading, setLoading] = useState(true);
+    // Solo la primera carga muestra el spinner de pantalla completa: las
+    // automáticas (intervalo, volver a la app) no desmontan la lista ni el
+    // detalle de la tablet, donde puede haber un comentario a medio escribir.
+    const [initialLoading, setInitialLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<Filter>('all');
     const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
@@ -74,7 +77,6 @@ export default function ListScreen() {
     const twoPane = width >= TWO_PANE_MIN_WIDTH;
 
     const fetchOutages = async () => {
-        setLoading(true);
         try {
             let fetchedOutages: Outage[] = [];
             let mappedReports: Outage[] = [];
@@ -114,7 +116,7 @@ export default function ListScreen() {
         } catch (error) {
             console.warn('Error fetching outages:', error);
         } finally {
-            setLoading(false);
+            setInitialLoading(false);
             setRefreshing(false);
             setReloadToken(token => token + 1);
         }
@@ -173,7 +175,7 @@ export default function ListScreen() {
         ? tabBarHeight + Math.max(systemStatusHeight, SYSTEM_STATUS_MIN_HEIGHT) + 48
         : 24;
 
-    if (loading && !refreshing) {
+    if (initialLoading) {
         return (
             <View style={sharedStyles.center}>
                 <ActivityIndicator size="large" color={DS.amber} />
