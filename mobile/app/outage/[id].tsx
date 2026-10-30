@@ -112,6 +112,15 @@ function FormattedDescription({ text }: { text: string }) {
 
 export default function OutageDetailScreen() {
     const { id } = useLocalSearchParams();
+    return <OutageDetail id={String(id)} />;
+}
+
+/**
+ * Detalle de un corte oficial. En el teléfono es una pantalla propia; en la
+ * tablet se muestra embebido (embedded) en el panel derecho de la lista,
+ * sin tocar el encabezado del navegador.
+ */
+export function OutageDetail({ id, embedded = false }: { id: string; embedded?: boolean }) {
     const [outage, setOutage] = useState<Outage | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -121,19 +130,31 @@ export default function OutageDetailScreen() {
     const [geocodedLocation, setGeocodedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
     useEffect(() => {
+        // En la tablet el mismo componente pasa de un corte a otro: limpiamos
+        // lo anterior y descartamos respuestas que lleguen tarde.
+        let active = true;
+        setOutage(null);
+        setLoading(true);
+        setError(null);
+        setComments([]);
+        setCommentText('');
+        setGeocodedLocation(null);
+
         apiClient.get<Outage>(`/outages/${id}`)
             .then(r => {
+                if (!active) return;
                 setOutage(r.data);
                 if (r.data.latitude == null || r.data.longitude == null) {
-                    geocodeZona(r.data).then(loc => { if (loc) setGeocodedLocation(loc); });
+                    geocodeZona(r.data).then(loc => { if (active && loc) setGeocodedLocation(loc); });
                 }
             })
-            .catch(() => setError('No se pudo cargar la información del corte.'))
-            .finally(() => setLoading(false));
+            .catch(() => { if (active) setError('No se pudo cargar la información del corte.'); })
+            .finally(() => { if (active) setLoading(false); });
 
         apiClient.get<Comment[]>(`/outages/${id}/comments`)
-            .then(r => setComments(r.data))
+            .then(r => { if (active) setComments(r.data); })
             .catch(() => {});
+        return () => { active = false; };
     }, [id]);
 
     const submitComment = async () => {
@@ -155,7 +176,7 @@ export default function OutageDetailScreen() {
     if (loading) {
         return (
             <View style={sharedStyles.center}>
-                <Stack.Screen options={{ title: 'Detalle del corte' }} />
+                {!embedded && <Stack.Screen options={{ title: 'Detalle del corte' }} />}
                 <ActivityIndicator size="large" color={DS.amber} />
             </View>
         );
@@ -164,7 +185,7 @@ export default function OutageDetailScreen() {
     if (error || !outage) {
         return (
             <View style={sharedStyles.center}>
-                <Stack.Screen options={{ title: 'Detalle del corte' }} />
+                {!embedded && <Stack.Screen options={{ title: 'Detalle del corte' }} />}
                 <Text style={styles.errorText}>{error || 'Corte no encontrado'}</Text>
             </View>
         );
@@ -179,9 +200,9 @@ export default function OutageDetailScreen() {
         <KeyboardAvoidingView
             style={sharedStyles.screen}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+            keyboardVerticalOffset={Platform.OS === 'ios' && !embedded ? 88 : 0}
         >
-            <Stack.Screen
+            {!embedded && <Stack.Screen
                 options={{
                     title: 'Detalle del corte',
                     headerBackTitle: 'Mapa',
@@ -199,7 +220,7 @@ export default function OutageDetailScreen() {
                         </TouchableOpacity>
                     ),
                 }}
-            />
+            />}
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
                 <View style={styles.hero}>
                     <StatusChip status={outage.status} source={outage.source} />
