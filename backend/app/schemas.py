@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
 
+from app.config import settings
 from app.sharing import outage_share_url
 from app.sharing import share_url as build_share_url
 
@@ -230,6 +231,11 @@ class ReportOut(BaseModel):
     def resolved(self) -> bool:
         return self.resolved_at is not None
 
+    @computed_field(description="Cuántos reportes cercanos hacen falta para confirmar el corte")
+    @property
+    def confirmation_threshold(self) -> int:
+        return settings.REPORT_THRESHOLD
+
     @computed_field(description="Ссылка на публичную страницу метки для шеринга")
     @property
     def share_url(self) -> str | None:
@@ -258,6 +264,11 @@ class ReportPublicOut(BaseModel):
     confirmed: bool
     created_at: datetime
     resolved: bool
+
+    @computed_field(description="Cuántos reportes cercanos hacen falta para confirmar el corte")
+    @property
+    def confirmation_threshold(self) -> int:
+        return settings.REPORT_THRESHOLD
 
     @field_serializer("created_at")
     def _serialize_dt(self, value: datetime | None) -> str | None:
