@@ -21,11 +21,12 @@ async def check_and_confirm_reports(db: AsyncSession, lat: float, lon: float) ->
     """
     Считает активные метки в радиусе REPORT_RADIUS_M вокруг точки.
     Если >= REPORT_THRESHOLD — помечает их как confirmed.
+    A todas les guarda confirmation_count, llegue o no al umbral.
     Возвращает количество соседних меток.
     """
     point = ST_SetSRID(ST_MakePoint(lon, lat), 4326)
 
-    count_q = select(func.count(UserReport.id)).where(
+    nearby_q = select(UserReport).where(
         active_report_clause(),
         ST_DWithin(
             cast(UserReport.location, Geography(srid=4326)),
@@ -33,27 +34,20 @@ async def check_and_confirm_reports(db: AsyncSession, lat: float, lon: float) ->
             settings.REPORT_RADIUS_M,
         ),
     )
-    result = await db.execute(count_q)
-    count = result.scalar_one()
+    reports = (await db.execute(nearby_q)).scalars().all()
+    count = len(reports)
+    reached = count >= settings.REPORT_THRESHOLD
 
-    if count >= settings.REPORT_THRESHOLD:
-        update_q = (
-            select(UserReport)
-            .where(
-                active_report_clause(),
-                ST_DWithin(
-                    cast(UserReport.location, Geography(srid=4326)),
-                    cast(point, Geography(srid=4326)),
-                    settings.REPORT_RADIUS_M,
-                ),
-            )
-        )
-        reports = (await db.execute(update_q)).scalars().all()
-        for r in reports:
+    # El contador se guarda también por debajo del umbral: la pantalla del
+    # reporte muestra "2 de 3 vecinos" y sin esto siempre diría 0. Nunca lo
+    # bajamos, para no restarle a un reporte que ya sumó en otro grupo.
+    for r in reports:
+        r.confirmation_count = max(r.confirmation_count or 0, count)
+        if reached:
             r.confirmed = True
-            r.confirmation_count = count
-        await db.commit()
+    await db.commit()
 
+    if reached:
         barrio = reports[0].barrio if reports else None
         body = f"Corte confirmado en {barrio}" if barrio else "Corte confirmado por usuarios cercanos"
         await notify_users_near_outage(db, lat, lon, body)

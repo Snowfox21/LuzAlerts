@@ -114,10 +114,10 @@
       <div class="meter">
         <div class="meter-row">
           <span>Vecinos que confirmaron</span>
-          <strong>{{ report.confirmation_count }}</strong>
+          <strong>{% if report.confirmed %}{{ report.confirmation_count }}{% else %}{{ report.confirmation_count }} de {{ report.confirmation_threshold }}{% endif %}</strong>
         </div>
         <div class="bar">
-          <i style="width: {{ [report.confirmation_count * 33, 100] | min }}%"></i>
+          <i style="width: {{ 100 if report.confirmed else [(report.confirmation_count * 100 // report.confirmation_threshold), 100] | min }}%"></i>
         </div>
       </div>
 

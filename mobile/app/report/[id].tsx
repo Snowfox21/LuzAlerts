@@ -30,6 +30,8 @@ interface Report {
     // Автора определяет сервер по device_id из query; старый бэкенд поле не отдает
     is_mine?: boolean;
     confirmation_count?: number;
+    // Lo manda el backend junto con el contador; el viejo no lo manda
+    confirmation_threshold?: number;
     // Публичная ссылка для шеринга; у меток старого бэкенда её нет
     share_code?: string | null;
     share_url?: string | null;
@@ -41,6 +43,20 @@ const CONFIRMATION_THRESHOLD = 3;
 
 export default function ReportDetailScreen() {
     const { id } = useLocalSearchParams();
+    return <ReportDetail id={String(id)} />;
+}
+
+/**
+ * Detalle de un reporte vecinal. Igual que el detalle de un corte, en la
+ * tablet se muestra embebido en el panel derecho de la lista: ahí no hay
+ * encabezado propio ni botón "Volver".
+ */
+export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
+    id: string;
+    embedded?: boolean;
+    /** Cambia cuando la lista se actualiza: recargamos sin limpiar la pantalla. */
+    reloadToken?: number;
+}) {
     const router = useRouter();
     const navigation = useNavigation();
     const [report, setReport] = useState<Report | null>(null);
@@ -51,17 +67,24 @@ export default function ReportDetailScreen() {
     const [corroborating, setCorroborating] = useState(false);
     const [corroborated, setCorroborated] = useState(false);
     const activeReportIdRef = useRef<number | null>(null);
+    const loadedIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         let active = true;
-        activeReportIdRef.current = null;
-        setReport(null);
-        setLoading(true);
-        setError(null);
-        setMine(false);
-        setResolving(false);
-        setCorroborating(false);
-        setCorroborated(false);
+        // Mismo id: la lista se actualizó y solo traemos el contador nuevo,
+        // sin borrar la pantalla ni cortar una acción en curso.
+        const reload = loadedIdRef.current === id;
+        loadedIdRef.current = id;
+        if (!reload) {
+            activeReportIdRef.current = null;
+            setReport(null);
+            setLoading(true);
+            setError(null);
+            setMine(false);
+            setResolving(false);
+            setCorroborating(false);
+            setCorroborated(false);
+        }
 
         (async () => {
             try {
@@ -77,6 +100,8 @@ export default function ReportDetailScreen() {
                 if (!active) return;
                 activeReportIdRef.current = res.data.id;
                 setReport(res.data);
+                // Una recarga exitosa saca la pantalla de error de un intento anterior.
+                setError(null);
                 setCorroborated(alreadyCorroborated);
                 // Локальный реестр — не запасной вариант, а второй независимый
                 // признак: если device_id до сервера не доехал (его не выдал
@@ -86,13 +111,14 @@ export default function ReportDetailScreen() {
                 // только после успешного создания метки с этого устройства.
                 setMine(res.data.is_mine === true || localMine);
             } catch {
-                if (active) setError('No se pudo cargar el reporte.');
+                // Si falla una recarga, dejamos el reporte que ya se veía.
+                if (active && !reload) setError('No se pudo cargar el reporte.');
             } finally {
                 if (active) setLoading(false);
             }
         })();
         return () => { active = false; };
-    }, [id]);
+    }, [id, reloadToken]);
 
     const handleResolve = () => {
         if (!report || resolving) return;
@@ -203,14 +229,15 @@ export default function ReportDetailScreen() {
     // штатную анимацию и историю.
     useFocusEffect(
         useCallback(() => {
-            if (Platform.OS !== 'android') return;
+            // Embebido en la lista, "atrás" es del navegador de pestañas.
+            if (embedded || Platform.OS !== 'android') return;
             const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
                 if (navigation.canGoBack()) return false;
                 router.replace('/(tabs)');
                 return true;
             });
             return () => subscription.remove();
-        }, [navigation, router]),
+        }, [embedded, navigation, router]),
     );
 
     const openOnMap = () => {
@@ -227,7 +254,7 @@ export default function ReportDetailScreen() {
     if (loading) {
         return (
             <View style={sharedStyles.center}>
-                <Stack.Screen options={{ title: 'Reporte de usuario' }} />
+                {!embedded && <Stack.Screen options={{ title: 'Reporte de usuario' }} />}
                 <ActivityIndicator size="large" color={DS.amber} />
             </View>
         );
@@ -236,16 +263,22 @@ export default function ReportDetailScreen() {
     if (error || !report) {
         return (
             <View style={sharedStyles.center}>
-                <Stack.Screen options={{ title: 'Reporte de usuario' }} />
+                {!embedded && <Stack.Screen options={{ title: 'Reporte de usuario' }} />}
                 <Text style={styles.errorText}>{error ?? 'Reporte no encontrado'}</Text>
             </View>
         );
     }
 
-    const confirmations = report.confirmation_count ?? 0;
+    const threshold = report.confirmation_threshold ?? CONFIRMATION_THRESHOLD;
+    // El propio reporte ya cuenta: el contador nunca baja de 1, aunque un
+    // reporte anterior al cambio del backend todavía tenga 0 guardado.
+    const confirmations = report.confirmed
+        ? report.confirmation_count ?? threshold
+        : Math.min(Math.max(report.confirmation_count ?? 0, 1), threshold - 1);
     const meterPercent = report.confirmed
         ? 100
-        : Math.min(Math.round((confirmations / CONFIRMATION_THRESHOLD) * 100), 100);
+        : Math.min(Math.round((confirmations / threshold) * 100), 100);
+    const missing = threshold - confirmations;
     const resolvedBadge = report.resolved_reason === 'auto' ? 'EXPIRADO' : 'CERRADO';
     const resolvedText = report.resolved_reason === 'author'
         ? `La luz volvió el ${formatDateTime24(report.resolved_at ?? undefined)}`
@@ -255,7 +288,7 @@ export default function ReportDetailScreen() {
 
     return (
         <ScrollView style={sharedStyles.screen} contentContainerStyle={styles.content}>
-            <Stack.Screen
+            {!embedded && <Stack.Screen
                 options={{
                     title: 'Reporte de usuario',
                     headerBackTitle: 'Mapa',
@@ -270,7 +303,7 @@ export default function ReportDetailScreen() {
                     ),
                     headerBackVisible: false,
                 }}
-            />
+            />}
 
             <View style={styles.hero}>
                 <View style={styles.badgeRow}>
@@ -317,12 +350,21 @@ export default function ReportDetailScreen() {
                         <InfoTitle icon={<UsersRound size={18} color={DS.violet} />} title="Vecinos" />
                         <Text style={styles.body}>
                             {report.confirmed
-                                ? 'Varios vecinos confirmaron este corte.'
-                                : `${confirmations} / ${CONFIRMATION_THRESHOLD} confirmaciones`}
+                                ? `${confirmations} vecinos confirmaron este corte.`
+                                : `${confirmations} de ${threshold} vecinos confirmaron`}
                         </Text>
-                        <View style={styles.meterTrack}>
+                        <View
+                            style={styles.meterTrack}
+                            accessibilityRole="progressbar"
+                            accessibilityValue={{ min: 0, max: threshold, now: Math.min(confirmations, threshold) }}
+                        >
                             <View style={[styles.meterFill, { width: `${meterPercent}%` }]} />
                         </View>
+                        <Text style={styles.meterHint}>
+                            {report.confirmed
+                                ? `Se confirmó al juntarse ${threshold} reportes a menos de 500 m.`
+                                : `El corte se confirma con ${threshold} reportes a menos de 500 m. ${missing === 1 ? 'Falta 1 vecino' : `Faltan ${missing} vecinos`}: compartí el reporte para sumarlos.`}
+                        </Text>
                     </SectionCard>
                 ) : null}
 
@@ -520,6 +562,12 @@ const styles = StyleSheet.create({
         height: '100%',
         borderRadius: 999,
         backgroundColor: DS.violet,
+    },
+    meterHint: {
+        color: DS.textMuted,
+        fontSize: 13,
+        lineHeight: 18,
+        marginTop: 10,
     },
     thanksNotice: {
         flexDirection: 'row',

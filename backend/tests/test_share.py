@@ -184,6 +184,8 @@ async def test_corroborate_is_idempotent_per_device(client: AsyncClient, mock_ge
     # Автор + один сосед, сколько бы раз он ни нажал.
     assert len(nearby.json()) == 2
     assert res.json()["confirmed"] is False
+    # La pantalla del reporte muestra "2 de 3": el contador ya se ve.
+    assert res.json()["confirmation_count"] == 2
 
 
 @pytest.mark.asyncio

@@ -9,6 +9,8 @@ interface Props {
     outage: Outage;
     onPress?: () => void;
     compact?: boolean;
+    /** Tarjeta abierta en el panel de detalle (tablet). */
+    selected?: boolean;
 }
 
 function formatTime(value?: string) {
@@ -21,7 +23,7 @@ function formatTime(value?: string) {
     return `${day} ${month}, ${time}`;
 }
 
-export const OutageCard = ({ outage, onPress, compact = false }: Props) => {
+export const OutageCard = ({ outage, onPress, compact = false, selected = false }: Props) => {
     const isCrowd = outage.source === OutageSource.CROWDSOURCE;
     const timeLabel = outage.status === OutageStatus.PLANNED
         ? formatTime(outage.scheduled_start)
@@ -31,7 +33,8 @@ export const OutageCard = ({ outage, onPress, compact = false }: Props) => {
         <TouchableOpacity
             onPress={onPress}
             activeOpacity={0.75}
-            style={[styles.card, compact && styles.compactCard]}
+            style={[styles.card, compact && styles.compactCard, selected && styles.selectedCard]}
+            accessibilityState={selected ? { selected } : undefined}
         >
             <View style={styles.topRow}>
                 <StatusChip status={outage.status} source={outage.source} />
@@ -81,6 +84,11 @@ const styles = StyleSheet.create({
     },
     compactCard: {
         padding: 14,
+    },
+    selectedCard: {
+        borderWidth: 1,
+        borderColor: DS.amber,
+        padding: 15,
     },
     topRow: {
         flexDirection: 'row',

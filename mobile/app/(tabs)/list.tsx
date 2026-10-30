@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Navigation, Settings, Zap } from 'lucide-react-native';
@@ -8,6 +8,8 @@ import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
 import { DS, IconButton, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { parseApiDate } from '../../src/utils/date';
+import { OutageDetail } from '../outage/[id]';
+import { ReportDetail } from '../report/[id]';
 
 type Filter = 'all' | 'planned' | 'active' | 'resolved' | 'near';
 
@@ -24,6 +26,12 @@ const ANDE_SILENT_SINCE_FALLBACK = '05/05';
 // Данные считаются устаревшими, если последнему official-корту больше суток
 const ANDE_STALE_MS = 24 * 60 * 60 * 1000;
 const SYSTEM_STATUS_MIN_HEIGHT = 92;
+// Desde este ancho (tablet o teléfono grande en horizontal) la lista y el
+// detalle van lado a lado en vez de navegar a otra pantalla.
+const TWO_PANE_MIN_WIDTH = 768;
+// Los reportes vecinales comparten la lista con los cortes oficiales: su id
+// se corre por este offset para no chocar con los de ANDE.
+const REPORT_ID_OFFSET = 1000000;
 
 interface SystemStatus {
     status: string;
@@ -51,16 +59,24 @@ const formatDateTime = (iso: string | null | undefined): string => {
 
 export default function ListScreen() {
     const [outages, setOutages] = useState<Outage[]>([]);
-    const [loading, setLoading] = useState(true);
+    // Solo la primera carga muestra el spinner de pantalla completa: las
+    // automáticas (intervalo, volver a la app) no desmontan la lista ni el
+    // detalle de la tablet, donde puede haber un comentario a medio escribir.
+    const [initialLoading, setInitialLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<Filter>('all');
     const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
     const [systemStatusHeight, setSystemStatusHeight] = useState(0);
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    // Sube con cada actualización de la lista: el detalle de la tablet se
+    // recarga con ella para no quedar con datos viejos.
+    const [reloadToken, setReloadToken] = useState(0);
     const router = useRouter();
     const tabBarHeight = useBottomTabBarHeight();
+    const { width } = useWindowDimensions();
+    const twoPane = width >= TWO_PANE_MIN_WIDTH;
 
     const fetchOutages = async () => {
-        setLoading(true);
         try {
             let fetchedOutages: Outage[] = [];
             let mappedReports: Outage[] = [];
@@ -75,7 +91,7 @@ export default function ListScreen() {
             try {
                 const reportsRes = await apiClient.get<any[]>('/reports/');
                 mappedReports = (reportsRes.data || []).map(r => ({
-                    id: r.id + 1000000,
+                    id: r.id + REPORT_ID_OFFSET,
                     source: OutageSource.CROWDSOURCE,
                     status: OutageStatus.ACTIVE,
                     title: 'Corte reportado por usuario',
@@ -100,8 +116,9 @@ export default function ListScreen() {
         } catch (error) {
             console.warn('Error fetching outages:', error);
         } finally {
-            setLoading(false);
+            setInitialLoading(false);
             setRefreshing(false);
+            setReloadToken(token => token + 1);
         }
     };
 
@@ -138,12 +155,27 @@ export default function ListScreen() {
         return Date.now() - date.getTime() > ANDE_STALE_MS;
     }, [systemStatus?.last_success]);
 
+    // En la tablet siempre hay algo en el panel derecho: si lo elegido ya no
+    // está en la lista (cambió el filtro o se actualizó), mostramos el primero.
+    const selected = twoPane
+        ? filtered.find(item => item.id === selectedId) ?? filtered[0] ?? null
+        : null;
+
+    const openOutage = (item: Outage) => {
+        if (twoPane) {
+            setSelectedId(item.id);
+            return;
+        }
+        if (item.source === OutageSource.CROWDSOURCE) router.push(`/report/${item.id - REPORT_ID_OFFSET}`);
+        else router.push(`/outage/${item.id}`);
+    };
+
     const showSystemStatus = Boolean(systemStatus);
     const listBottomInset = showSystemStatus
         ? tabBarHeight + Math.max(systemStatusHeight, SYSTEM_STATUS_MIN_HEIGHT) + 48
         : 24;
 
-    if (loading && !refreshing) {
+    if (initialLoading) {
         return (
             <View style={sharedStyles.center}>
                 <ActivityIndicator size="large" color={DS.amber} />
@@ -182,69 +214,85 @@ export default function ListScreen() {
                 </ScrollView>
             </View>
 
-            <View style={styles.listWrap}>
-                <FlatList
-                    data={filtered}
-                    keyExtractor={item => item.id.toString()}
-                    renderItem={({ item }) => (
-                        <OutageCard
-                            outage={item}
-                            onPress={item.source === OutageSource.CROWDSOURCE
-                                ? () => router.push(`/report/${item.id - 1000000}`)
-                                : () => router.push(`/outage/${item.id}`)}
-                        />
-                    )}
-                    ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-                    contentContainerStyle={[
-                        styles.listContent,
-                        { paddingBottom: listBottomInset },
-                        filtered.length === 0 && styles.listContentEmpty,
-                    ]}
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOutages(); }} tintColor={DS.amber} />
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyWrap}>
-                            <View style={styles.emptyIconCircle}>
-                                <Zap size={40} color={DS.green} />
+            <View style={styles.body}>
+                <View style={[styles.listWrap, twoPane && styles.listPane]}>
+                    <FlatList
+                        data={filtered}
+                        keyExtractor={item => item.id.toString()}
+                        extraData={selected?.id}
+                        renderItem={({ item }) => (
+                            <OutageCard
+                                outage={item}
+                                selected={selected?.id === item.id}
+                                onPress={() => openOutage(item)}
+                            />
+                        )}
+                        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+                        contentContainerStyle={[
+                            styles.listContent,
+                            { paddingBottom: listBottomInset },
+                            filtered.length === 0 && styles.listContentEmpty,
+                        ]}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOutages(); }} tintColor={DS.amber} />
+                        }
+                        ListEmptyComponent={
+                            <View style={styles.emptyWrap}>
+                                <View style={styles.emptyIconCircle}>
+                                    <Zap size={40} color={DS.green} />
+                                </View>
+                                <Text style={styles.emptyTitle}>Sin cortes por ahora</Text>
+                                <Text style={styles.emptyBody}>
+                                    No hay cortes programados por la ANDE ni reportes de vecinos en tu zona.
+                                </Text>
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    onPress={() => { setRefreshing(true); fetchOutages(); }}
+                                    style={styles.refreshBtn}
+                                >
+                                    <Navigation size={15} color={DS.textMuted} />
+                                    <Text style={styles.refreshText}>Actualizar</Text>
+                                </TouchableOpacity>
                             </View>
-                            <Text style={styles.emptyTitle}>Sin cortes por ahora</Text>
-                            <Text style={styles.emptyBody}>
-                                No hay cortes programados por la ANDE ni reportes de vecinos en tu zona.
-                            </Text>
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                onPress={() => { setRefreshing(true); fetchOutages(); }}
-                                style={styles.refreshBtn}
-                            >
-                                <Navigation size={15} color={DS.textMuted} />
-                                <Text style={styles.refreshText}>Actualizar</Text>
-                            </TouchableOpacity>
-                        </View>
-                    }
-                />
+                        }
+                    />
 
-                {showSystemStatus && (
-                    <View
-                        style={[styles.systemStatus, { bottom: tabBarHeight + 16 }]}
-                        onLayout={event => setSystemStatusHeight(event.nativeEvent.layout.height)}
-                    >
-                        <View style={styles.statusRow}>
-                            <View style={[styles.statusDot, !andeStale && systemStatus?.coverage_valid_when ? styles.statusDotOk : styles.statusDotWarn]} />
-                            <Text style={styles.statusTextPrimary}>
-                                {!andeStale && systemStatus?.coverage_valid_when ? 'Cobertura de ANDE valida' : 'Cobertura de ANDE no verificada'}
-                            </Text>
+                    {showSystemStatus && (
+                        <View
+                            style={[styles.systemStatus, { bottom: tabBarHeight + 16 }]}
+                            onLayout={event => setSystemStatusHeight(event.nativeEvent.layout.height)}
+                        >
+                            <View style={styles.statusRow}>
+                                <View style={[styles.statusDot, !andeStale && systemStatus?.coverage_valid_when ? styles.statusDotOk : styles.statusDotWarn]} />
+                                <Text style={styles.statusTextPrimary}>
+                                    {!andeStale && systemStatus?.coverage_valid_when ? 'Cobertura de ANDE valida' : 'Cobertura de ANDE no verificada'}
+                                </Text>
+                            </View>
+                            <View style={styles.statusDivider} />
+                            <View style={styles.statusRow}>
+                                <View style={[styles.statusDot, styles.statusDotWarn]} />
+                                <Text style={styles.statusTextSecondary}>
+                                    {`Ultimo intento: ${formatDateTime(systemStatus?.last_attempt)}`}
+                                    {` · Ultimo exito: ${formatDateTime(systemStatus?.last_success)}`}
+                                    {systemStatus?.coverage_valid_when ? ` · Valida desde ${formatDateTime(systemStatus.coverage_valid_when)}` : ''}
+                                    {systemStatus ? ` · ${systemStatus.misses_confirmados_30d} confirmados fuera de ANDE (30d)` : ''}
+                                </Text>
+                            </View>
                         </View>
-                        <View style={styles.statusDivider} />
-                        <View style={styles.statusRow}>
-                            <View style={[styles.statusDot, styles.statusDotWarn]} />
-                            <Text style={styles.statusTextSecondary}>
-                                {`Ultimo intento: ${formatDateTime(systemStatus?.last_attempt)}`}
-                                {` · Ultimo exito: ${formatDateTime(systemStatus?.last_success)}`}
-                                {systemStatus?.coverage_valid_when ? ` · Valida desde ${formatDateTime(systemStatus.coverage_valid_when)}` : ''}
-                                {systemStatus ? ` · ${systemStatus.misses_confirmados_30d} confirmados fuera de ANDE (30d)` : ''}
-                            </Text>
-                        </View>
+                    )}
+                </View>
+
+                {twoPane && (
+                    <View style={styles.detailPane}>
+                        {selected == null ? (
+                            <View style={sharedStyles.center}>
+                                <Text style={styles.detailEmpty}>Elegí un corte de la lista para ver el detalle.</Text>
+                            </View>
+                        ) : selected.source === OutageSource.CROWDSOURCE ? (
+                            <ReportDetail key={selected.id} id={String(selected.id - REPORT_ID_OFFSET)} embedded reloadToken={reloadToken} />
+                        ) : (
+                            <OutageDetail key={selected.id} id={String(selected.id)} embedded reloadToken={reloadToken} />
+                        )}
                     </View>
                 )}
             </View>
@@ -287,8 +335,30 @@ const styles = StyleSheet.create({
         color: DS.ink,
         fontWeight: '800',
     },
+    body: {
+        flex: 1,
+        flexDirection: 'row',
+    },
     listWrap: {
         flex: 1,
+    },
+    listPane: {
+        flexGrow: 0,
+        flexShrink: 0,
+        flexBasis: '40%',
+        maxWidth: 440,
+        minWidth: 320,
+    },
+    detailPane: {
+        flex: 1,
+        borderLeftWidth: 1,
+        borderLeftColor: DS.border,
+    },
+    detailEmpty: {
+        color: DS.textMuted,
+        fontSize: 14,
+        textAlign: 'center',
+        paddingHorizontal: 32,
     },
     listContent: {
         paddingHorizontal: 16,

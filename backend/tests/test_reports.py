@@ -59,11 +59,15 @@ async def test_crowdsource_validation(client: AsyncClient, db, mock_geocoder):
     p1 = {"device_id": users[0], "latitude": -25.3001, "longitude": -57.6501}
     r1 = await client.post("/reports/", json=p1)
     assert r1.json()["confirmed"] is False
+    # El contador cuenta el propio reporte y se ve aun antes del umbral.
+    assert r1.json()["confirmation_count"] == 1
+    assert r1.json()["confirmation_threshold"] == settings.REPORT_THRESHOLD
     
     # 2-й репорт (не подтвержден)
     p2 = {"device_id": users[1], "latitude": -25.3002, "longitude": -57.6502} # Рядом
     r2 = await client.post("/reports/", json=p2)
     assert r2.json()["confirmed"] is False
+    assert r2.json()["confirmation_count"] == 2
     
     # 3-й репорт (трешхолд достигнут -> все должны стать confirmed)
     p3 = {"device_id": users[2], "latitude": -25.3003, "longitude": -57.6503}
