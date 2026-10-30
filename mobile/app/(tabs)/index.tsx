@@ -275,9 +275,11 @@ export default function MapScreen() {
                 style={styles.map}
                 initialRegion={savedRegion}
                 customMapStyle={darkMapStyle}
-                loadingEnabled
-                loadingBackgroundColor={DS.bg}
-                loadingIndicatorColor={DS.amber}
+                // Sin loadingEnabled: el overlay de carga solo se quita cuando
+                // Google Maps avisa que el mapa terminó de cargar. En testers de
+                // Play con Android 16 (versión 1.2.5) el mapa quedaba para siempre
+                // como fondo oscuro con un spinner; el mini mapa del corte, que no
+                // usa este overlay, es el mismo MapView con la misma clave.
                 onRegionChangeComplete={(region, details) => {
                     // Mount-события не должны затирать сохраненный viewport.
                     if (restoringRegionRef.current && !details.isGesture) return;
