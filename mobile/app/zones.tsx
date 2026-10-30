@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, MapPin, Plus } from 'lucide-react-native';
+import { Bell, Home, MapPin, Plus, SlidersHorizontal } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { DS, PrimaryButton } from '../src/components/DesignSystem';
@@ -178,6 +178,8 @@ export default function ZonesScreen() {
                     ))
                 )}
 
+                {!loading && places.length === 0 && <PlacesGuide />}
+
                 <TouchableOpacity
                     style={[styles.addButton, !canAdd && styles.addButtonDisabled]}
                     onPress={() => setAdding(true)}
@@ -208,6 +210,38 @@ export default function ZonesScreen() {
                 onRadius={radius_m => editing && changeRadius(editing, radius_m)}
                 onRemove={() => editing && remove(editing)}
             />
+        </View>
+    );
+}
+
+/**
+ * Guía para quien todavía no agregó lugares: sin ella la pantalla queda casi
+ * vacía y no se entiende para qué sirve el botón "Agregar lugar".
+ */
+function PlacesGuide() {
+    const tips: { Icon: typeof Home; text: string }[] = [
+        {
+            Icon: Home,
+            text: `Sumá hasta ${MAX_TRACKED_PLACES} lugares además de tu zona: la casa de tus papás, el trabajo o el colegio de los chicos.`,
+        },
+        {
+            Icon: Bell,
+            text: 'Te avisamos si hay un corte cerca de cualquiera de ellos, aunque vos estés en otro lado.',
+        },
+        {
+            Icon: SlidersHorizontal,
+            text: 'Cada lugar tiene su propio radio de aviso y podés pausarlo sin borrarlo.',
+        },
+    ];
+    return (
+        <View style={styles.guide}>
+            <Text style={styles.guideTitle}>¿Para qué sirven los lugares?</Text>
+            {tips.map(({ Icon, text }) => (
+                <View key={text} style={styles.guideRow}>
+                    <Icon size={18} color={DS.amber} />
+                    <Text style={styles.guideText}>{text}</Text>
+                </View>
+            ))}
         </View>
     );
 }
@@ -473,6 +507,30 @@ const styles = StyleSheet.create({
     cardSub: {
         color: DS.textMuted,
         fontSize: 13,
+    },
+    guide: {
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: DS.border,
+        padding: 16,
+        gap: 12,
+        marginTop: 6,
+    },
+    guideTitle: {
+        color: DS.text,
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    guideRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+    },
+    guideText: {
+        flex: 1,
+        color: DS.textMid,
+        fontSize: 14,
+        lineHeight: 20,
     },
     addButton: {
         height: 52,
