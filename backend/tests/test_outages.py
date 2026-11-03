@@ -74,3 +74,41 @@ async def test_list_outages_spatial_filter(client: AsyncClient, seed_outages):
     assert all(o["barrio"] == "Villa Morra" for o in data)
     assert data[0]["latitude"] is not None
     assert data[0]["longitude"] is not None
+
+
+@pytest.mark.asyncio
+async def test_list_outages_hides_old_resolved(client: AsyncClient, db):
+    """Los resueltos hace más de 3 días no salen en el listado; los recientes sí."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.models import Outage, OutageSource, OutageStatus
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    recent = Outage(source=OutageSource.ande_official, status=OutageStatus.resolved,
+                    title="Resuelto reciente", latitude=-25.3, longitude=-57.6,
+                    created_at=now - timedelta(days=5), resolved_at=now - timedelta(days=2))
+    old = Outage(source=OutageSource.ande_official, status=OutageStatus.resolved,
+                 title="Resuelto viejo", latitude=-25.3, longitude=-57.6,
+                 created_at=now - timedelta(days=5), resolved_at=now - timedelta(days=4))
+    old_no_date = Outage(source=OutageSource.ande_official, status=OutageStatus.resolved,
+                         title="Resuelto viejo sin fecha", latitude=-25.3, longitude=-57.6,
+                         created_at=now - timedelta(days=4))
+    active_old = Outage(source=OutageSource.ande_official, status=OutageStatus.active,
+                        title="Activo viejo", latitude=-25.3, longitude=-57.6,
+                        created_at=now - timedelta(days=10))
+    db.add_all([recent, old, old_no_date, active_old])
+    await db.commit()
+
+    for query in ("/outages/", "/outages/?status=resolved"):
+        res = await client.get(query)
+        assert res.status_code == 200
+        titles = {o["title"] for o in res.json()}
+        assert "Resuelto reciente" in titles
+        assert "Resuelto viejo" not in titles
+        assert "Resuelto viejo sin fecha" not in titles
+
+    titles = {o["title"] for o in (await client.get("/outages/")).json()}
+    assert "Activo viejo" in titles
+
+    # El detalle sigue disponible (links compartidos).
+    assert (await client.get(f"/outages/{old.id}")).status_code == 200

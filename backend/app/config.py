@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # Через сколько часов после создания метка "нет света" считается
     # протухшей и закрывается автоматически, если автор не закрыл ее сам.
     REPORT_AUTO_RESOLVE_HOURS: int = 96
+    # Cuántas horas después de resolverse un corte sigue saliendo en el
+    # listado de /outages/ (mapa y lista). Más viejos no se muestran, aunque
+    # sigan en la base hasta la limpieza de 30 días del scraper.
+    RESOLVED_VISIBLE_HOURS: int = 72
     ADMIN_API_KEY: str | None = None
     # Базовый URL публичной части. Из него собираются ссылки для шеринга
     # (/r/{code}) и абсолютный og:image — относительные пути краулер

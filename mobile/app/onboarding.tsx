@@ -32,7 +32,7 @@ const LEGEND_ITEMS = [
         color: DS.greenLight,
         pulse: false,
         term: 'Resuelto',
-        body: 'La luz ya volvió. Se mantiene visible por 7 días.',
+        body: 'La luz ya volvió. Se mantiene visible por 3 días.',
     },
     {
         color: DS.violetLight,
