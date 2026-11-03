@@ -21,6 +21,23 @@ export interface FoundAddress {
     label: string;
 }
 
+export interface PlaceSuggestion extends FoundAddress {
+    /** Departamento u otra aclaración: "Central". */
+    detail: string | null;
+}
+
+/**
+ * Sugerencias mientras se escribe ("Luq" -> "Luque, Central"), solo en
+ * Paraguay. Si el servidor falla, lista vacía: queda el botón Buscar.
+ */
+export async function suggestPlaces(query: string, signal?: AbortSignal): Promise<PlaceSuggestion[]> {
+    const { data } = await apiClient.get<{ lat: number; lon: number; label: string; detail: string | null }[]>(
+        '/geocode/suggest',
+        { params: { q: query }, signal },
+    );
+    return (data ?? []).map(s => ({ latitude: s.lat, longitude: s.lon, label: s.label, detail: s.detail }));
+}
+
 /** Адрес → координаты, только в Парагвае. null — не нашли. */
 export async function searchAddress(query: string): Promise<FoundAddress | null> {
     try {

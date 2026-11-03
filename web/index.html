@@ -136,6 +136,9 @@
     .btn-primary:active { transform: translateY(0); }
     .btn-hint { font-size: 13px; color: var(--text-muted); }
     .btn-hint span { margin: 0 4px; opacity: 0.5; }
+    /* La pregunta del iPhone va en su propia línea: si no, el enlace se parte a la mitad en pantallas angostas. */
+    .btn-hint .btn-hint-ios { display: block; margin: 4px 0 0; opacity: 1; }
+    .btn-hint-ios a { color: var(--amber); text-decoration: underline; white-space: nowrap; }
     .dl-icon { width: 20px; height: 20px; flex-shrink: 0; }
     .dl-meta { font-size: 13px; color: var(--text-muted); margin: 0; text-align: center; }
     @media (min-width: 1024px) { .dl-meta { text-align: left; } }
@@ -314,7 +317,7 @@
             </a>
             <p class="dl-meta" id="dl-meta">Para Android 7 o superior</p>
             <a href="https://luzalerts.lat/app" class="btn-pwa">Abrir en iOS</a>
-            <p class="btn-hint">Gratis <span>·</span> Sin anuncios <span>·</span> ¿Tenés iPhone? <a href="/app/" style="color:var(--amber);text-decoration:underline;">Abrí la app web</a></p>
+            <p class="btn-hint">Gratis <span>·</span> Sin anuncios<span class="btn-hint-ios">¿Tenés iPhone? <a href="/app/">Abrí la app web</a></span></p>
           </div>
         </div>
 

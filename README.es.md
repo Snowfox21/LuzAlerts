@@ -82,7 +82,7 @@ Configuración única:
 1. DNS: registro `A` de `app.luzalerts.lat` → el VPS, solo para el redirect (Caddy obtiene el certificado TLS solo).
 2. Generar claves VAPID (`npx web-push generate-vapid-keys`) y poner `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` en el `.env` del VPS. Sin ellas la PWA no puede suscribirse (`GET /config/vapid-public-key` → 503).
 3. Reconstruir `backend` y `scraper` (los dos necesitan `pywebpush`), aplicar migraciones (`0007` agrega `users.web_push_subscription`) y reiniciar Caddy.
-4. Tiles del mapa: por defecto se usa el servidor público de OpenStreetMap, que no es para tráfico de producción. Definí `EXPO_PUBLIC_MAP_TILE_URL` (y `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`) al compilar con tu propio proveedor.
+4. Mapa: la PWA usa MapLibre GL con mapas vectoriales de [OpenFreeMap](https://openfreemap.org) (gratis, sin clave ni límite de pedidos), recoloreados a la paleta de la app. Se ven nítidos en pantallas retina. Para otro estilo (MapTiler, servidor propio) definí `EXPO_PUBLIC_MAP_STYLE_URL` al compilar.
 5. Deploy: `VPS=user@host ./scripts/deploy-pwa.sh`, o poné `VPS=user@host` en `scripts/.deploy.env` (fuera de git) y corré `./scripts/deploy-pwa.sh`.
 
 Desarrollo local: `cd mobile && npx expo start --web`. Los avisos solo llegan a usuarios con ubicación conocida, así que permití la geolocalización en la app.
