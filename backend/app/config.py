@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://luz:luz@localhost:5432/luzalerts"
     NOMINATIM_URL: str = "https://nominatim.openstreetmap.org"
     NOMINATIM_EMAIL: str = "dev@luzalerts.local"
+    # Photon (komoot): búsqueda mientras se escribe. Nominatim prohíbe el
+    # autocompletado en su política de uso, Photon está hecho para eso.
+    PHOTON_URL: str = "https://photon.komoot.io"
     REPORT_RADIUS_M: int = 500
     REPORT_THRESHOLD: int = 3
     # Через сколько часов после создания метка "нет света" считается

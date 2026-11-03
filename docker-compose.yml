@@ -8,7 +8,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luz}
       POSTGRES_DB: luzalerts
     ports:
-      - "5432:5432"
+      # Solo desde el propio servidor (psql local, túnel SSH). El backend y el
+      # scraper llegan por la red de Docker (host "db"). Abierto a internet,
+      # con la contraseña por defecto, cualquiera podría entrar a la base.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +26,10 @@ services:
     container_name: luzalerts_backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      # Solo desde el propio servidor (curl localhost:8000, túnel SSH). De
+      # afuera se entra por Caddy: así nadie puede saltearlo y falsificar
+      # X-Forwarded-For, del que depende el límite de pedidos por IP.
+      - "127.0.0.1:8000:8000"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://luz:luz@db:5432/luzalerts}
       NOMINATIM_URL: https://nominatim.openstreetmap.org

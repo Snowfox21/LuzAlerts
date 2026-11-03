@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.geocoding import forward_geocode, reverse_geocode
+from app.geocoding import forward_geocode, reverse_geocode, suggest_places
 from app.limiter import limiter
-from app.schemas import ForwardGeocodeOut, ReverseGeocodeOut
+from app.schemas import ForwardGeocodeOut, PlaceSuggestionOut, ReverseGeocodeOut
 
 router = APIRouter(prefix="/geocode", tags=["geocode"])
 
@@ -39,3 +39,16 @@ async def search(request: Request, q: str = Query(..., min_length=3, max_length=
     if geo.get("lat") is None or geo.get("lon") is None:
         raise HTTPException(status_code=404, detail="No encontramos esa dirección en Paraguay")
     return geo
+
+
+@router.get("/suggest", response_model=list[PlaceSuggestionOut])
+@limiter.limit("120/minute")
+async def suggest(request: Request, q: str = Query(..., min_length=3, max_length=100)):
+    """Sugerencias mientras se escribe la dirección — solo en Paraguay.
+
+    Va a Photon, que está hecho para autocompletar (Nominatim lo prohíbe).
+    El cliente espera una pausa al escribir, y las consultas repetidas salen
+    de la caché, así que el límite puede ser más alto que el de /search.
+    Si Photon falla, lista vacía: el botón Buscar sigue andando.
+    """
+    return await suggest_places(q)

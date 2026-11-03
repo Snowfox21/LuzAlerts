@@ -1,5 +1,5 @@
 /**
- * Веб-замена react-native-maps для PWA на Leaflet.
+ * Веб-замена react-native-maps для PWA на MapLibre GL.
  *
  * react-native-maps на вебе не собирается (импортирует внутренности
  * react-native), поэтому экраны импортируют карту из src/maps, а Metro на
@@ -8,15 +8,17 @@
  * onRegionChangeComplete(region, { isGesture }), onMapReady,
  * ref.animateToRegion, Marker с кастомной вьюхой или pinColor.
  *
- * Тайлы: по умолчанию стандартные тайлы OpenStreetMap, затемненные CSS-фильтром
- * под темную тему приложения. CARTO dark_all без ключа теперь отдает
- * водяной знак "API KEY REQUIRED", поэтому не используется. Для боевой
- * нагрузки лучше провайдер с ключом (MapTiler, Stadia): задать
- * EXPO_PUBLIC_MAP_TILE_URL (и EXPO_PUBLIC_MAP_TILE_ATTRIBUTION) при сборке,
- * тогда фильтр затемнения не применяется — такие стили уже темные.
+ * Mapa vectorial (MapLibre GL + OpenFreeMap): se dibuja según la densidad
+ * de la pantalla, así que en el iPhone (DPR 3) textos y líneas salen
+ * nítidos. Los tiles raster de OSM (Leaflet) eran de 256 px sin @2x y en
+ * retina se veían borrosos, y oscurecerlos con un filtro CSS les quitaba
+ * contraste. OpenFreeMap es gratis, sin clave y sin límite de pedidos. Su
+ * estilo "dark" se recolorea a la paleta de la app (como darkMapStyle del
+ * mapa nativo), ver recolorStyle. Otro estilo (MapTiler, servidor propio):
+ * definir EXPO_PUBLIC_MAP_STYLE_URL al compilar, y se usa tal cual.
  */
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { Map as MLMap, Marker as MLMarker, type StyleSpecification } from 'maplibre-gl';
 import React, {
     createContext,
     forwardRef,
@@ -61,39 +63,85 @@ export interface MapMarker {
     hideCallout: () => void;
 }
 
-const CUSTOM_TILE_URL = process.env.EXPO_PUBLIC_MAP_TILE_URL;
-const TILE_URL = CUSTOM_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const TILE_ATTRIBUTION =
-    process.env.EXPO_PUBLIC_MAP_TILE_ATTRIBUTION ||
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-const DARK_TILES_CLASS = 'luz-dark-tiles';
-
-// Светлые тайлы OSM -> темная карта: инверсия + разворот оттенка обратно,
-// чтобы вода осталась синеватой, а парки зеленоватыми.
-let darkTilesStyleInjected = false;
-const injectDarkTilesStyle = () => {
-    if (darkTilesStyleInjected || typeof document === 'undefined') return;
-    darkTilesStyleInjected = true;
-    const style = document.createElement('style');
-    style.textContent =
-        `.${DARK_TILES_CLASS} { filter: invert(100%) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.6); }` +
-        '.leaflet-container { background: #0F172A; font-family: inherit; }' +
-        '.leaflet-control-attribution { background: rgba(15,23,42,.7) !important; color: #94A3B8; }' +
-        '.leaflet-control-attribution a { color: #CBD5E1; }';
-    document.head.appendChild(style);
-};
+const CUSTOM_STYLE_URL = process.env.EXPO_PUBLIC_MAP_STYLE_URL;
+const STYLE_URL = CUSTOM_STYLE_URL || 'https://tiles.openfreemap.org/styles/dark';
 const MAP_BG = '#0F172A'; // DS.bg
 
-const MapContext = createContext<L.Map | null>(null);
+// Colores de las capas del estilo "dark" de OpenFreeMap (esquema
+// OpenMapTiles) en la paleta de la app: fondo azul oscuro, calles un poco
+// más claras, textos apagados. Una capa que no está en la lista queda igual.
+const LAYER_COLORS: Record<string, Record<string, string | number>> = {
+    background: { 'background-color': MAP_BG },
+    water: { 'fill-color': '#0C2340' },
+    waterway: { 'line-color': '#0C2340' },
+    landuse_residential: { 'fill-color': '#111B2E' },
+    landcover_wood: { 'fill-color': '#0E1D26' },
+    landuse_park: { 'fill-color': '#0E1D26' },
+    building: { 'fill-color': '#131D31', 'fill-outline-color': '#1A2740' },
+    'aeroway-area': { 'fill-color': '#111A2C' },
+    'aeroway-taxiway': { 'line-color': '#1B2940' },
+    'aeroway-runway': { 'line-color': '#1B2940' },
+    'aeroway-runway-casing': { 'line-color': '#24344F' },
+    road_area_pier: { 'fill-color': MAP_BG },
+    road_pier: { 'line-color': MAP_BG },
+    highway_path: { 'line-color': '#1B2940' },
+    highway_minor: { 'line-color': '#1C2A42' },
+    highway_major_casing: { 'line-color': '#2B3D5C' },
+    highway_major_inner: { 'line-color': '#22324D' },
+    highway_major_subtle: { 'line-color': '#22324D' },
+    highway_motorway_casing: { 'line-color': '#3A4F78' },
+    highway_motorway_inner: { 'line-color': '#2C3F63' },
+    highway_motorway_subtle: { 'line-color': '#22324D' },
+    railway_transit: { 'line-color': '#1E2A3F' },
+    railway_minor: { 'line-color': '#1E2A3F' },
+    railway: { 'line-color': '#1E2A3F' },
+    railway_transit_dashline: { 'line-color': MAP_BG },
+    railway_minor_dashline: { 'line-color': MAP_BG },
+    railway_dashline: { 'line-color': MAP_BG },
+    boundary_state: { 'line-color': '#334155' },
+    'boundary_country_z0-4': { 'line-color': '#475569' },
+    'boundary_country_z5-': { 'line-color': '#475569' },
+    water_name: { 'text-color': '#3B5378', 'text-halo-color': MAP_BG },
+    highway_name_other: { 'text-color': '#7C8BA1', 'text-halo-color': MAP_BG },
+    highway_name_motorway: { 'text-color': '#8A99AF' },
+};
+const PLACE_TEXT = { 'text-color': '#94A3B8', 'text-halo-color': 'rgba(15,23,42,0.85)' };
 
-const regionToBounds = (r: Region): L.LatLngBoundsExpression => [
-    [r.latitude - r.latitudeDelta / 2, r.longitude - r.longitudeDelta / 2],
-    [r.latitude + r.latitudeDelta / 2, r.longitude + r.longitudeDelta / 2],
+const recolorStyle = (style: StyleSpecification): StyleSpecification => ({
+    ...style,
+    layers: style.layers.map(layer => {
+        const colors = LAYER_COLORS[layer.id] ?? (layer.id.startsWith('place_') ? PLACE_TEXT : null);
+        if (!colors) return layer;
+        return { ...layer, paint: { ...(layer as { paint?: object }).paint, ...colors } } as typeof layer;
+    }),
+});
+
+let mapCssInjected = false;
+const injectMapCss = () => {
+    if (mapCssInjected || typeof document === 'undefined') return;
+    mapCssInjected = true;
+    const style = document.createElement('style');
+    style.textContent =
+        '.maplibregl-map { background: #0F172A; font-family: inherit; }' +
+        '.maplibregl-ctrl-attrib { background: rgba(15,23,42,.7) !important; color: #94A3B8; font: 11px/16px system-ui, sans-serif; }' +
+        '.maplibregl-ctrl-attrib a { color: #CBD5E1; }' +
+        '.maplibregl-ctrl-attrib-button { filter: invert(1); }';
+    document.head.appendChild(style);
+};
+
+const MapContext = createContext<MLMap | null>(null);
+
+type Bounds = [[number, number], [number, number]];
+
+// MapLibre usa [lng, lat], no [lat, lng] como Leaflet.
+const regionToBounds = (r: Region): Bounds => [
+    [r.longitude - r.longitudeDelta / 2, r.latitude - r.latitudeDelta / 2],
+    [r.longitude + r.longitudeDelta / 2, r.latitude + r.latitudeDelta / 2],
 ];
 
-const boundsToRegion = (map: L.Map): Region => {
+const boundsToRegion = (map: MLMap): Region => {
     const b = map.getBounds();
-    const c = b.getCenter();
+    const c = map.getCenter();
     return {
         latitude: c.lat,
         longitude: c.lng,
@@ -133,7 +181,7 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(props, 
     } = props;
 
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const [map, setMap] = useState<L.Map | null>(null);
+    const [map, setMap] = useState<MLMap | null>(null);
     // Сдвиг карты, начатый кодом (animateToRegion / region), а не пальцем:
     // экран по details.isGesture решает, сохранять ли viewport.
     const programmaticRef = useRef(false);
@@ -144,7 +192,7 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(props, 
         if (!map) return;
         programmaticRef.current = true;
         if (duration > 0) {
-            map.flyToBounds(regionToBounds(target), { duration: duration / 1000 });
+            map.fitBounds(regionToBounds(target), { duration, essential: true });
         } else {
             map.fitBounds(regionToBounds(target), { animate: false });
         }
@@ -155,49 +203,64 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(props, 
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
+        injectMapCss();
         const start = region ?? initialRegion;
-        const instance = L.map(el, {
-            zoomControl: false,
-            attributionControl: true,
-            dragging: scrollEnabled,
-            touchZoom: zoomEnabled,
-            scrollWheelZoom: zoomEnabled,
-            doubleClickZoom: zoomEnabled,
-            boxZoom: zoomEnabled,
-            keyboard: scrollEnabled || zoomEnabled,
-        });
-        injectDarkTilesStyle();
-        L.tileLayer(TILE_URL, {
-            attribution: TILE_ATTRIBUTION,
-            maxZoom: 19,
-            className: CUSTOM_TILE_URL ? undefined : DARK_TILES_CLASS,
-        }).addTo(instance);
-        instance.attributionControl.setPrefix(false);
-        if (start) {
-            instance.fitBounds(regionToBounds(start), { animate: false });
-        } else {
-            instance.setView([-25.2637, -57.5759], 12);
+        let instance: MLMap;
+        try {
+            instance = new MLMap({
+                container: el,
+                ...(start
+                    ? { bounds: regionToBounds(start) }
+                    : { center: [-57.5759, -25.2637] as [number, number], zoom: 12 }),
+                maxZoom: 19,
+                attributionControl: { compact: true },
+                // Mapa plano, como en la app nativa: sin rotar ni inclinar.
+                dragRotate: false,
+                pitchWithRotate: false,
+                touchPitch: false,
+                dragPan: scrollEnabled,
+                keyboard: scrollEnabled || zoomEnabled,
+                scrollZoom: zoomEnabled,
+                touchZoomRotate: zoomEnabled,
+                doubleClickZoom: zoomEnabled,
+                boxZoom: zoomEnabled,
+            });
+        } catch {
+            // Sin WebGL no hay mapa; la pantalla sigue andando, con el fondo solo.
+            return;
         }
+        instance.touchZoomRotate.disableRotation();
+        instance.setStyle(STYLE_URL, {
+            transformStyle: CUSTOM_STYLE_URL ? undefined : (_prev, next) => recolorStyle(next),
+        });
 
-        instance.on('click', (e: L.LeafletMouseEvent) => {
+        instance.on('click', e => {
             callbacksRef.current.onPress?.({
-                nativeEvent: { coordinate: { latitude: e.latlng.lat, longitude: e.latlng.lng } },
+                nativeEvent: { coordinate: { latitude: e.lngLat.lat, longitude: e.lngLat.lng } },
             });
         });
-        instance.on('moveend', () => {
-            const isGesture = !programmaticRef.current;
+        instance.on('moveend', e => {
+            // Un gesto con el dedo trae originalEvent (también la inercia
+            // después de deslizar); los movimientos desde el código, no.
+            const isGesture = !!e.originalEvent || !programmaticRef.current;
             programmaticRef.current = false;
             callbacksRef.current.onRegionChangeComplete?.(boundsToRegion(instance), { isGesture });
         });
 
         // Контейнер RN Web может получить размер уже после монтирования.
         const observer = typeof ResizeObserver !== 'undefined'
-            ? new ResizeObserver(() => instance.invalidateSize())
+            ? new ResizeObserver(() => instance.resize())
             : null;
         observer?.observe(el);
 
         setMap(instance);
-        instance.whenReady(() => {
+        // 'load' espera el estilo y los primeros tiles; los marcadores pueden ir antes.
+        instance.once('load', () => {
+            // La atribución compacta arranca abierta y tapa la parte de abajo;
+            // la dejamos como el botón (i), el texto aparece al tocarlo.
+            instance.getContainer()
+                .querySelector('.maplibregl-ctrl-attrib')
+                ?.classList.remove('maplibregl-compact-show');
             setTimeout(() => callbacksRef.current.onMapReady?.(), 0);
         });
 
@@ -247,36 +310,39 @@ export const Marker = forwardRef<MapMarker, MarkerProps>(function Marker(
 ) {
     const map = useContext(MapContext);
     const [host, setHost] = useState<HTMLElement | null>(null);
-    const markerRef = useRef<L.Marker | null>(null);
+    const markerRef = useRef<MLMarker | null>(null);
     const onPressRef = useRef(onPress);
     onPressRef.current = onPress;
+    const coordRef = useRef(coordinate);
+    coordRef.current = coordinate;
 
     useImperativeHandle(ref, () => ({ redraw: () => {}, showCallout: () => {}, hideCallout: () => {} }), []);
 
     useEffect(() => {
         if (!map) return;
-        // Иконка нулевого размера на точке; содержимое центрируется внутри
-        // сдвигом -50%/-50%, так что размер вьюхи маркера может быть любым.
-        const icon = L.divIcon({ className: 'luz-marker', iconSize: [0, 0], html: '' });
-        const marker = L.marker([coordinate.latitude, coordinate.longitude], {
-            icon,
-            keyboard: false,
-            interactive: true,
-            bubblingMouseEvents: false,
-        }).addTo(map);
-        marker.on('click', (e: L.LeafletMouseEvent) => {
-            L.DomEvent.stopPropagation(e);
+        // El elemento se centra en el punto (anchor center), así que la vista
+        // del marcador puede tener cualquier tamaño.
+        const element = document.createElement('div');
+        element.style.cursor = 'pointer';
+        const onClick = (e: MouseEvent) => {
+            // Si no, el mismo toque llega al mapa como onPress en un lugar vacío.
+            e.stopPropagation();
             onPressRef.current?.({
                 stopPropagation: () => {},
                 nativeEvent: {
-                    coordinate: { latitude: e.latlng.lat, longitude: e.latlng.lng },
+                    coordinate: { latitude: coordRef.current.latitude, longitude: coordRef.current.longitude },
                     action: 'marker-press',
                 },
             });
-        });
+        };
+        element.addEventListener('click', onClick);
+        const marker = new MLMarker({ element, anchor: 'center' })
+            .setLngLat([coordinate.longitude, coordinate.latitude])
+            .addTo(map);
         markerRef.current = marker;
-        setHost(marker.getElement() ?? null);
+        setHost(element);
         return () => {
+            element.removeEventListener('click', onClick);
             marker.remove();
             markerRef.current = null;
             setHost(null);
@@ -285,7 +351,7 @@ export const Marker = forwardRef<MapMarker, MarkerProps>(function Marker(
     }, [map]);
 
     useEffect(() => {
-        markerRef.current?.setLatLng([coordinate.latitude, coordinate.longitude]);
+        markerRef.current?.setLngLat([coordinate.longitude, coordinate.latitude]);
     }, [coordinate.latitude, coordinate.longitude]);
 
     if (!host) return null;
@@ -303,18 +369,5 @@ export const Marker = forwardRef<MapMarker, MarkerProps>(function Marker(
         />
     );
 
-    return createPortal(
-        <div
-            style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                transform: 'translate(-50%, -50%)',
-                cursor: 'pointer',
-            }}
-        >
-            {content}
-        </div>,
-        host,
-    );
+    return createPortal(content, host);
 });

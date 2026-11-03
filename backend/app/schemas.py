@@ -127,6 +127,13 @@ class ReverseGeocodeOut(BaseModel):
     country_code: str | None = Field(default=None, description="ISO 3166-1 alpha-2, например PY")
 
 
+class PlaceSuggestionOut(BaseModel):
+    lat: float
+    lon: float
+    label: str = Field(description='Nombre corto: "Villa Morra, Asunción"')
+    detail: str | None = Field(default=None, description="Departamento u otra aclaración")
+
+
 class ForwardGeocodeOut(BaseModel):
     lat: float
     lon: float
