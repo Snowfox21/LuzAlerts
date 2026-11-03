@@ -78,7 +78,7 @@ async def test_list_outages_spatial_filter(client: AsyncClient, seed_outages):
 
 @pytest.mark.asyncio
 async def test_list_outages_hides_old_resolved(client: AsyncClient, db):
-    """Los resueltos hace más de 3 días no salen en el listado; los recientes sí."""
+    """Los resueltos hace más de 7 días no salen en el listado; los recientes sí."""
     from datetime import datetime, timedelta, timezone
 
     from app.models import Outage, OutageSource, OutageStatus
@@ -86,13 +86,13 @@ async def test_list_outages_hides_old_resolved(client: AsyncClient, db):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     recent = Outage(source=OutageSource.ande_official, status=OutageStatus.resolved,
                     title="Resuelto reciente", latitude=-25.3, longitude=-57.6,
-                    created_at=now - timedelta(days=5), resolved_at=now - timedelta(days=2))
+                    created_at=now - timedelta(days=10), resolved_at=now - timedelta(days=6))
     old = Outage(source=OutageSource.ande_official, status=OutageStatus.resolved,
                  title="Resuelto viejo", latitude=-25.3, longitude=-57.6,
-                 created_at=now - timedelta(days=5), resolved_at=now - timedelta(days=4))
+                 created_at=now - timedelta(days=10), resolved_at=now - timedelta(days=8))
     old_no_date = Outage(source=OutageSource.ande_official, status=OutageStatus.resolved,
                          title="Resuelto viejo sin fecha", latitude=-25.3, longitude=-57.6,
-                         created_at=now - timedelta(days=4))
+                         created_at=now - timedelta(days=8))
     active_old = Outage(source=OutageSource.ande_official, status=OutageStatus.active,
                         title="Activo viejo", latitude=-25.3, longitude=-57.6,
                         created_at=now - timedelta(days=10))
