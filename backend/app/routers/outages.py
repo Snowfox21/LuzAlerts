@@ -1,9 +1,12 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, Query
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
 from geoalchemy2.types import Geography
-from sqlalchemy import select, cast
+from sqlalchemy import cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models import Outage, OutageStatus
 from app.schemas import OutageOut
@@ -35,6 +38,16 @@ async def list_outages(
     и/или радиусу вокруг координат пользователя.
     """
     q = select(Outage)
+
+    # Los cortes resueltos se muestran solo durante RESOLVED_VISIBLE_HOURS.
+    # Si falta resolved_at (datos viejos), se toma created_at.
+    resolved_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        hours=settings.RESOLVED_VISIBLE_HOURS
+    )
+    q = q.where(or_(
+        Outage.status != OutageStatus.resolved,
+        func.coalesce(Outage.resolved_at, Outage.created_at) >= resolved_cutoff,
+    ))
 
     if status:
         try:
