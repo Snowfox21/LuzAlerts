@@ -533,7 +533,8 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     addButton: {
-        height: 52,
+        minHeight: 52,
+        paddingVertical: 6,
         borderRadius: 12,
         borderWidth: 1.5,
         borderStyle: 'dashed',
@@ -598,7 +599,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.6,
     },
     input: {
-        height: 48,
+        minHeight: 48,
         borderRadius: 10,
         borderWidth: 1,
         borderColor: DS.border,
@@ -627,7 +628,8 @@ const styles = StyleSheet.create({
     },
     chip: {
         flex: 1,
-        height: 40,
+        minHeight: 40,
+        paddingVertical: 6,
         borderRadius: 20,
         borderWidth: 1,
         borderColor: '#475569',
@@ -647,7 +649,8 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     removeButton: {
-        height: 48,
+        minHeight: 48,
+        paddingVertical: 6,
         borderRadius: 12,
         borderWidth: 1,
         borderColor: 'rgba(239,68,68,0.45)',

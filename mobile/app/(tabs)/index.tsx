@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, PixelRatio, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, PixelRatio, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import MapView, { MapMarker, Marker, MapPressEvent, Region } from '../../src/maps';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -10,7 +10,7 @@ import { AlertTriangle, LocateFixed, Settings, Zap } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
-import { DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
+import { CHROME_MAX_FONT_SCALE, DS, IconButton, sharedStyles, statusMeta } from '../../src/components/DesignSystem';
 import { darkMapStyle } from '../../src/theme/mapStyle';
 import { getHomeZone, isWithinParaguay } from '../../src/utils/homeZone';
 import { shareOutage } from '../../src/share/outageShare';
@@ -26,6 +26,13 @@ const MARKER_SELECTED_SCALE = 1.2;
 const MARKER_SQUARE = PixelRatio.roundToNearestPixel((MARKER_BOX - 1) / MARKER_SELECTED_SCALE);
 // иконка занимает ту же долю квадрата, что и раньше (14 из 30)
 const MARKER_ICON = Math.max(9, Math.round(MARKER_SQUARE * 0.47));
+
+// La tarjeta de abajo nunca tapa más que esto de la pantalla: si con letra grande
+// no entra, se desplaza por dentro y los botones quedan siempre a la vista.
+const SHEET_MAX_HEIGHT_RATIO = 0.6;
+// En horizontal la pantalla es baja: la tarjeta va a un costado y deja libre el mapa.
+const SIDE_SHEET_WIDTH_RATIO = 0.45;
+const SIDE_SHEET_MAX_WIDTH = 440;
 
 const ASUNCION: Region = {
     latitude: -25.2637,
@@ -52,6 +59,8 @@ export default function MapScreen() {
     const mapRef = useRef<MapView>(null);
     const isFocused = useIsFocused();
     const tabBarHeight = useBottomTabBarHeight();
+    const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+    const sideSheet = windowWidth > windowHeight;
     // глобальные параметры: навигация идет на группу (tabs), сегмент может отличаться
     const { focusLat, focusLon } = useGlobalSearchParams<{ focusLat?: string; focusLon?: string }>();
     const pendingFocusRef = useRef<{ latitude: number; longitude: number } | null>(null);
@@ -365,7 +374,7 @@ export default function MapScreen() {
                 ].map(({ color, label }) => (
                     <View key={label} style={styles.legendItem}>
                         <View style={[styles.legendDot, { backgroundColor: color }]} />
-                        <Text style={styles.legendText}>{label}</Text>
+                        <Text style={styles.legendText} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>{label}</Text>
                     </View>
                 ))}
             </View>
@@ -374,7 +383,7 @@ export default function MapScreen() {
                 style={[
                     styles.fabs,
                     { bottom: tabBarHeight + 24 },
-                    selectedOutage && { bottom: sheetHeight + 16 },
+                    selectedOutage && !sideSheet && { bottom: sheetHeight + 16 },
                 ]}
             >
                 <IconButton style={styles.locateButton} onPress={centerOnUser}>
@@ -392,17 +401,26 @@ export default function MapScreen() {
 
             {selectedOutage && (
                 <View
-                    style={[styles.sheet, { paddingBottom: tabBarHeight + 16 }]}
+                    style={[
+                        styles.sheet,
+                        { maxHeight: windowHeight * SHEET_MAX_HEIGHT_RATIO },
+                        sideSheet && [
+                            styles.sideSheet,
+                            { width: Math.min(windowWidth * SIDE_SHEET_WIDTH_RATIO, SIDE_SHEET_MAX_WIDTH) },
+                        ],
+                    ]}
                     onLayout={e => setSheetHeight(e.nativeEvent.layout.height)}
                 >
                     <View style={styles.handle} />
-                    <OutageCard
-                        outage={selectedOutage}
-                        compact
-                        onPress={selectedOutage.source === OutageSource.CROWDSOURCE
-                            ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
-                            : () => router.push(`/outage/${selectedOutage.id}`)}
-                    />
+                    <ScrollView style={styles.sheetBody} bounces={false}>
+                        <OutageCard
+                            outage={selectedOutage}
+                            compact
+                            onPress={selectedOutage.source === OutageSource.CROWDSOURCE
+                                ? () => router.push(`/report/${selectedOutage.id - 1000000}`)
+                                : () => router.push(`/outage/${selectedOutage.id}`)}
+                        />
+                    </ScrollView>
                     <View style={styles.sheetActions}>
                         <TouchableOpacity
                             style={styles.sheetAction}
@@ -508,9 +526,10 @@ const styles = StyleSheet.create({
         elevation: 5,
     },
     reportButton: {
-        height: 56,
+        minHeight: 56,
         borderRadius: 28,
         paddingHorizontal: 20,
+        paddingVertical: 8,
         backgroundColor: DS.amber,
         flexDirection: 'row',
         alignItems: 'center',
@@ -532,8 +551,16 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 16,
         paddingHorizontal: 16,
         paddingTop: 10,
-        // paddingBottom считается от высоты таб-бара (см. inline-стиль в рендере)
+        // La pantalla ya termina arriba de las pestañas: acá no hace falta sumar su altura.
+        paddingBottom: 16,
         gap: 10,
+    },
+    sideSheet: {
+        right: 'auto',
+        borderTopLeftRadius: 0,
+    },
+    sheetBody: {
+        flexGrow: 0,
     },
     handle: {
         alignSelf: 'center',
@@ -545,11 +572,14 @@ const styles = StyleSheet.create({
     },
     sheetActions: {
         flexDirection: 'row',
+        flexShrink: 0,
         gap: 8,
     },
     sheetAction: {
         flex: 1,
-        height: 44,
+        minHeight: 44,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,

@@ -24,6 +24,12 @@ export const DS = {
     ink: '#0F172A',
 };
 
+/**
+ * Tope de escala para textos en espacios que no pueden crecer: pestañas y
+ * paneles flotantes sobre el mapa o la lista. El contenido escala sin límite.
+ */
+export const CHROME_MAX_FONT_SCALE = 1.3;
+
 export function statusMeta(status: OutageStatus, source?: OutageSource) {
     if (source === OutageSource.CROWDSOURCE) {
         return {

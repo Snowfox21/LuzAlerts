@@ -6,7 +6,7 @@ import { Navigation, Settings, Zap } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
 import { OutageCard } from '../../src/components/OutageCard';
-import { DS, IconButton, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
+import { CHROME_MAX_FONT_SCALE, DS, IconButton, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { parseApiDate } from '../../src/utils/date';
 import { OutageDetail } from '../outage/[id]';
 import { ReportDetail } from '../report/[id]';
@@ -264,14 +264,14 @@ export default function ListScreen() {
                         >
                             <View style={styles.statusRow}>
                                 <View style={[styles.statusDot, !andeStale && systemStatus?.coverage_valid_when ? styles.statusDotOk : styles.statusDotWarn]} />
-                                <Text style={styles.statusTextPrimary}>
+                                <Text style={styles.statusTextPrimary} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
                                     {!andeStale && systemStatus?.coverage_valid_when ? 'Cobertura de ANDE valida' : 'Cobertura de ANDE no verificada'}
                                 </Text>
                             </View>
                             <View style={styles.statusDivider} />
                             <View style={styles.statusRow}>
                                 <View style={[styles.statusDot, styles.statusDotWarn]} />
-                                <Text style={styles.statusTextSecondary}>
+                                <Text style={styles.statusTextSecondary} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
                                     {`Ultimo intento: ${formatDateTime(systemStatus?.last_attempt)}`}
                                     {` · Ultimo exito: ${formatDateTime(systemStatus?.last_success)}`}
                                     {systemStatus?.coverage_valid_when ? ` · Valida desde ${formatDateTime(systemStatus.coverage_valid_when)}` : ''}
@@ -309,11 +309,12 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     filterChip: {
-        height: 34,
+        minHeight: 34,
         borderRadius: 17,
         borderWidth: 1,
         borderColor: '#475569',
         paddingHorizontal: 14,
+        paddingVertical: 4,
         alignItems: 'center',
         justifyContent: 'center',
     },
