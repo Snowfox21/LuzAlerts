@@ -165,6 +165,7 @@ Web Push (VAPID) → Apple Push → iPhone PWA (luzalerts.lat/app)
 │
 ├── web/                        # Static landing site (served by Caddy at luzalerts.lat)
 │   ├── index.html              # Main landing page
+│   ├── novedades.html          # News page, built from GitHub Releases
 │   ├── privacy.html            # Privacy policy
 │   ├── terms.html              # Terms of use
 │   ├── 404.html                # Custom 404
@@ -174,6 +175,19 @@ Web Push (VAPID) → Apple Push → iPhone PWA (luzalerts.lat/app)
 │
 └── docs/                       # Design prompts, internal docs
 ```
+
+---
+
+## Site news
+
+The [luzalerts.lat/novedades](https://luzalerts.lat/novedades) page is not edited by hand: it reads this repository's [GitHub Releases](https://github.com/Snowfox21/LuzAlerts/releases) in the browser. Every published release becomes an entry; drafts and prereleases are skipped.
+
+- **Title:** the release name (falls back to the tag).
+- **Version:** the tag, e.g. `v1.2.0`.
+- **Date:** when the release was published (Paraguay time).
+- **Body:** Spanish text (voseo). Text before the first section is the summary; changes are bullets under `## Nuevo` and `## Corregido`. A bullet can also be marked inline: `- Nuevo: …` / `- Corregido: …`. Bullets outside a section are shown without a label.
+
+To publish: `gh release create v1.2.0 --title "Avisamos cuando vuelve la luz" --notes-file notas.md`. The page caches the response for 10 minutes per visitor.
 
 ---
 

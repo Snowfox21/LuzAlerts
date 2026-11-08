@@ -165,6 +165,7 @@ Web Push (VAPID) → Apple Push → PWA en iPhone (luzalerts.lat/app)
 │
 ├── web/                        # Sitio estático (servido por Caddy en luzalerts.lat)
 │   ├── index.html              # Landing principal
+│   ├── novedades.html          # Novedades: se arman con los Releases de GitHub
 │   ├── privacy.html            # Política de privacidad
 │   ├── terms.html              # Términos de uso
 │   ├── 404.html                # Página 404 personalizada
@@ -174,6 +175,29 @@ Web Push (VAPID) → Apple Push → PWA en iPhone (luzalerts.lat/app)
 │
 └── docs/                       # Design prompts, documentación interna
 ```
+
+---
+
+## Novedades del sitio
+
+La página [luzalerts.lat/novedades](https://luzalerts.lat/novedades) no se edita a mano: en el navegador lee los [Releases de GitHub](https://github.com/Snowfox21/LuzAlerts/releases) de este repositorio. Cada release publicado es una entrada; los borradores y los prereleases no se muestran.
+
+- **Título:** el nombre del release (si falta, el tag).
+- **Versión:** el tag, por ejemplo `v1.2.0`.
+- **Fecha:** cuándo se publicó el release (hora de Paraguay).
+- **Cuerpo:** texto en español con voseo. Lo que va antes de la primera sección es la bajada; los cambios van en viñetas bajo `## Nuevo` y `## Corregido`. También vale marcar cada viñeta: `- Nuevo: …` / `- Corregido: …`. Las viñetas sin sección se muestran sin etiqueta.
+
+```markdown
+Ahora te avisamos apenas vuelve la luz en tu zona.
+
+## Nuevo
+- Notificación de «volvió la luz» para los cortes que seguías.
+
+## Corregido
+- Las notificaciones llegaban duplicadas cuando había varios cortes cerca.
+```
+
+Para publicar: `gh release create v1.2.0 --title "Avisamos cuando vuelve la luz" --notes-file notas.md`. La página guarda la respuesta 10 minutos por visitante, así que un release nuevo puede tardar ese tiempo en aparecer.
 
 ---
 

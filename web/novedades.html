@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novedades — LuzAlerts</title>
+  <meta name="description" content="Funciones nuevas y errores corregidos en LuzAlerts. Todas las actualizaciones de la app en un solo lugar.">
+  <meta property="og:title" content="Novedades — LuzAlerts">
+  <meta property="og:description" content="Funciones nuevas y errores corregidos en LuzAlerts.">
+  <meta property="og:url" content="https://luzalerts.lat/novedades">
+  <meta property="og:locale" content="es_PY">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://api.github.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --amber:       #FBBF24;
+      --amber-hover: #F59E0B;
+      --dark:        #0F172A;
+      --dark-2:      #1E293B;
+      --light:       #FFFFFF;
+      --surface:     #F8FAFC;
+      --text-body:   #1F2937;
+      --text-muted:  #64748B;
+      --text-faint:  #94A3B8;
+      --text-light:  #CBD5E1;
+      --border:      #E2E8F0;
+      --font:        'Inter', system-ui, -apple-system, sans-serif;
+      --radius:      8px;
+      /* Etiquetas: cada par texto/fondo cumple contraste 4.5:1 */
+      --tag-new-bg:  #DBEAFE; --tag-new-fg:  #1E40AF;
+      --tag-fix-bg:  #FEF3C7; --tag-fix-fg:  #92400E;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font); color: var(--text-body); background: var(--light); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    img, svg { display: block; }
+    ul { list-style: none; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+
+    /* ── HEADER ── */
+    .site-header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(15,23,42,0.97); backdrop-filter: blur(12px);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06); padding: 0 24px;
+    }
+    .header-inner { max-width: 1200px; margin: 0 auto; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; color: var(--light); letter-spacing: -0.3px; }
+    .logo-icon { width: 28px; height: 28px; background: var(--amber); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .nav-links { display: none; gap: 32px; }
+    .nav-links a { color: var(--text-light); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover, .nav-links a[aria-current="page"] { color: var(--amber); }
+    .nav-cta {
+      display: none; align-items: center; gap: 8px; background: var(--amber);
+      color: #000; font-size: 13px; font-weight: 700; padding: 8px 16px;
+      border-radius: var(--radius); transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--amber-hover); }
+    .dl-icon { width: 18px; height: 18px; flex-shrink: 0; }
+    .hamburger { display: flex; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; }
+    .hamburger span { display: block; width: 22px; height: 2px; background: var(--text-light); border-radius: 2px; transition: transform 0.3s, opacity 0.3s; }
+    .hamburger[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+    .hamburger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .mobile-menu {
+      display: none; position: fixed; top: 64px; left: 0; right: 0;
+      background: rgba(15,23,42,0.98); backdrop-filter: blur(16px);
+      z-index: 99; padding: 24px; flex-direction: column; gap: 4px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a { color: var(--text-light); font-size: 16px; font-weight: 500; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); transition: color 0.2s; }
+    .mobile-menu a:last-child { border-bottom: none; }
+    .mobile-menu a:hover, .mobile-menu a[aria-current="page"] { color: var(--amber); }
+    @media (min-width: 768px) {
+      .nav-links { display: flex; }
+      .nav-cta { display: flex; }
+      .hamburger { display: none; }
+    }
+
+    /* ── PAGE HERO ── */
+    .page-hero { background: var(--surface); padding: 112px 24px 48px; border-bottom: 1px solid var(--border); }
+    .page-hero-inner { max-width: 880px; margin: 0 auto; }
+    .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+    .breadcrumb a:hover { color: var(--dark); text-decoration: underline; }
+    .page-hero h1 { font-size: clamp(30px, 4.5vw, 44px); font-weight: 700; color: var(--dark); letter-spacing: -1px; margin-bottom: 12px; text-wrap: balance; }
+    .page-hero p { font-size: 17px; color: var(--text-muted); line-height: 1.6; max-width: 560px; text-wrap: pretty; }
+
+    /* ── CALENDARIO (lista desplegable) ── */
+    .cal { position: relative; display: inline-block; margin-top: 24px; }
+    .cal-trigger {
+      display: inline-flex; align-items: center; gap: 8px; font-family: var(--font);
+      font-size: 14px; font-weight: 600; color: var(--dark); background: var(--light);
+      border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .cal-trigger:hover, .cal-trigger[aria-expanded="true"] { border-color: var(--text-faint); }
+    .cal-trigger svg { flex-shrink: 0; color: var(--text-muted); }
+    .cal-trigger .chev { transition: transform 0.2s; }
+    .cal-trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
+    .cal-panel {
+      position: absolute; top: calc(100% + 8px); left: 0; z-index: 20;
+      width: min(280px, calc(100vw - 48px)); padding: 12px;
+      background: var(--light); border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(15,23,42,0.14);
+    }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .cal-title { font-size: 15px; font-weight: 700; color: var(--dark); }
+    .cal-nav {
+      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--dark); cursor: pointer;
+      transition: background 0.2s;
+    }
+    .cal-nav:hover:not(:disabled) { background: var(--surface); }
+    .cal-nav:disabled { opacity: 0.35; cursor: default; }
+    .cal-dow, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+    .cal-dow span { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 0; }
+    .cal-day {
+      position: relative; height: 34px; background: none; border: none; border-radius: 8px;
+      font-family: var(--font); font-size: 14px; color: var(--text-muted); cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cal-day:hover { background: var(--surface); }
+    .cal-day.has { font-weight: 700; color: var(--dark); }
+    .cal-day.has::after {
+      content: ''; position: absolute; bottom: 4px; left: 50%; width: 5px; height: 5px;
+      margin-left: -2.5px; border-radius: 50%; background: #B45309;
+    }
+    .cal-day.sel { background: var(--amber); color: var(--dark); font-weight: 700; }
+    .cal-day.sel::after { background: var(--dark); }
+    .cal-day.sel:hover { background: var(--amber-hover); }
+    .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); min-height: 32px; }
+    .cal-status { font-size: 11px; color: var(--text-muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .cal-clear {
+      flex-shrink: 0; background: none; border: none; cursor: pointer; font-family: var(--font);
+      font-size: 13px; font-weight: 600; color: #1E40AF; text-decoration: underline; padding: 6px 4px;
+    }
+
+    /* ── LÍNEA DE TIEMPO ── */
+    .news { max-width: 880px; margin: 0 auto; padding: 56px 24px 96px; min-height: 40vh; }
+    .entry { display: grid; grid-template-columns: 1fr; gap: 12px; padding-bottom: 40px; position: relative; scroll-margin-top: 88px; }
+    .entry-meta { display: flex; align-items: center; gap: 10px; }
+    .entry-meta time { font-size: 14px; font-weight: 600; color: var(--dark); }
+    .version { font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
+    .entry-card { border: 1px solid var(--border); border-radius: 12px; padding: 28px 28px 24px; }
+    .entry-card h2 { font-size: 20px; font-weight: 700; color: var(--dark); letter-spacing: -0.3px; margin-bottom: 4px; }
+    .entry-card .lead { font-size: 15px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px; }
+    .entry-card h2 + .changes { margin-top: 16px; }
+    .changes { display: flex; flex-direction: column; gap: 12px; }
+    .changes li { display: grid; grid-template-columns: 84px 1fr; gap: 12px; align-items: start; font-size: 15px; line-height: 1.6; color: var(--text-body); }
+    .changes li.plain { grid-template-columns: 1fr; padding-left: 16px; position: relative; }
+    .changes li.plain::before { content: ''; position: absolute; left: 2px; top: 10px; width: 5px; height: 5px; border-radius: 50%; background: var(--text-faint); }
+    .tag { display: inline-block; justify-self: start; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 6px; padding: 3px 9px; margin-top: 2px; }
+    .tag-new { background: var(--tag-new-bg); color: var(--tag-new-fg); }
+    .tag-fix { background: var(--tag-fix-bg); color: var(--tag-fix-fg); }
+    @media (min-width: 768px) {
+      .entry { grid-template-columns: 150px 1fr; gap: 32px; }
+      .entry::before { content: ''; position: absolute; left: 150px; top: 8px; bottom: 0; width: 1px; background: var(--border); transform: translateX(16px); }
+      .entry::after { content: ''; position: absolute; left: 150px; top: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--amber); transform: translateX(12px); box-shadow: 0 0 0 4px var(--light); }
+      .entry-meta { flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 2px; }
+      .entry-card { margin-left: 16px; }
+    }
+    @media (max-width: 480px) {
+      .changes li { grid-template-columns: 1fr; gap: 6px; }
+      .entry-card { padding: 22px 20px 20px; }
+    }
+    .news-msg { text-align: center; color: var(--text-muted); font-size: 15px; line-height: 1.6; padding: 32px 0; }
+    .news-msg a { color: #1E40AF; text-decoration: underline; }
+    .skeleton { border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+    .skeleton span { display: block; height: 14px; border-radius: 6px; background: var(--surface); margin-bottom: 12px; animation: pulse 1.4s ease-in-out infinite; }
+    .skeleton span:first-child { width: 40%; height: 20px; }
+    .skeleton span:nth-child(2) { width: 85%; }
+    .skeleton span:nth-child(3) { width: 70%; margin-bottom: 0; }
+    @keyframes pulse { 50% { opacity: 0.5; } }
+    @media (prefers-reduced-motion: reduce) { .skeleton span { animation: none; } }
+
+    /* ── CTA / FOOTER ── */
+    .cta-final {
+      background: var(--dark);
+      background-image: linear-gradient(rgba(251,191,36,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(251,191,36,0.04) 1px, transparent 1px);
+      background-size: 40px 40px; padding: 80px 24px; text-align: center;
+    }
+    .cta-final h2 { max-width: 640px; margin: 0 auto 32px; font-size: clamp(26px, 4vw, 36px); font-weight: 700; color: var(--light); letter-spacing: -1px; line-height: 1.2; text-wrap: balance; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px; background: var(--amber); color: #000;
+      font-weight: 700; font-size: 16px; padding: 14px 28px; border-radius: var(--radius);
+      transition: background 0.2s, transform 0.1s; box-shadow: 0 4px 24px rgba(251,191,36,0.3);
+    }
+    .btn-primary:hover { background: var(--amber-hover); transform: translateY(-1px); }
+    .cta-hint { margin-top: 16px; font-size: 13px; color: var(--text-muted); }
+    .cta-hint a { color: var(--amber); text-decoration: underline; }
+    .site-footer { background: var(--dark); border-top: 1px solid rgba(255,255,255,0.06); padding: 64px 24px 32px; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 1fr; gap: 40px; margin-bottom: 48px; }
+    .footer-tagline { font-size: 14px; color: var(--text-muted); margin: 12px 0 8px; line-height: 1.5; }
+    .footer-disclaimer { font-size: 12px; color: var(--text-muted); opacity: 0.7; }
+    .footer-col h4 { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 16px; }
+    .footer-col ul { display: flex; flex-direction: column; gap: 10px; }
+    .footer-col a { font-size: 14px; color: var(--text-muted); transition: color 0.2s; }
+    .footer-col a:hover, .footer-col a[aria-current="page"] { color: var(--amber); }
+    .footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+    @media (min-width: 768px) { .footer-grid { grid-template-columns: 2fr 1fr 1fr; } }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <a href="/" class="logo" aria-label="LuzAlerts — Ir al inicio">
+        <div class="logo-icon" aria-hidden="true">
+          <svg width="14" height="18" viewBox="0 0 14 18" fill="none"><path d="M8 0L0 10h6L4 18l10-12H8L10 0z" fill="#0F172A"/></svg>
+        </div>
+        LuzAlerts
+      </a>
+      <nav class="nav-links" aria-label="Navegación principal">
+        <a href="/#como-funciona">Cómo funciona</a>
+        <a href="/novedades" aria-current="page">Novedades</a>
+        <a href="/#preguntas">Preguntas</a>
+        <a href="/privacy">Privacidad</a>
+      </nav>
+      <a href="/luzalerts.apk" download="luzalerts.apk" class="nav-cta" aria-label="Descargar LuzAlerts para Android">
+        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Descargar
+      </a>
+      <button class="hamburger" id="hamburger" aria-label="Abrir menú" aria-expanded="false" aria-controls="mobile-menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="mobile-menu" id="mobile-menu" aria-label="Menú móvil">
+    <a href="/#como-funciona">Cómo funciona</a>
+    <a href="/novedades" aria-current="page">Novedades</a>
+    <a href="/#preguntas">Preguntas</a>
+    <a href="/privacy">Privacidad</a>
+    <a href="/luzalerts.apk" download="luzalerts.apk" style="color:var(--amber);font-weight:700;">Descargar APK</a>
+    <a href="/app/" style="color:var(--amber);font-weight:700;">App para iPhone</a>
+  </nav>
+
+  <main>
+
+    <!-- ENCABEZADO -->
+    <section class="page-hero" aria-labelledby="news-title">
+      <div class="page-hero-inner">
+        <nav class="breadcrumb" aria-label="Ruta de navegación">
+          <a href="/">Inicio</a><span aria-hidden="true">/</span><span>Novedades</span>
+        </nav>
+        <h1 id="news-title">Novedades</h1>
+        <p>Qué hay de nuevo en LuzAlerts: funciones que llegan y errores que corregimos, en orden de lanzamiento.</p>
+
+        <div class="cal" id="cal" hidden>
+          <button type="button" class="cal-trigger" id="cal-trigger" aria-expanded="false" aria-controls="cal-panel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span id="cal-trigger-label">Todas las fechas</span>
+            <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cal-panel" id="cal-panel" role="group" aria-label="Filtrar novedades por fecha" hidden>
+            <div class="cal-head">
+              <button type="button" class="cal-nav" id="cal-prev" aria-label="Mes anterior">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div class="cal-title" id="cal-title" aria-live="polite"></div>
+              <button type="button" class="cal-nav" id="cal-next" aria-label="Mes siguiente">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <div class="cal-dow" aria-hidden="true"><span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sá</span><span>Do</span></div>
+            <div class="cal-grid" id="cal-grid"></div>
+            <div class="cal-foot">
+              <p class="cal-status" id="cal-status" role="status">Elegí un día con punto</p>
+              <button type="button" class="cal-clear" id="cal-clear" hidden>Ver todo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!--
+      Las novedades salen de los Releases de GitHub del repositorio (ver README,
+      sección «Novedades del sitio»). Acá no se escriben a mano.
+    -->
+    <section class="news" id="news" aria-label="Historial de versiones" aria-busy="true">
+      <div id="news-skeleton" aria-hidden="true">
+        <div class="skeleton"><span></span><span></span><span></span></div>
+        <div class="skeleton"><span></span><span></span><span></span></div>
+      </div>
+      <div id="news-list"></div>
+      <p class="news-msg" id="news-msg" role="status" hidden></p>
+      <noscript>
+        <p class="news-msg">Para ver las novedades activá JavaScript, o miralas en <a href="https://github.com/Snowfox21/LuzAlerts/releases">GitHub</a>.</p>
+      </noscript>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-final" aria-labelledby="cta-title">
+      <h2 id="cta-title">Descargá LuzAlerts y dejá de preguntarte si volvió la luz.</h2>
+      <a href="/luzalerts.apk" download="luzalerts.apk" class="btn-primary">
+        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Descargar para Android
+      </a>
+      <p class="cta-hint">Gratis · Sin anuncios · <a href="/app/">iPhone (app web)</a></p>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="/" class="logo" aria-label="LuzAlerts">
+            <div class="logo-icon" aria-hidden="true">
+              <svg width="14" height="18" viewBox="0 0 14 18" fill="none"><path d="M8 0L0 10h6L4 18l10-12H8L10 0z" fill="#0F172A"/></svg>
+            </div>
+            LuzAlerts
+          </a>
+          <p class="footer-tagline">Cortes de luz en Paraguay,<br>en tiempo real.</p>
+          <p class="footer-disclaimer">Proyecto independiente. No afiliado a la ANDE.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Producto</h4>
+          <ul>
+            <li><a href="/luzalerts.apk" download="luzalerts.apk">Descargar APK</a></li>
+            <li><a href="/app/">App para iPhone</a></li>
+            <li><a href="/#como-funciona">Cómo funciona</a></li>
+            <li><a href="/novedades" aria-current="page">Novedades</a></li>
+            <li><a href="/#preguntas">Preguntas</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="/privacy">Política de Privacidad</a></li>
+            <li><a href="/terms">Términos de Uso</a></li>
+            <li><a href="mailto:luzalertspy@gmail.com">luzalertspy@gmail.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 LuzAlerts · Hecho en Paraguay 🇵🇾</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Menú móvil
+    (function () {
+      var hamburger = document.getElementById('hamburger');
+      var mobileMenu = document.getElementById('mobile-menu');
+      hamburger.addEventListener('click', function () {
+        var open = mobileMenu.classList.toggle('open');
+        hamburger.setAttribute('aria-expanded', String(open));
+      });
+    })();
+  </script>
+  <script>
+    // Novedades desde los Releases de GitHub.
+    //
+    // Cada release publicado (no borrador, no prerelease) es una entrada:
+    //   - título: nombre del release (si falta, el tag);
+    //   - versión: el tag (v1.2.0);
+    //   - fecha: published_at, en hora de Paraguay;
+    //   - cuerpo: Markdown con secciones «## Nuevo» y «## Corregido» y viñetas.
+    //     El texto antes de la primera sección es la bajada de la entrada.
+    //
+    // La API sin token permite 60 consultas por hora por IP del visitante, así
+    // que la respuesta se guarda 10 minutos en sessionStorage.
+    (function () {
+      var REPO = 'Snowfox21/LuzAlerts';
+      var API_URL = 'https://api.github.com/repos/' + REPO + '/releases?per_page=100';
+      var RELEASES_URL = 'https://github.com/' + REPO + '/releases';
+      var CACHE_KEY = 'luzalerts:releases:v1';
+      var CACHE_TTL_MS = 10 * 60 * 1000;
+      var TIME_ZONE = 'America/Asuncion';
+
+      var section = document.getElementById('news');
+      var list = document.getElementById('news-list');
+      var skeleton = document.getElementById('news-skeleton');
+      var msg = document.getElementById('news-msg');
+
+      function readCache() {
+        try {
+          var raw = sessionStorage.getItem(CACHE_KEY);
+          if (!raw) return null;
+          var cached = JSON.parse(raw);
+          return Date.now() - cached.at < CACHE_TTL_MS ? cached.data : null;
+        } catch (e) { return null; }
+      }
+      function writeCache(data) {
+        try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data: data })); } catch (e) {}
+      }
+
+      function loadReleases() {
+        var cached = readCache();
+        if (cached) return Promise.resolve(cached);
+        return fetch(API_URL, { headers: { Accept: 'application/vnd.github+json' } })
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            if (!Array.isArray(data)) throw new Error('Respuesta inesperada');
+            writeCache(data);
+            return data;
+          });
+      }
+
+      // Markdown en línea → texto plano. Nunca se inserta HTML del release.
+      function plain(text) {
+        return text
+          .replace(/<!--[\s\S]*?-->/g, '')
+          .replace(/<[^>]*>/g, '')
+          .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+          .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+          .replace(/(\*\*|__)(.+?)\1/g, '$2')
+          .replace(/(^|[\s(])[*_](\S(?:.*?\S)?)[*_](?=[\s).,;:!?]|$)/g, '$1$2')
+          .replace(/`([^`]+)`/g, '$1')
+          // Notas generadas por GitHub: «… by @usuario in https://github.com/…/pull/12»
+          .replace(/\s+by\s+@[\w-]+\s+in\s+https?:\/\/\S+$/i, '')
+          .replace(/\s+/g, ' ')
+          .replace(/\s+([.,;:!?])/g, '$1')
+          .trim();
+      }
+
+      function kindOf(heading) {
+        var h = heading.toLowerCase();
+        if (/nuev|novedad|agreg|añad|added|new|feature/.test(h)) return 'new';
+        if (/correg|correcc|arregl|solucion|fix|bug/.test(h)) return 'fix';
+        return null;
+      }
+
+      function parseBody(body) {
+        var lead = [];
+        var changes = [];
+        var kind = null;
+        var seenSection = false;
+        (body || '').replace(/\r\n?/g, '\n').split('\n').forEach(function (line) {
+          var heading = line.match(/^\s{0,3}#{1,6}\s+(.*)$/);
+          if (heading) {
+            seenSection = true;
+            kind = kindOf(heading[1]);
+            return;
+          }
+          var bullet = line.match(/^\s*[-*+]\s+(.*)$/) || line.match(/^\s*\d+[.)]\s+(.*)$/);
+          if (bullet) {
+            seenSection = true;
+            var text = bullet[1];
+            var itemKind = kind;
+            // También vale marcar la viñeta: «- Nuevo: …» / «- Corregido: …»
+            var prefix = text.match(/^\s*(?:\*\*)?(nuevo|nueva|corregido|corregida|fix|new)(?:\*\*)?\s*[:—-]\s*/i);
+            if (prefix) {
+              itemKind = kindOf(prefix[1]);
+              text = text.slice(prefix[0].length);
+            }
+            text = plain(text);
+            text = text.charAt(0).toUpperCase() + text.slice(1);
+            if (text) changes.push({ kind: itemKind, text: text });
+            return;
+          }
+          if (/^\s*\*\*full changelog\*\*/i.test(line)) return;
+          if (!seenSection && line.trim()) lead.push(line.trim());
+        });
+        return { lead: plain(lead.join(' ')), changes: changes };
+      }
+
+      function localDate(iso) {
+        // en-CA da AAAA-MM-DD
+        return new Date(iso).toLocaleDateString('en-CA', { timeZone: TIME_ZONE });
+      }
+
+      function toEntries(releases) {
+        return releases
+          .filter(function (r) { return !r.draft && !r.prerelease && r.published_at; })
+          .sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })
+          .map(function (r) {
+            var parsed = parseBody(r.body);
+            return {
+              tag: r.tag_name || '',
+              title: plain(r.name || '') || r.tag_name || 'Actualización',
+              date: localDate(r.published_at),
+              lead: parsed.lead,
+              changes: parsed.changes
+            };
+          });
+      }
+
+      function el(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
+        return node;
+      }
+
+      var TAGS = { new: ['tag tag-new', 'Nuevo'], fix: ['tag tag-fix', 'Corregido'] };
+
+      function renderEntry(entry) {
+        var article = el('article', 'entry');
+        var slug = entry.tag.replace(/[^\w-]+/g, '-');
+        if (slug) article.id = slug;
+        article.dataset.date = entry.date;
+
+        var meta = el('div', 'entry-meta');
+        var time = el('time', null, longDate(entry.date));
+        time.setAttribute('datetime', entry.date);
+        meta.appendChild(time);
+        if (entry.tag) meta.appendChild(el('span', 'version', entry.tag));
+        article.appendChild(meta);
+
+        var card = el('div', 'entry-card');
+        card.appendChild(el('h2', null, entry.title));
+        if (entry.lead) card.appendChild(el('p', 'lead', entry.lead));
+        if (entry.changes.length) {
+          var ul = el('ul', 'changes');
+          entry.changes.forEach(function (c) {
+            var li = el('li', TAGS[c.kind] ? null : 'plain');
+            if (TAGS[c.kind]) li.appendChild(el('span', TAGS[c.kind][0], TAGS[c.kind][1]));
+            li.appendChild(el('span', null, c.text));
+            ul.appendChild(li);
+          });
+          card.appendChild(ul);
+        }
+        article.appendChild(card);
+        return article;
+      }
+
+      function asDate(iso) { return new Date(iso + 'T12:00:00'); }
+      function longDate(iso) {
+        return asDate(iso).toLocaleDateString('es-PY', { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+
+      function showMessage(text, withLink) {
+        msg.textContent = text;
+        if (withLink) {
+          msg.appendChild(document.createTextNode(' '));
+          var a = el('a', null, 'Ver en GitHub');
+          a.href = RELEASES_URL;
+          a.rel = 'noopener';
+          msg.appendChild(a);
+        }
+        msg.hidden = false;
+      }
+
+      function done() {
+        skeleton.remove();
+        section.setAttribute('aria-busy', 'false');
+      }
+
+      loadReleases()
+        .then(function (releases) {
+          var entries = toEntries(releases);
+          done();
+          if (!entries.length) { showMessage('Todavía no hay novedades publicadas.'); return; }
+          entries.forEach(function (e) { list.appendChild(renderEntry(e)); });
+          setupCalendar(entries.map(function (e) { return e.date; }));
+          if (location.hash) {
+            var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+            if (target) target.scrollIntoView();
+          }
+        })
+        .catch(function () {
+          done();
+          showMessage('No pudimos cargar las novedades. Probá de nuevo en un rato.', true);
+        });
+
+      // Calendario desplegable: un día con punto muestra solo las novedades de ese día.
+      function setupCalendar(allDates) {
+        var cal = document.getElementById('cal');
+        var grid = document.getElementById('cal-grid');
+        var titleEl = document.getElementById('cal-title');
+        var statusEl = document.getElementById('cal-status');
+        var clearBtn = document.getElementById('cal-clear');
+        var prevBtn = document.getElementById('cal-prev');
+        var nextBtn = document.getElementById('cal-next');
+        var trigger = document.getElementById('cal-trigger');
+        var triggerLabel = document.getElementById('cal-trigger-label');
+        var panel = document.getElementById('cal-panel');
+        var IDLE = 'Elegí un día con punto';
+        var ALL = 'Todas las fechas';
+
+        var dates = allDates.slice().sort();
+        var has = {};
+        dates.forEach(function (d) { has[d] = true; });
+        function monthIdx(s) { return +s.slice(0, 4) * 12 + (+s.slice(5, 7) - 1); }
+        var minIdx = monthIdx(dates[0]);
+        var maxIdx = monthIdx(dates[dates.length - 1]);
+        var viewIdx = maxIdx;
+        var selected = null;
+
+        function pad(n) { return String(n).padStart(2, '0'); }
+        function fullDate(s) {
+          return asDate(s).toLocaleDateString('es-PY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+        function shortDate(s) { return asDate(s).toLocaleDateString('es-PY', { day: 'numeric', month: 'short' }); }
+
+        function setOpen(open, returnFocus) {
+          panel.hidden = !open;
+          trigger.setAttribute('aria-expanded', String(open));
+          if (!open && returnFocus) trigger.focus();
+        }
+
+        function render(focusDate) {
+          var y = Math.floor(viewIdx / 12), m = viewIdx % 12;
+          var t = new Date(y, m, 1).toLocaleDateString('es-PY', { month: 'long', year: 'numeric' });
+          titleEl.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+          prevBtn.disabled = viewIdx <= minIdx;
+          nextBtn.disabled = viewIdx >= maxIdx;
+          var offset = (new Date(y, m, 1).getDay() + 6) % 7;
+          var days = new Date(y, m + 1, 0).getDate();
+          grid.innerHTML = '';
+          for (var i = 0; i < offset; i++) grid.appendChild(document.createElement('span'));
+          for (var d = 1; d <= days; d++) {
+            var iso = y + '-' + pad(m + 1) + '-' + pad(d);
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = d;
+            b.dataset.date = iso;
+            b.className = 'cal-day' + (has[iso] ? ' has' : '') + (iso === selected ? ' sel' : '');
+            b.setAttribute('aria-pressed', String(iso === selected));
+            b.setAttribute('aria-label', fullDate(iso) + (has[iso] ? ', con novedades' : ''));
+            grid.appendChild(b);
+          }
+          if (focusDate) {
+            var f = grid.querySelector('[data-date="' + focusDate + '"]');
+            if (f) f.focus();
+          }
+        }
+
+        function applyFilter() {
+          var shown = 0;
+          list.querySelectorAll('.entry').forEach(function (entry) {
+            var ok = !selected || entry.dataset.date === selected;
+            entry.hidden = !ok;
+            if (ok) shown++;
+          });
+          clearBtn.hidden = !selected;
+          triggerLabel.textContent = selected ? longDate(selected) : ALL;
+          if (!selected) {
+            statusEl.textContent = IDLE;
+            msg.hidden = true;
+          } else if (shown) {
+            statusEl.textContent = shortDate(selected) + ' · ' + shown + (shown === 1 ? ' versión' : ' versiones');
+            msg.hidden = true;
+          } else {
+            statusEl.textContent = shortDate(selected) + ' · sin novedades';
+            showMessage('No hay novedades en ese día.');
+          }
+        }
+
+        grid.addEventListener('click', function (e) {
+          var b = e.target.closest('.cal-day');
+          if (!b) return;
+          selected = selected === b.dataset.date ? null : b.dataset.date;
+          render(b.dataset.date);
+          applyFilter();
+          setOpen(false, true);
+        });
+        prevBtn.addEventListener('click', function () { viewIdx--; render(); });
+        nextBtn.addEventListener('click', function () { viewIdx++; render(); });
+        clearBtn.addEventListener('click', function () { selected = null; render(); applyFilter(); });
+        trigger.addEventListener('click', function () { setOpen(panel.hidden); });
+        document.addEventListener('click', function (e) { if (!cal.contains(e.target)) setOpen(false); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) setOpen(false, true); });
+
+        render();
+        applyFilter();
+        cal.hidden = false;
+      }
+    })();
+  </script>
+</body>
+</html>
