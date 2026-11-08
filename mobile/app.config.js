@@ -71,6 +71,7 @@ module.exports = {
     },
     plugins: [
       "expo-router",
+      "./plugins/withFontScaleLayout",
       [
         "expo-notifications",
         {

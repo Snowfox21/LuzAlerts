@@ -153,7 +153,8 @@ const styles = StyleSheet.create({
     },
     button: {
         minWidth: 72,
-        height: 38,
+        minHeight: 38,
+        paddingVertical: 4,
         paddingHorizontal: 10,
         borderRadius: 8,
         alignItems: 'center',

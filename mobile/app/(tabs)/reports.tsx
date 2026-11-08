@@ -782,7 +782,8 @@ const styles = StyleSheet.create({
         borderRadius: 2,
     },
     fab: {
-        height: 56,
+        minHeight: 56,
+        paddingVertical: 8,
         borderRadius: 28,
         paddingHorizontal: 20,
         flexDirection: 'row',

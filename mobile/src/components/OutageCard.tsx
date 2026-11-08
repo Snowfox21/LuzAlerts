@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Clock3, MessageCircle, UsersRound } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../api/types';
 import { DS, StatusChip } from './DesignSystem';
@@ -23,7 +23,13 @@ function formatTime(value?: string) {
     return `${day} ${month}, ${time}`;
 }
 
+// Los títulos de ANDE terminan en la fecha: con letra grande entran menos
+// palabras por línea, y dos líneas cortarían justo ese dato.
+const TITLE_BASE_LINES = 2;
+
 export const OutageCard = ({ outage, onPress, compact = false, selected = false }: Props) => {
+    const { fontScale } = useWindowDimensions();
+    const titleLines = Math.ceil(TITLE_BASE_LINES * Math.max(fontScale, 1));
     const isCrowd = outage.source === OutageSource.CROWDSOURCE;
     const timeLabel = outage.status === OutageStatus.PLANNED
         ? formatTime(outage.scheduled_start)
@@ -41,7 +47,7 @@ export const OutageCard = ({ outage, onPress, compact = false, selected = false 
                 <Text style={styles.time}>{timeLabel}</Text>
             </View>
 
-            <Text style={styles.title} numberOfLines={2}>
+            <Text style={styles.title} numberOfLines={titleLines}>
                 {outage.title || 'Corte reportado'}
             </Text>
             <Text style={styles.subtitle} numberOfLines={1}>
@@ -60,12 +66,12 @@ export const OutageCard = ({ outage, onPress, compact = false, selected = false 
                     <View />
                 )}
                 {isCrowd ? (
-                    <View style={styles.reportBadge}>
+                    <View style={[styles.reportBadge, styles.metaEnd]}>
                         <UsersRound size={12} color={DS.violetLight} />
                         <Text style={styles.reportBadgeText}>Vecinal</Text>
                     </View>
                 ) : (
-                    <View style={styles.inlineMeta}>
+                    <View style={[styles.inlineMeta, styles.metaEnd]}>
                         <MessageCircle size={13} color={DS.textMuted} />
                         <Text style={styles.metaText}>Comentarios</Text>
                     </View>
@@ -90,15 +96,20 @@ const styles = StyleSheet.create({
         borderColor: DS.amber,
         padding: 15,
     },
+    // Con letra grande el estado y la hora no entran en una línea: pasan a dos
+    // en vez de apretarse y cortar una palabra al medio.
     topRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 10,
+        gap: 4,
+        columnGap: 10,
     },
     time: {
         color: DS.textMuted,
         fontSize: 12,
+        flexShrink: 1,
     },
     title: {
         color: DS.text,
@@ -113,9 +124,11 @@ const styles = StyleSheet.create({
     metaRow: {
         minHeight: 22,
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 8,
+        gap: 4,
+        columnGap: 8,
         marginTop: 2,
     },
     inlineMeta: {
@@ -124,9 +137,14 @@ const styles = StyleSheet.create({
         gap: 5,
         flexShrink: 1,
     },
+    // Si baja a otra línea, sigue alineado a la derecha.
+    metaEnd: {
+        marginLeft: 'auto',
+    },
     metaText: {
         color: DS.textMuted,
         fontSize: 12,
+        flexShrink: 1,
     },
     reportBadge: {
         flexDirection: 'row',

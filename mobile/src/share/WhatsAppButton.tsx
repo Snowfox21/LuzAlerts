@@ -29,7 +29,7 @@ export function WhatsAppButton({
             style={[styles.button, compact ? styles.compact : styles.full, style]}
         >
             <MessageCircle size={18} color={WHATSAPP_GREEN} />
-            <Text style={styles.label}>{label}</Text>
+            <Text style={styles.label} numberOfLines={2}>{label}</Text>
         </TouchableOpacity>
     );
 }
@@ -42,23 +42,28 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
+        // Alto mínimo, no fijo: con letra grande la etiqueta necesita más lugar.
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         borderWidth: 1,
         borderColor: 'rgba(37,211,102,0.45)',
         backgroundColor: 'rgba(37,211,102,0.12)',
     },
     full: {
         alignSelf: 'stretch',
-        height: 48,
+        minHeight: 48,
         borderRadius: 12,
     },
     compact: {
         flex: 1,
-        height: 44,
+        minHeight: 44,
         borderRadius: 8,
     },
     label: {
         color: '#4ADE80',
         fontSize: 14,
         fontWeight: '600',
+        flexShrink: 1,
+        textAlign: 'center',
     },
 });

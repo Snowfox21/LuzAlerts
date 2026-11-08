@@ -1,7 +1,21 @@
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import { Bell, List, Map, Settings } from 'lucide-react-native';
-import { DS } from '../../src/components/DesignSystem';
+import { DS, CHROME_MAX_FONT_SCALE } from '../../src/components/DesignSystem';
+
+// Cada pestaña tiene un cuarto del ancho: con la letra al máximo (x2 en
+// Android) "Reportes" no entra, así que la etiqueta crece solo hasta un tope.
+function TabLabel({ color, children }: { color: string; children: string }) {
+    return (
+        <Text
+            style={[styles.tabLabel, { color }]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}
+        >
+            {children}
+        </Text>
+    );
+}
 
 export default function TabLayout() {
     return (
@@ -12,10 +26,7 @@ export default function TabLayout() {
                 freezeOnBlur: true,
                 tabBarActiveTintColor: DS.amber,
                 tabBarInactiveTintColor: DS.textMuted,
-                tabBarLabelStyle: {
-                    fontSize: 11,
-                    fontWeight: '600',
-                },
+                tabBarLabel: ({ color, children }) => <TabLabel color={color}>{children}</TabLabel>,
                 tabBarStyle: {
                     backgroundColor: DS.surface,
                     borderTopColor: DS.border,
@@ -58,3 +69,11 @@ export default function TabLayout() {
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    tabLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+});
