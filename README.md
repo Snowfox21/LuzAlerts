@@ -184,7 +184,7 @@ The [luzalerts.lat/novedades](https://luzalerts.lat/novedades) page is not edite
 
 - **Title:** the release name (falls back to the tag).
 - **Version:** the tag, e.g. `v1.2.0`.
-- **Date:** when the release was published (Paraguay time).
+- **Date:** the date of the commit the tag points to (Paraguay time), not the publish date, so a release added later for an old version keeps its real date.
 - **Body:** Spanish text (voseo). Text before the first section is the summary; changes are bullets under `## Nuevo` and `## Corregido`. A bullet can also be marked inline: `- Nuevo: …` / `- Corregido: …`. Bullets outside a section are shown without a label.
 
 To publish: `gh release create v1.2.0 --title "Avisamos cuando vuelve la luz" --notes-file notas.md`. The page caches the response for 10 minutes per visitor.

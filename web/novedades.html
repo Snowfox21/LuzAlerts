@@ -368,7 +368,9 @@
     // Cada release publicado (no borrador, no prerelease) es una entrada:
     //   - título: nombre del release (si falta, el tag);
     //   - versión: el tag (v1.2.0);
-    //   - fecha: published_at, en hora de Paraguay;
+    //   - fecha: la del commit del tag (created_at de la API, no la de publicación),
+    //     en hora de Paraguay; así un release cargado hoy para una versión vieja
+    //     queda con su fecha real;
     //   - cuerpo: Markdown con secciones «## Nuevo» y «## Corregido» y viñetas.
     //     El texto antes de la primera sección es la bajada de la entrada.
     //
@@ -479,14 +481,15 @@
 
       function toEntries(releases) {
         return releases
-          .filter(function (r) { return !r.draft && !r.prerelease && r.published_at; })
-          .sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })
+          .filter(function (r) { return !r.draft && !r.prerelease && (r.created_at || r.published_at); })
+          .map(function (r) { r._when = r.created_at || r.published_at; return r; })
+          .sort(function (a, b) { return b._when.localeCompare(a._when); })
           .map(function (r) {
             var parsed = parseBody(r.body);
             return {
               tag: r.tag_name || '',
               title: plain(r.name || '') || r.tag_name || 'Actualización',
-              date: localDate(r.published_at),
+              date: localDate(r._when),
               lead: parsed.lead,
               changes: parsed.changes
             };

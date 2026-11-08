@@ -184,7 +184,7 @@ La página [luzalerts.lat/novedades](https://luzalerts.lat/novedades) no se edit
 
 - **Título:** el nombre del release (si falta, el tag).
 - **Versión:** el tag, por ejemplo `v1.2.0`.
-- **Fecha:** cuándo se publicó el release (hora de Paraguay).
+- **Fecha:** la del commit al que apunta el tag (hora de Paraguay), no la de publicación: un release cargado hoy para una versión vieja muestra su fecha real.
 - **Cuerpo:** texto en español con voseo. Lo que va antes de la primera sección es la bajada; los cambios van en viñetas bajo `## Nuevo` y `## Corregido`. También vale marcar cada viñeta: `- Nuevo: …` / `- Corregido: …`. Las viñetas sin sección se muestran sin etiqueta.
 
 ```markdown
