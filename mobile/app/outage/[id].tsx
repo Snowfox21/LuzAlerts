@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker } from '../../src/maps';
 import axios from 'axios';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -126,6 +127,9 @@ export function OutageDetail({ id, embedded = false, reloadToken = 0 }: {
     /** Cambia cuando la lista se actualiza: recargamos sin limpiar la pantalla. */
     reloadToken?: number;
 }) {
+    // La barra de navegación del teléfono se dibuja encima de la app (edge-to-edge):
+    // sin este margen tapa el campo de comentario y el botón de enviar.
+    const { bottom: bottomInset } = useSafeAreaInsets();
     const [outage, setOutage] = useState<Outage | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -318,7 +322,7 @@ export function OutageDetail({ id, embedded = false, reloadToken = 0 }: {
                 </View>
             </ScrollView>
 
-            <View style={styles.inputRow}>
+            <View style={[styles.inputRow, !embedded && { paddingBottom: 10 + bottomInset }]}>
                 <TextInput
                     style={styles.input}
                     placeholder="Compartí lo que está pasando..."

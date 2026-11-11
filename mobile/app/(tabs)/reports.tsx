@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, CheckCircle2, Info, LocateFixed, MapPin, RefreshCw, X } from 'lucide-react-native';
 import apiClient from '../../src/api/client';
 import { confirmAndResolveReport } from '../../src/api/reports';
@@ -26,7 +27,7 @@ import { ageMinutes, relativeTime } from '../../src/utils/date';
 import { formatVecinoId } from '../../src/utils/vecinoId';
 import { reverseGeocode } from '../../src/utils/reverseGeocode';
 import { isWithinParaguay } from '../../src/utils/homeZone';
-import { DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
+import { contentColumn, DS, IconButton, PrimaryButton, ScreenHeader, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { ShareBlock } from '../../src/share/ShareBlock';
 
 interface Report {
@@ -62,6 +63,7 @@ const CONFIRMATION_THRESHOLD = 3;
 
 export default function ReportsScreen() {
     const router = useRouter();
+    const { bottom: bottomInset } = useSafeAreaInsets();
     const [reports, setReports] = useState<Report[]>([]);
     const [loadingReports, setLoadingReports] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -398,6 +400,8 @@ export default function ReportsScreen() {
                     <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={closeModal} />
                     <View style={[
                         styles.sheet,
+                        // La barra de navegación del teléfono tapaba "Confirmar reporte".
+                        { paddingBottom: 24 + bottomInset },
                         keyboardUp && { height: '100%' as const, paddingBottom: keyboardOverlap + 12 },
                     ]}>
                         <View style={styles.handle} />
@@ -407,22 +411,6 @@ export default function ReportsScreen() {
                                 <X size={22} color={DS.textMuted} />
                             </IconButton>
                         </View>
-                        <Text style={styles.sheetBody}>
-                            Usamos tu ubicación actual o una dirección manual dentro de Paraguay para registrar el reporte.
-                        </Text>
-
-                        <TouchableOpacity style={styles.locationCard} activeOpacity={0.8} onPress={handleAutofill} disabled={autofilling}>
-                            <MapPin size={20} color={DS.amber} />
-                            <View style={styles.locationText}>
-                                <Text style={styles.locationTitle}>Tu ubicación</Text>
-                                <Text style={styles.locationSub}>
-                                    {coords ? `${address.street || address.barrio || 'Ubicación detectada'}, ${address.city || 'Paraguay'}` : 'Completar por ubicación'}
-                                </Text>
-                                {coords ? <Text style={styles.locationAccuracy}>Coordenadas listas</Text> : null}
-                            </View>
-                            {autofilling ? <ActivityIndicator size="small" color={DS.amber} /> : <RefreshCw size={18} color={DS.textMuted} />}
-                        </TouchableOpacity>
-
                         {/* Обёртка меряет остаток места, и эта высота отдаётся
                             ScrollView явно. Когда высоту ScrollView получает только
                             от флексбокса, нативный скролл на Android не получает
@@ -436,7 +424,28 @@ export default function ReportsScreen() {
                             style={[styles.form, keyboardUp && formViewport > 0 && { height: formViewport, flexShrink: 0 }]}
                             contentContainerStyle={styles.formContent}
                             keyboardShouldPersistTaps="handled"
+                            persistentScrollbar
                         >
+                            {/* El texto y la tarjeta de ubicación se desplazan junto con
+                                los campos: si quedaban fijos y la forma no entraba (teléfono
+                                chico, Comentario enfocado), el desplazamiento escondía solo
+                                la etiqueta "Ciudad" y el primer campo parecía no tener nombre. */}
+                            <Text style={styles.sheetBody}>
+                                Usamos tu ubicación actual o una dirección manual dentro de Paraguay para registrar el reporte.
+                            </Text>
+
+                            <TouchableOpacity style={styles.locationCard} activeOpacity={0.8} onPress={handleAutofill} disabled={autofilling}>
+                                <MapPin size={20} color={DS.amber} />
+                                <View style={styles.locationText}>
+                                    <Text style={styles.locationTitle}>Tu ubicación</Text>
+                                    <Text style={styles.locationSub}>
+                                        {coords ? `${address.street || address.barrio || 'Ubicación detectada'}, ${address.city || 'Paraguay'}` : 'Completar por ubicación'}
+                                    </Text>
+                                    {coords ? <Text style={styles.locationAccuracy}>Coordenadas listas</Text> : null}
+                                </View>
+                                {autofilling ? <ActivityIndicator size="small" color={DS.amber} /> : <RefreshCw size={18} color={DS.textMuted} />}
+                            </TouchableOpacity>
+
                             <FormInput label="Ciudad" value={address.city} placeholder="Ej: Asunción" onChangeText={city => setAddress(prev => ({ ...prev, city }))} />
                             <FormInput label="Barrio" value={address.barrio} placeholder="Ej: Villa Morra" onChangeText={barrio => setAddress(prev => ({ ...prev, barrio }))} />
                             <FormInput label="Calle principal" value={address.street} placeholder="Ej: Mcal. López" onChangeText={street => setAddress(prev => ({ ...prev, street }))} />
@@ -806,6 +815,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.55)',
     },
     sheet: {
+        // En tablet el panel no va de borde a borde: queda centrado y con ancho cómodo.
+        ...contentColumn,
         maxHeight: '88%',
         // Без flexShrink шит держит высоту содержимого, и при поднятой
         // клавиатуре кнопка уезжает под неё.

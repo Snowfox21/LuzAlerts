@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, AppState, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Navigation, Settings, Zap } from 'lucide-react-native';
 import { Outage, OutageSource, OutageStatus } from '../../src/api/types';
 import apiClient from '../../src/api/client';
@@ -25,7 +24,6 @@ const FILTERS: { key: Filter; label: string }[] = [
 const ANDE_SILENT_SINCE_FALLBACK = '05/05';
 // Данные считаются устаревшими, если последнему official-корту больше суток
 const ANDE_STALE_MS = 24 * 60 * 60 * 1000;
-const SYSTEM_STATUS_MIN_HEIGHT = 92;
 // Desde este ancho (tablet o teléfono grande en horizontal) la lista y el
 // detalle van lado a lado en vez de navegar a otra pantalla.
 const TWO_PANE_MIN_WIDTH = 768;
@@ -66,13 +64,11 @@ export default function ListScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<Filter>('all');
     const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
-    const [systemStatusHeight, setSystemStatusHeight] = useState(0);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     // Sube con cada actualización de la lista: el detalle de la tablet se
     // recarga con ella para no quedar con datos viejos.
     const [reloadToken, setReloadToken] = useState(0);
     const router = useRouter();
-    const tabBarHeight = useBottomTabBarHeight();
     const { width } = useWindowDimensions();
     const twoPane = width >= TWO_PANE_MIN_WIDTH;
 
@@ -171,9 +167,6 @@ export default function ListScreen() {
     };
 
     const showSystemStatus = Boolean(systemStatus);
-    const listBottomInset = showSystemStatus
-        ? tabBarHeight + Math.max(systemStatusHeight, SYSTEM_STATUS_MIN_HEIGHT) + 48
-        : 24;
 
     if (initialLoading) {
         return (
@@ -230,7 +223,7 @@ export default function ListScreen() {
                         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
                         contentContainerStyle={[
                             styles.listContent,
-                            { paddingBottom: listBottomInset },
+                            { paddingBottom: showSystemStatus ? 12 : 24 },
                             filtered.length === 0 && styles.listContentEmpty,
                         ]}
                         refreshControl={
@@ -258,10 +251,9 @@ export default function ListScreen() {
                     />
 
                     {showSystemStatus && (
-                        <View
-                            style={[styles.systemStatus, { bottom: tabBarHeight + 16 }]}
-                            onLayout={event => setSystemStatusHeight(event.nativeEvent.layout.height)}
-                        >
+                        // Va debajo de la lista y no flotando: flotante tapaba para siempre
+                        // la mitad de una tarjeta y su "Comentarios".
+                        <View style={styles.systemStatus}>
                             <View style={styles.statusRow}>
                                 <View style={[styles.statusDot, !andeStale && systemStatus?.coverage_valid_when ? styles.statusDotOk : styles.statusDotWarn]} />
                                 <Text style={styles.statusTextPrimary} maxFontSizeMultiplier={CHROME_MAX_FONT_SCALE}>
@@ -417,12 +409,9 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     systemStatus: {
-        position: 'absolute',
-        // bottom считается от высоты таб-бара (см. inline-стиль в рендере)
-        right: 16,
-        // ширина фиксированная: у абсолютной коробки без left/width размер идет по контенту,
-        // и flex: 1 у текстов внутри схлопывает их в ноль
-        width: 250,
+        marginHorizontal: 16,
+        marginTop: 8,
+        marginBottom: 12,
         backgroundColor: DS.surface,
         borderWidth: 1,
         borderColor: DS.border,
@@ -430,11 +419,6 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 12,
         gap: 8,
-        shadowColor: '#000',
-        shadowOpacity: 0.45,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 8,
     },
     statusRow: {
         flexDirection: 'row',
