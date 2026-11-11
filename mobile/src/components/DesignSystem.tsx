@@ -30,6 +30,20 @@ export const DS = {
  */
 export const CHROME_MAX_FONT_SCALE = 1.3;
 
+/**
+ * Ancho máximo de formularios, ajustes y paneles inferiores. En tablet, y más
+ * en horizontal, estirados de borde a borde quedaban como un teléfono ampliado:
+ * la etiqueta a la izquierda y el interruptor lejísimos a la derecha.
+ */
+export const CONTENT_MAX_WIDTH = 640;
+
+/** Columna centrada de hasta CONTENT_MAX_WIDTH; en teléfono no cambia nada. */
+export const contentColumn = {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+} as const;
+
 export function statusMeta(status: OutageStatus, source?: OutageSource) {
     if (source === OutageSource.CROWDSOURCE) {
         return {
@@ -83,14 +97,17 @@ export function ScreenHeader({
     title,
     subtitle,
     right,
+    narrow,
 }: {
     title: string;
     subtitle?: string;
     right?: React.ReactNode;
+    /** Alinea el encabezado con un contenido de ancho limitado (contentColumn). */
+    narrow?: boolean;
 }) {
     const { top } = useSafeAreaInsets();
     return (
-        <View style={[styles.header, { paddingTop: top + 10 }]}>
+        <View style={[styles.header, narrow && contentColumn, { paddingTop: top + 10 }]}>
             <View style={styles.headerText}>
                 <Text style={styles.headerTitle}>{title}</Text>
                 {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}

@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, Home, MapPin, Plus, SlidersHorizontal } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { DS, PrimaryButton } from '../src/components/DesignSystem';
+import { contentColumn, DS, PrimaryButton } from '../src/components/DesignSystem';
 import {
     listTrackedPlaces,
     MAX_TRACKED_PLACES,
@@ -139,7 +139,7 @@ export default function ZonesScreen() {
                     headerShadowVisible: false,
                 }}
             />
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={[styles.content, contentColumn]}>
                 <Text style={styles.intro}>Te avisamos de cortes en cada zona activa, estés donde estés.</Text>
 
                 <ZoneCard
@@ -570,6 +570,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.6)',
     },
     sheet: {
+        // En tablet el panel no va de borde a borde: queda centrado y con ancho cómodo.
+        ...contentColumn,
         backgroundColor: DS.surface,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,

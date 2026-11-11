@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, List, Map, Settings } from 'lucide-react-native';
 import { DS, CHROME_MAX_FONT_SCALE } from '../../src/components/DesignSystem';
 
@@ -17,7 +18,15 @@ function TabLabel({ color, children }: { color: string; children: string }) {
     );
 }
 
+// Ícono, etiqueta y paddingTop; el margen inferior se suma aparte.
+const TAB_BAR_CONTENT_HEIGHT = 58;
+
 export default function TabLayout() {
+    // Con alto fijo, react-navigation ya no suma el margen inferior: si la barra de
+    // navegación del teléfono está visible (Android 11 con botones), quedaba encima
+    // de las pestañas y no se podían tocar. Lo sumamos acá.
+    const { bottom } = useSafeAreaInsets();
+    const tabBarPaddingBottom = Math.max(bottom, Platform.OS === 'ios' ? 24 : 10);
     return (
         <Tabs
             screenOptions={{
@@ -30,9 +39,9 @@ export default function TabLayout() {
                 tabBarStyle: {
                     backgroundColor: DS.surface,
                     borderTopColor: DS.border,
-                    height: Platform.OS === 'ios' ? 82 : 68,
+                    height: TAB_BAR_CONTENT_HEIGHT + tabBarPaddingBottom,
                     paddingTop: 8,
-                    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+                    paddingBottom: tabBarPaddingBottom,
                 },
                 tabBarItemStyle: {
                     borderRadius: 16,

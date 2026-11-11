@@ -22,7 +22,7 @@ import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
 import { getHomeZone, HOME_ZONE_KEY } from '../../src/utils/homeZone';
 import { HomeZoneEditor } from '../../src/places/HomeZoneEditor';
 import { listTrackedPlaces, MAX_TRACKED_PLACES } from '../../src/places/places';
-import { DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
+import { contentColumn, DS, ScreenHeader, sharedStyles } from '../../src/components/DesignSystem';
 import { checkForUpdate } from '../../src/update/checkForUpdate';
 import { getInstalledVersionName, UpdateManifest } from '../../src/update/manifest';
 import { UpdateSheet } from '../../src/update/UpdateSheet';
@@ -179,8 +179,8 @@ export default function SettingsScreen() {
 
     return (
         <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScreenHeader title="Ajustes" />
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" scrollEnabled={!draggingRadius}>
+            <ScreenHeader title="Ajustes" narrow />
+            <ScrollView contentContainerStyle={[styles.content, contentColumn]} keyboardShouldPersistTaps="handled" scrollEnabled={!draggingRadius}>
                 {/* Первым блоком: "где я получаю avisos" — главное, что человек
                     настраивает, особенно если следит за домом родных. */}
                 <SettingSection title="Mis lugares">

@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, BackHandler, Platform, ScrollView, StyleSheet
 import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { CheckCircle2, ChevronLeft, Clock3, MapPin, MessageSquare, UsersRound, Zap } from 'lucide-react-native';
 import * as Location from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiClient from '../../src/api/client';
 import { confirmAndResolveReport, corroborateReport, getCorroborateErrorCopy } from '../../src/api/reports';
 import { ShareBlock } from '../../src/share/ShareBlock';
@@ -59,6 +60,8 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
 }) {
     const router = useRouter();
     const navigation = useNavigation();
+    // Margen para la barra de navegación del teléfono, que va encima de la app.
+    const { bottom: bottomInset } = useSafeAreaInsets();
     const [report, setReport] = useState<Report | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -287,7 +290,10 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
             : `Reporte cerrado el ${formatDateTime24(report.resolved_at ?? undefined)}`;
 
     return (
-        <ScrollView style={sharedStyles.screen} contentContainerStyle={styles.content}>
+        <ScrollView
+            style={sharedStyles.screen}
+            contentContainerStyle={[styles.content, !embedded && { paddingBottom: 24 + bottomInset }]}
+        >
             {!embedded && <Stack.Screen
                 options={{
                     title: 'Reporte de usuario',
