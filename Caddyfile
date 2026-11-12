@@ -58,6 +58,17 @@ luzalerts.lat {
     }
 
     handle {
+        # Sin Cache-Control el navegador cachea por heurística (un 10 % de la
+        # antigüedad según Last-Modified) y sigue mostrando una versión vieja
+        # de los .jsx de la landing durante días después de publicar otra.
+        # Las imágenes casi no cambian: un día en caché alcanza.
+        @images path *.png *.ico *.svg *.webp *.jpg
+        header @images Cache-Control "public, max-age=86400"
+        # Lo demás (html, jsx, dl/latest.json, el APK) se revalida siempre por
+        # ETag: si no cambió, el servidor responde 304 sin volver a mandarlo.
+        @notimages not path *.png *.ico *.svg *.webp *.jpg
+        header @notimages Cache-Control "no-cache"
+
         root * /srv/web
         try_files {path} {path}/index.html {path}.html /404.html
         file_server
