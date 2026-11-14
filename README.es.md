@@ -231,7 +231,7 @@ Documentación interactiva disponible en `http://localhost:8000/docs` cuando cor
 | `POST` | `/users/` | Registrar dispositivo (token push o suscripción Web Push + ubicación) |
 | `DELETE` | `/users/{device_id}/web-push` | Quitar la suscripción Web Push de la PWA |
 | `GET` / `POST` | `/users/{device_id}/places` | Listar / agregar lugares seguidos (hasta 2) |
-| `PATCH` / `DELETE` | `/users/{device_id}/places/{place_id}` | Renombrar / quitar un lugar seguido |
+| `PATCH` / `DELETE` | `/users/{device_id}/places/{place_id}` | Cambiar el radio de un lugar seguido o activarlo/desactivarlo / quitarlo |
 | `DELETE` | `/users/{device_id}/data` | Borrar reportes, lugares, comentarios y ajustes del dispositivo |
 | `GET` | `/config/vapid-public-key` | Clave pública VAPID para suscribir la PWA |
 | `POST` | `/subscriptions/` | Suscribirse a cortes cerca de una ubicación personalizada |

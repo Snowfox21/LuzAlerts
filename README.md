@@ -221,7 +221,7 @@ Full interactive docs available at `http://localhost:8000/docs` when running loc
 | `POST` | `/users/` | Register device (push token or Web Push subscription + location) |
 | `DELETE` | `/users/{device_id}/web-push` | Remove the PWA Web Push subscription |
 | `GET` / `POST` | `/users/{device_id}/places` | List / add tracked places (up to 2) |
-| `PATCH` / `DELETE` | `/users/{device_id}/places/{place_id}` | Rename / remove a tracked place |
+| `PATCH` / `DELETE` | `/users/{device_id}/places/{place_id}` | Change a tracked place's radius or turn it on/off / remove it |
 | `DELETE` | `/users/{device_id}/data` | Erase the device's reports, places, comments and settings |
 | `GET` | `/config/vapid-public-key` | Public VAPID key for PWA push subscription |
 | `POST` | `/subscriptions/` | Subscribe to outages near a custom location |
