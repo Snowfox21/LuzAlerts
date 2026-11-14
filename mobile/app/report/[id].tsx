@@ -7,6 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiClient from '../../src/api/client';
 import { confirmAndResolveReport, corroborateReport, getCorroborateErrorCopy } from '../../src/api/reports';
 import { ShareBlock } from '../../src/share/ShareBlock';
+import { AndeComplaintCard } from '../../src/ande/AndeComplaintCard';
+import { ClaimReport } from '../../src/ande/claimMessage';
+import { getCorroborationPoint, rememberCorroborationPoint } from '../../src/ande/corroborationPoint';
 import { DS, PrimaryButton, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
 import { isMyReport } from '../../src/utils/myReports';
@@ -69,6 +72,7 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
     const [resolving, setResolving] = useState(false);
     const [corroborating, setCorroborating] = useState(false);
     const [corroborated, setCorroborated] = useState(false);
+    const [ownPoint, setOwnPoint] = useState<ClaimReport | null>(null);
     const activeReportIdRef = useRef<number | null>(null);
     const loadedIdRef = useRef<string | null>(null);
 
@@ -87,15 +91,17 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
             setResolving(false);
             setCorroborating(false);
             setCorroborated(false);
+            setOwnPoint(null);
         }
 
         (async () => {
             try {
                 const reportId = Number(id);
-                const [deviceId, localMine, alreadyCorroborated] = await Promise.all([
+                const [deviceId, localMine, alreadyCorroborated, point] = await Promise.all([
                     getOrCreateDeviceId().catch(() => null),
                     Number.isFinite(reportId) ? isMyReport(reportId) : Promise.resolve(false),
                     Number.isFinite(reportId) ? hasCorroborated(reportId) : Promise.resolve(false),
+                    Number.isFinite(reportId) ? getCorroborationPoint(reportId) : Promise.resolve(null),
                 ]);
                 const res = await apiClient.get<Report>(`/reports/${id}`, {
                     params: deviceId ? { device_id: deviceId } : undefined,
@@ -106,6 +112,7 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
                 // Una recarga exitosa saca la pantalla de error de un intento anterior.
                 setError(null);
                 setCorroborated(alreadyCorroborated);
+                setOwnPoint(point);
                 // Локальный реестр — не запасной вариант, а второй независимый
                 // признак: если device_id до сервера не доехал (его не выдал
                 // getOrCreateDeviceId), он честно ответит is_mine: false, и
@@ -190,8 +197,17 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
             });
 
             await markCorroborated(reportId);
+            const point = rememberCorroborationPoint(
+                reportId,
+                position.coords.latitude,
+                position.coords.longitude,
+                withAddress => {
+                    if (activeReportIdRef.current === reportId) setOwnPoint(withAddress);
+                },
+            );
             if (activeReportIdRef.current !== reportId) return;
             setCorroborated(true);
+            setOwnPoint(point);
             setReport(prev => (prev?.id === reportId ? {
                 ...prev,
                 confirmed: updated.confirmed,
@@ -423,6 +439,13 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
                             }}
                         />
                     </View>
+                ) : null}
+
+                {!report.resolved && (mine || (corroborated && ownPoint)) ? (
+                    <AndeComplaintCard
+                        report={mine ? report : ownPoint!}
+                        defaultScope={(report.confirmation_count ?? 0) >= 2 ? 'block' : 'house'}
+                    />
                 ) : null}
             </View>
         </ScrollView>

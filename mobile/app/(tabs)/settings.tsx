@@ -15,7 +15,7 @@ import {
     View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Bell, ChevronRight, Download, Info, Map as MapIcon, MapPin, Shield, Trash2, Zap } from 'lucide-react-native';
+import { Bell, ChevronRight, Download, Hash, Info, Map as MapIcon, MapPin, Shield, Trash2, Zap } from 'lucide-react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
@@ -29,6 +29,9 @@ import { UpdateSheet } from '../../src/update/UpdateSheet';
 import { SELF_UPDATE_ENABLED } from '../../src/update/distribution';
 import { WebPushRow } from '../../src/push/WebPushRow';
 import { disableWebPush } from '../../src/push/webPush';
+import { getNis, NIS_KEY, setNis } from '../../src/ande/nis';
+import { forgetCorroborationPoints } from '../../src/ande/corroborationPoint';
+import { NisField } from '../../src/ande/NisField';
 
 // Версия сборки, а не строковый литерал: с самообновлением вне стора
 // расхождение экрана и реального APK путает при поддержке.
@@ -54,7 +57,7 @@ const LEGACY_ZONE_LABEL_KEY = '@luzalerts_zone_label';
 
 // Что стирает "Eliminar mis datos" на устройстве, помимо id.
 // Онбординг и проверку обновлений не трогаем — это не данные человека.
-const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports'];
+const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports', NIS_KEY];
 
 export default function SettingsScreen() {
     const [prefs, setPrefs] = useState<NotifyPrefs>(DEFAULT_PREFS);
@@ -71,6 +74,19 @@ export default function SettingsScreen() {
     // Пока тянут ползунок радиуса, вертикальный скролл отключаем:
     // иначе на Android ScrollView перехватывает жест.
     const [draggingRadius, setDraggingRadius] = useState(false);
+    const [nis, setNisValue] = useState<string | null>(null);
+    const [editingNis, setEditingNis] = useState(false);
+    const [nisDraft, setNisDraft] = useState('');
+
+    useFocusEffect(useCallback(() => {
+        getNis().then(setNisValue);
+    }, []));
+
+    const saveNis = async () => {
+        await setNis(nisDraft).catch(() => {});
+        setNisValue(await getNis());
+        setEditingNis(false);
+    };
 
     const loadPrefs = useCallback(async () => {
         try {
@@ -128,12 +144,15 @@ export default function SettingsScreen() {
             if (Platform.OS === 'web') await disableWebPush().catch(() => {});
             const id = await getOrCreateDeviceId();
             await apiClient.delete(`/users/${id}/data`);
+            await forgetCorroborationPoints();
             await AsyncStorage.multiRemove(LOCAL_DATA_KEYS).catch(() => {});
             await resetDeviceId();
             setPlacesCount(0);
             setPrefs(DEFAULT_PREFS);
             setZoneLabel(null);
             setEditingZone(false);
+            setNisValue(null);
+            setEditingNis(false);
             const newId = await getOrCreateDeviceId();
             setDeviceId(newId.slice(0, 8).toUpperCase());
             Alert.alert('Datos eliminados', 'Borramos tus reportes, lugares, comentarios y ajustes del servidor.');
@@ -210,6 +229,27 @@ export default function SettingsScreen() {
                         }
                         onPress={() => router.push('/zones')}
                     />
+                    <SettingRow
+                        icon={<Hash size={20} color={DS.textMuted} />}
+                        label="Mi NIS de ANDE"
+                        sub={nis ?? 'Opcional. Está en tu factura de ANDE'}
+                        right={<Text style={styles.link}>{editingNis ? 'Cerrar' : nis ? 'Cambiar' : 'Agregar'}</Text>}
+                        onPress={() => {
+                            setNisDraft(nis ?? '');
+                            setEditingNis(v => !v);
+                        }}
+                    />
+                    {editingNis && (
+                        <View style={styles.zonePanel}>
+                            <NisField
+                                value={nisDraft}
+                                onChange={setNisDraft}
+                                onSave={saveNis}
+                                allowEmptySave={!!nis}
+                                autoFocus
+                            />
+                        </View>
+                    )}
                 </SettingSection>
 
                 <SettingSection title="Notificaciones">
