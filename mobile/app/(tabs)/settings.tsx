@@ -30,7 +30,7 @@ import { SELF_UPDATE_ENABLED } from '../../src/update/distribution';
 import { WebPushRow } from '../../src/push/WebPushRow';
 import { disableWebPush } from '../../src/push/webPush';
 import { getNis, NIS_KEY, setNis } from '../../src/ande/nis';
-import { CORROBORATION_POINTS_KEY } from '../../src/ande/corroborationPoint';
+import { CORROBORATION_POINTS_KEY, forgetCorroborationPoints } from '../../src/ande/corroborationPoint';
 import { NisField } from '../../src/ande/NisField';
 
 // Версия сборки, а не строковый литерал: с самообновлением вне стора
@@ -144,6 +144,7 @@ export default function SettingsScreen() {
             if (Platform.OS === 'web') await disableWebPush().catch(() => {});
             const id = await getOrCreateDeviceId();
             await apiClient.delete(`/users/${id}/data`);
+            await forgetCorroborationPoints();
             await AsyncStorage.multiRemove(LOCAL_DATA_KEYS).catch(() => {});
             await resetDeviceId();
             setPlacesCount(0);

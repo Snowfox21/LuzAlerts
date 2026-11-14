@@ -7,6 +7,8 @@ export const CORROBORATION_POINTS_KEY = '@luzalerts_corroboration_points';
 
 type Points = Record<string, ClaimReport>;
 
+let generation = 0;
+
 async function readAll(): Promise<Points> {
     try {
         const raw = await AsyncStorage.getItem(CORROBORATION_POINTS_KEY);
@@ -17,10 +19,17 @@ async function readAll(): Promise<Points> {
     }
 }
 
-async function write(reportId: number, point: ClaimReport): Promise<void> {
+async function write(reportId: number, point: ClaimReport, gen: number): Promise<void> {
+    if (gen !== generation) return;
     const all = await readAll();
+    if (gen !== generation) return;
     all[String(reportId)] = point;
     await AsyncStorage.setItem(CORROBORATION_POINTS_KEY, JSON.stringify(all)).catch(() => {});
+}
+
+export async function forgetCorroborationPoints(): Promise<void> {
+    generation += 1;
+    await AsyncStorage.removeItem(CORROBORATION_POINTS_KEY).catch(() => {});
 }
 
 export async function getCorroborationPoint(reportId: number): Promise<ClaimReport | null> {
@@ -33,6 +42,7 @@ export function rememberCorroborationPoint(
     longitude: number,
     onAddress: (point: ClaimReport) => void,
 ): ClaimReport {
+    const gen = generation;
     const point: ClaimReport = {
         latitude,
         longitude,
@@ -42,10 +52,10 @@ export function rememberCorroborationPoint(
         city: null,
         created_at: new Date().toISOString(),
     };
-    write(reportId, point);
+    write(reportId, point, gen);
     reverseGeocode(latitude, longitude)
         .then(place => {
-            if (!place) return;
+            if (!place || gen !== generation) return;
             const withAddress: ClaimReport = {
                 ...point,
                 street: place.street ?? null,
@@ -53,7 +63,7 @@ export function rememberCorroborationPoint(
                 barrio: place.district ?? null,
                 city: place.city ?? place.subregion ?? null,
             };
-            write(reportId, withAddress);
+            write(reportId, withAddress, gen);
             onAddress(withAddress);
         })
         .catch(() => {});
