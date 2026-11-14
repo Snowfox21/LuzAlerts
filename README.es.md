@@ -4,6 +4,8 @@
 
 > Monitoreo de cortes de luz en tiempo real para Paraguay — datos oficiales de ANDE + reportes de usuarios, en tu bolsillo.
 
+**Descargala:** [Google Play](https://play.google.com/store/apps/details?id=com.luzalerts.app) · [APK](https://luzalerts.lat/luzalerts.apk) · [iPhone (app web)](https://luzalerts.lat/app/)
+
 Paraguay sufre cortes de luz frecuentes y muchas veces sin aviso. La ANDE publica avisos de cortes programados en su sitio web, pero solo en HTML crudo y sin ningún sistema de notificaciones. LuzAlerts scrapea esos datos cada hora, les agrega coordenadas GPS y los muestra en un mapa interactivo. Cuando los datos oficiales tienen vacíos, los propios usuarios los completan tocando "Reportar" desde donde estén.
 
 ---
@@ -15,14 +17,16 @@ Paraguay sufre cortes de luz frecuentes y muchas veces sin aviso. La ANDE public
 | 🗺 **Mapa en vivo** | Marcadores por color según estado: programado (amarillo), activo (rojo), resuelto (verde), vecinal (violeta) |
 | 📡 **Datos oficiales** | Scrapea el sitio de la ANDE cada 60 minutos y geocodifica las zonas automáticamente |
 | 👥 **Reportes colaborativos** | Los usuarios reportan cortes con un toque; 3 o más vecinos de la misma ciudad (en Asunción, del mismo barrio o uno vecino) confirman la zona automáticamente |
-| 🔔 **Notificaciones push** | Aviso cuando aparece un corte nuevo a menos de 5 km — y otro cuando vuelve la luz. Android vía Expo/FCM, iPhone vía Web Push |
+| 🔔 **Notificaciones push** | Aviso cuando aparece un corte nuevo dentro de tu radio (1–20 km, 5 km por defecto) — y otro cuando vuelve la luz. Android vía Expo/FCM, iPhone vía Web Push |
+| 📍 **Mis lugares** | Tu zona y hasta 2 lugares más (la casa de tus padres, la oficina), aunque estén en otra ciudad |
 | 🍎 **iPhone (PWA)** | La misma app como app web en [luzalerts.lat/app](https://luzalerts.lat/app/) — agregala a la pantalla de inicio y recibí avisos (iOS 16.4+), sin App Store |
 | ✋ **"Yo también" y cierre de reportes** | Los vecinos confirman el reporte de otro con un toque; el autor puede cerrar su reporte, y los viejos se cierran solos a las 96 h |
+| 📣 **Reclamo a la ANDE** | Desde tu reporte (o uno que confirmaste) la app arma el mensaje para el operador de la ANDE: dirección, enlace al mapa, hora del corte y, si querés, tu NIS. Un toque lo copia y abre el WhatsApp de la ANDE (0962 160 160), o llamás al 160. El NIS queda solo en el teléfono |
 | 🔗 **Compartir un reporte** | Enlace corto `luzalerts.lat/r/{code}` con vista previa en WhatsApp; en Android se abre directo en la app (App Links) |
-| 📦 **Autoactualización** | El APK se distribuye fuera de Google Play y revisa `dl/latest.json` solo — el aviso de actualización aparece en la app |
+| 📦 **Distribución** | La versión de [Google Play](https://play.google.com/store/apps/details?id=com.luzalerts.app) se actualiza desde la tienda. El APK del sitio revisa `dl/latest.json` solo y muestra el aviso de actualización en la app |
 | 📊 **Estado del scraper** | `/status` muestra intentos del scraper, saltos de ID de ANDE y cobertura; `/events.json` es un feed público de eventos |
 | 💬 **Comentarios entre vecinos** | Comentarios anónimos por cada corte — útiles cuando el aviso oficial no coincide con la realidad |
-| 🚀 **Onboarding** | Cuatro slides de introducción (bienvenida, mapa, leyenda de marcadores, notificaciones) + permisos al primer uso |
+| 🚀 **Onboarding** | Siete slides (bienvenida, mapa, leyenda, mis lugares, compartir por WhatsApp, reclamo a la ANDE con NIS opcional, notificaciones) + permisos al primer uso |
 | 🌙 **Modo oscuro** | Interfaz oscura por defecto — útil cuando ya no hay luz |
 | 🌐 **Landing page** | Sitio estático en [luzalerts.lat](https://luzalerts.lat) — política de privacidad, términos de uso, 404 |
 
@@ -110,7 +114,10 @@ Web Push (VAPID) → Apple Push → PWA en iPhone (luzalerts.lat/app)
 `Usuario toca "Reportar" → POST /reports → si hay 3+ vecinos en la misma zona (ciudad; en Asunción, barrio y vecinos) → zona confirmada`
 
 **Notificaciones push:**
-`Se guarda un corte nuevo → PostGIS encuentra usuarios en 5 km → Expo Push API / Web Push → notificación`
+`Se guarda un corte nuevo → PostGIS encuentra usuarios dentro de su radio → Expo Push API / Web Push → notificación`
+
+**Reclamo a la ANDE (solo en el cliente):**
+`Reporte o confirmación → mensaje armado en el teléfono (mobile/src/ande/claimMessage.ts) → copiado + wa.me/595962160160 → la persona lo pega cuando la atiende un operador`
 
 **Compartir:**
 `Reporte → código → luzalerts.lat/r/{code} (página del servidor con og tags para WhatsApp) → en Android abre la app, el resto ve la página`
@@ -146,11 +153,12 @@ Web Push (VAPID) → Apple Push → PWA en iPhone (luzalerts.lat/app)
 │   │   ├── index.tsx           # Mapa
 │   │   ├── list.tsx            # Lista de cortes
 │   │   └── reports.tsx         # Formulario de reporte
-│   ├── app/onboarding.tsx      # Cuatro slides de intro + solicitud de permisos
+│   ├── app/onboarding.tsx      # Siete slides de intro + solicitud de permisos
 │   ├── app/report/[id].tsx     # Detalle de un reporte
 │   ├── app/r/[code].tsx        # Enlace compartido de un reporte
 │   ├── public/                 # Shell de la PWA: index.html, manifest.json, sw.js, íconos
 │   └── src/
+│       ├── ande/               # Reclamo a la ANDE: mensaje, tarjeta, campo NIS
 │       ├── api/                # Cliente Axios + tipos
 │       ├── hooks/              # useDeviceSetup (push + ubicación)
 │       ├── maps/               # Mapas nativos / Leaflet en web
@@ -173,7 +181,8 @@ Web Push (VAPID) → Apple Push → PWA en iPhone (luzalerts.lat/app)
 │   ├── luzscreens*.jsx         # Previews de pantallas de la app (React vía CDN)
 │   └── favicon.*               # Favicons (16, 32, 192, apple-touch)
 │
-└── docs/                       # Design prompts, documentación interna
+└── docs/
+    └── design/                 # Especificaciones de diseño (<función>.md) + capturas: fuente de verdad de la UI
 ```
 
 ---
@@ -221,6 +230,9 @@ Documentación interactiva disponible en `http://localhost:8000/docs` cuando cor
 | `GET` | `/r/{code}` | Página pública del reporte con vista previa para WhatsApp |
 | `POST` | `/users/` | Registrar dispositivo (token push o suscripción Web Push + ubicación) |
 | `DELETE` | `/users/{device_id}/web-push` | Quitar la suscripción Web Push de la PWA |
+| `GET` / `POST` | `/users/{device_id}/places` | Listar / agregar lugares seguidos (hasta 2) |
+| `PATCH` / `DELETE` | `/users/{device_id}/places/{place_id}` | Cambiar el radio de un lugar seguido o activarlo/desactivarlo / quitarlo |
+| `DELETE` | `/users/{device_id}/data` | Borrar reportes, lugares, comentarios y ajustes del dispositivo |
 | `GET` | `/config/vapid-public-key` | Clave pública VAPID para suscribir la PWA |
 | `POST` | `/subscriptions/` | Suscribirse a cortes cerca de una ubicación personalizada |
 | `GET` / `DELETE` | `/subscriptions/` | Listar / quitar suscripciones por ubicación |
@@ -235,9 +247,9 @@ El esquema de la base de datos lo gestiona **Alembic** — corré `alembic upgra
 
 - [x] Scraping de cortes oficiales de ANDE
 - [x] Reportes colaborativos con auto-confirmación
-- [x] Notificaciones push — geo-dirigidas (radio 5 km), con aviso de seguimiento cuando vuelve la luz
+- [x] Notificaciones push — geo-dirigidas (radio ajustable de 1 a 20 km), con aviso de seguimiento cuando vuelve la luz
 - [x] Comentarios por corte
-- [x] Onboarding (4 slides: bienvenida, mapa, leyenda de marcadores, notificaciones) + modo oscuro
+- [x] Onboarding (7 slides) + modo oscuro
 - [x] Migraciones Alembic + endpoints de administración protegidos
 - [x] Tests: parser, comentarios, endpoints REST, smoke de migraciones
 - [x] Landing page en [luzalerts.lat](https://luzalerts.lat) — política de privacidad, términos, 404, favicon
@@ -247,7 +259,8 @@ El esquema de la base de datos lo gestiona **Alembic** — corré `alembic upgra
 - [x] Autoactualización del APK fuera de Google Play
 - [x] Observabilidad del scraper (`/status`) y feed público de eventos (`/events.json`)
 - [x] iPhone como PWA en [luzalerts.lat/app](https://luzalerts.lat/app/) con Web Push
-- [ ] **Publicación en Google Play (Android)** — ficha de app, capturas de pantalla
+- [x] Publicación en Google Play (Android) — [ficha en la tienda](https://play.google.com/store/apps/details?id=com.luzalerts.app), noviembre de 2026
+- [x] Reclamo a la ANDE listo para pegar (WhatsApp / 160) con NIS opcional
 - [ ] iOS nativo / App Store
 - [ ] API de cortes de emergencia (`consultas.ande.gov.py`)
 - [ ] Mapeo de número NIS → alimentador
