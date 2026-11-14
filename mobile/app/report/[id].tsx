@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiClient from '../../src/api/client';
 import { confirmAndResolveReport, corroborateReport, getCorroborateErrorCopy } from '../../src/api/reports';
 import { ShareBlock } from '../../src/share/ShareBlock';
+import { AndeComplaintCard } from '../../src/ande/AndeComplaintCard';
 import { DS, PrimaryButton, SectionCard, sharedStyles } from '../../src/components/DesignSystem';
 import { formatDateTime24 } from '../../src/utils/date';
 import { isMyReport } from '../../src/utils/myReports';
@@ -423,6 +424,10 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
                             }}
                         />
                     </View>
+                ) : null}
+
+                {!report.resolved && (mine || corroborated) ? (
+                    <AndeComplaintCard report={report} defaultWholeBlock={confirmations >= 2} />
                 ) : null}
             </View>
         </ScrollView>

@@ -11,11 +11,12 @@ import {
     StyleSheet,
     Switch,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Bell, ChevronRight, Download, Info, Map as MapIcon, MapPin, Shield, Trash2, Zap } from 'lucide-react-native';
+import { Bell, ChevronRight, Download, Hash, Info, Map as MapIcon, MapPin, Shield, Trash2, Zap } from 'lucide-react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import apiClient from '../../src/api/client';
 import { getOrCreateDeviceId, resetDeviceId } from '../../src/utils/device';
@@ -29,6 +30,7 @@ import { UpdateSheet } from '../../src/update/UpdateSheet';
 import { SELF_UPDATE_ENABLED } from '../../src/update/distribution';
 import { WebPushRow } from '../../src/push/WebPushRow';
 import { disableWebPush } from '../../src/push/webPush';
+import { getNis, NIS_KEY, setNis } from '../../src/ande/nis';
 
 // Версия сборки, а не строковый литерал: с самообновлением вне стора
 // расхождение экрана и реального APK путает при поддержке.
@@ -54,7 +56,7 @@ const LEGACY_ZONE_LABEL_KEY = '@luzalerts_zone_label';
 
 // Что стирает "Eliminar mis datos" на устройстве, помимо id.
 // Онбординг и проверку обновлений не трогаем — это не данные человека.
-const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports'];
+const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports', NIS_KEY];
 
 export default function SettingsScreen() {
     const [prefs, setPrefs] = useState<NotifyPrefs>(DEFAULT_PREFS);
@@ -71,6 +73,19 @@ export default function SettingsScreen() {
     // Пока тянут ползунок радиуса, вертикальный скролл отключаем:
     // иначе на Android ScrollView перехватывает жест.
     const [draggingRadius, setDraggingRadius] = useState(false);
+    const [nis, setNisValue] = useState<string | null>(null);
+    const [editingNis, setEditingNis] = useState(false);
+    const [nisDraft, setNisDraft] = useState('');
+
+    useEffect(() => {
+        getNis().then(setNisValue);
+    }, []);
+
+    const saveNis = async () => {
+        await setNis(nisDraft).catch(() => {});
+        setNisValue(await getNis());
+        setEditingNis(false);
+    };
 
     const loadPrefs = useCallback(async () => {
         try {
@@ -134,6 +149,8 @@ export default function SettingsScreen() {
             setPrefs(DEFAULT_PREFS);
             setZoneLabel(null);
             setEditingZone(false);
+            setNisValue(null);
+            setEditingNis(false);
             const newId = await getOrCreateDeviceId();
             setDeviceId(newId.slice(0, 8).toUpperCase());
             Alert.alert('Datos eliminados', 'Borramos tus reportes, lugares, comentarios y ajustes del servidor.');
@@ -210,6 +227,35 @@ export default function SettingsScreen() {
                         }
                         onPress={() => router.push('/zones')}
                     />
+                    <SettingRow
+                        icon={<Hash size={20} color={DS.textMuted} />}
+                        label="Mi NIS de ANDE"
+                        sub={nis ?? 'Opcional. Está en tu factura de ANDE'}
+                        right={<Text style={styles.link}>{editingNis ? 'Cerrar' : nis ? 'Cambiar' : 'Agregar'}</Text>}
+                        onPress={() => {
+                            setNisDraft(nis ?? '');
+                            setEditingNis(v => !v);
+                        }}
+                    />
+                    {editingNis && (
+                        <View style={[styles.zonePanel, styles.nisPanel]}>
+                            <TextInput
+                                style={styles.nisInput}
+                                value={nisDraft}
+                                onChangeText={v => setNisDraft(v.replace(/\D/g, ''))}
+                                placeholder="Número de NIS"
+                                placeholderTextColor={DS.textMuted}
+                                keyboardType="number-pad"
+                                maxLength={12}
+                                autoFocus
+                                returnKeyType="done"
+                                onSubmitEditing={saveNis}
+                            />
+                            <TouchableOpacity style={styles.nisSave} activeOpacity={0.85} onPress={saveNis}>
+                                <Text style={styles.nisSaveText}>Guardar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </SettingSection>
 
                 <SettingSection title="Notificaciones">
@@ -569,6 +615,34 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: DS.border,
+    },
+    nisPanel: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    nisInput: {
+        flex: 1,
+        minHeight: 44,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: DS.border,
+        paddingHorizontal: 12,
+        color: DS.text,
+        fontSize: 16,
+        backgroundColor: DS.bg,
+    },
+    nisSave: {
+        minHeight: 44,
+        borderRadius: 10,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: DS.amber,
+    },
+    nisSaveText: {
+        color: DS.ink,
+        fontSize: 14,
+        fontWeight: '800',
     },
     zonesRight: {
         flexDirection: 'row',
