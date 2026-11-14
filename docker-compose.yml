@@ -34,7 +34,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://luz:luz@db:5432/luzalerts}
       NOMINATIM_URL: https://nominatim.openstreetmap.org
       NOMINATIM_EMAIL: ${NOMINATIM_EMAIL:-dev@luzalerts.local}
-      REPORT_RADIUS_M: 500
+      REPORT_RADIUS_M: 1500
       REPORT_THRESHOLD: 3
       # Срок жизни пользовательской метки. Просроченные не отдаются в
       # GET /reports/ и закрываются фоновой задачей в контейнере scraper.

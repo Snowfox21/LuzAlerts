@@ -14,7 +14,7 @@ Paraguay sufre cortes de luz frecuentes y muchas veces sin aviso. La ANDE public
 |---|---|
 | 🗺 **Mapa en vivo** | Marcadores por color según estado: programado (amarillo), activo (rojo), resuelto (verde), vecinal (violeta) |
 | 📡 **Datos oficiales** | Scrapea el sitio de la ANDE cada 60 minutos y geocodifica las zonas automáticamente |
-| 👥 **Reportes colaborativos** | Los usuarios reportan cortes con un toque; 3 o más reportes en 500 m confirman la zona automáticamente |
+| 👥 **Reportes colaborativos** | Los usuarios reportan cortes con un toque; 3 o más vecinos de la misma ciudad (en Asunción, del mismo barrio o uno vecino) confirman la zona automáticamente |
 | 🔔 **Notificaciones push** | Aviso cuando aparece un corte nuevo a menos de 5 km — y otro cuando vuelve la luz. Android vía Expo/FCM, iPhone vía Web Push |
 | 🍎 **iPhone (PWA)** | La misma app como app web en [luzalerts.lat/app](https://luzalerts.lat/app/) — agregala a la pantalla de inicio y recibí avisos (iOS 16.4+), sin App Store |
 | ✋ **"Yo también" y cierre de reportes** | Los vecinos confirman el reporte de otro con un toque; el autor puede cerrar su reporte, y los viejos se cierran solos a las 96 h |
@@ -107,7 +107,7 @@ Web Push (VAPID) → Apple Push → PWA en iPhone (luzalerts.lat/app)
 ```
 
 **Reportes colaborativos:**
-`Usuario toca "Reportar" → POST /reports → si hay 3+ reportes en 500 m → zona confirmada`
+`Usuario toca "Reportar" → POST /reports → si hay 3+ vecinos en la misma zona (ciudad; en Asunción, barrio y vecinos) → zona confirmada`
 
 **Notificaciones push:**
 `Se guarda un corte nuevo → PostGIS encuentra usuarios en 5 km → Expo Push API / Web Push → notificación`

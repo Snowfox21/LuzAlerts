@@ -38,7 +38,7 @@ const LEGEND_ITEMS = [
         color: DS.violetLight,
         pulse: false,
         term: 'Vecinal',
-        body: 'Reportado por usuarios cerca tuyo. Se confirma con 3 reportes.',
+        body: 'Reportado por vecinos de tu zona. Se confirma con 3 vecinos.',
     },
 ];
 

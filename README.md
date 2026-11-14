@@ -14,7 +14,7 @@ Paraguay has frequent unannounced power cuts. ANDE publishes planned outage noti
 |---|---|
 | 🗺 **Live map** | Color-coded markers — planned (yellow), active (red), resolved (green), crowdsourced (purple) |
 | 📡 **Official data** | Scrapes ANDE's website every 60 minutes, geocodes zones automatically |
-| 👥 **Crowdsourcing** | Users report outages in one tap; 3+ reports in 500 m auto-confirms the area |
+| 👥 **Crowdsourcing** | Users report outages in one tap; 3+ neighbours in the same city (in Asunción, the same or an adjacent barrio) auto-confirm the area |
 | 🔔 **Push notifications** | Notified when a new outage appears within 5 km — and again when the lights come back. Android via Expo/FCM, iPhone via Web Push |
 | 🍎 **iPhone (PWA)** | Same app as a web app at [luzalerts.lat/app](https://luzalerts.lat/app/) — add it to the Home Screen and get push alerts (iOS 16.4+), no App Store needed |
 | ✋ **"Me too" and closing reports** | Neighbors confirm someone else's report in one tap; authors can close their own report, and stale reports close automatically after 96 h |
@@ -107,7 +107,7 @@ Web Push (VAPID) → Apple Push → iPhone PWA (luzalerts.lat/app)
 ```
 
 **Crowdsourced reports:**
-`User taps "Report" → POST /reports → if 3+ reports within 500 m → area confirmed`
+`User taps "Report" → POST /reports → if 3+ neighbours in the same zone (city; barrio + neighbours in Asunción) → area confirmed`
 
 **Push notifications:**
 `New outage saved → PostGIS finds users within 5 km → Expo Push API / Web Push → notification`
