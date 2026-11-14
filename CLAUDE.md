@@ -15,6 +15,12 @@
 - Antes de hacer push: tests del backend (`pytest` en `backend/`, necesita PostGIS) y `node --stack-size=8000 node_modules/typescript/bin/tsc --noEmit` en `mobile/`.
 - Apenas abrís un PR, dejá en él un comentario `@codex review` para pedir la revisión de Codex. Respondé sus observaciones en español y, después de corregirlas, volvé a pedirla con otro `@codex review`.
 
+## Diseño
+
+- Cada función con diseño tiene su especificación en `docs/design/<función>.md` y las capturas de sus estados en `docs/design/<función>/`. El `.md` es la fuente de verdad para el código.
+- **Si cambia el diseño, cambia el `.md`**: cualquier cambio de diseño (en el canvas de Claude Design o pedido por el dueño) se acompaña, en el mismo cambio, de la actualización del `.md` y de las capturas afectadas. Un diseño cuyo `.md` no está al día no se pasa a código.
+- Si al implementar el código tiene que apartarse del `.md`, se actualiza el `.md` en el mismo PR y se avisa al dueño.
+
 ## Después de que se mergea un PR
 
 Entregale al dueño un **mensaje en Markdown (en ruso) listo para mandar a un agente de despliegue**. Tiene que incluir:
