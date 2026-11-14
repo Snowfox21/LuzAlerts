@@ -368,8 +368,8 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
                         </View>
                         <Text style={styles.meterHint}>
                             {report.confirmed
-                                ? `Se confirmó al juntarse ${threshold} reportes a menos de 500 m.`
-                                : `El corte se confirma con ${threshold} reportes a menos de 500 m. ${missing === 1 ? 'Falta 1 vecino' : `Faltan ${missing} vecinos`}: compartí el reporte para sumarlos.`}
+                                ? `Se confirmó al juntarse ${threshold} vecinos de la zona.`
+                                : `El corte se confirma con ${threshold} vecinos de la misma ciudad (en Asunción, del mismo barrio o uno de al lado). ${missing === 1 ? 'Falta 1 vecino' : `Faltan ${missing} vecinos`}: compartí el reporte para sumarlos.`}
                         </Text>
                     </SectionCard>
                 ) : null}

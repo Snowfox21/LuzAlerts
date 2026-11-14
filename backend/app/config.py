@@ -8,7 +8,15 @@ class Settings(BaseSettings):
     # Photon (komoot): búsqueda mientras se escribe. Nominatim prohíbe el
     # autocompletado en su política de uso, Photon está hecho para eso.
     PHOTON_URL: str = "https://photon.komoot.io"
-    REPORT_RADIUS_M: int = 500
+    # Zonas de confirmación (ver app/report_zones.py). En una ciudad común
+    # la zona es la ciudad entera; en las de REPORT_BARRIO_LEVEL_CITIES (lista
+    # separada por comas) es el barrio y los de al lado, aproximados con
+    # REPORT_RADIUS_M. El mismo radio se usa cuando no se sabe la ciudad.
+    REPORT_RADIUS_M: int = 1500
+    REPORT_BARRIO_LEVEL_CITIES: str = "Asunción"
+    # Hasta dónde se buscan reportes de "la misma ciudad": evita juntar
+    # ciudades homónimas de departamentos distintos.
+    REPORT_CITY_MAX_DISTANCE_M: int = 25000
     REPORT_THRESHOLD: int = 3
     # Через сколько часов после создания метка "нет света" считается
     # протухшей и закрывается автоматически, если автор не закрыл ее сам.

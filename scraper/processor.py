@@ -179,11 +179,17 @@ async def auto_resolve_expired_reports() -> None:
     источник правды один, а тесты бэкенда покрывают ее без зависимостей скрейпера.
     """
     from app.crowdsource import auto_resolve_expired_reports as _auto_resolve
+    from app.crowdsource import recount_active_reports
     from app.database import AsyncSessionLocal
 
     async with AsyncSessionLocal() as session:
         closed = await _auto_resolve(session)
+        # Después de cerrar los vencidos se recalculan las zonas de los
+        # activos: así suman los reportes que quedaron cortos (por ejemplo,
+        # creados cuando el geocoder no devolvió la ciudad).
+        recounted = await recount_active_reports(session)
     logger.info(f"Auto-resolved {closed} expired user reports.")
+    logger.info(f"Recounted {recounted} active user reports.")
 
 
 async def cleanup_old_data(days: int = 30) -> None:

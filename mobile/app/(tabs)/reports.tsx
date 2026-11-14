@@ -355,7 +355,7 @@ export default function ReportsScreen() {
             <View style={styles.banner}>
                 <Info size={15} color={DS.violetLight} />
                 <Text style={styles.bannerText}>
-                    Cuando 3 vecinos reportan el mismo corte en menos de 500m, se confirma para todos.
+                    Cuando 3 vecinos de la misma ciudad reportan un corte, se confirma para todos. En Asunción cuentan tu barrio y los de al lado.
                 </Text>
             </View>
 

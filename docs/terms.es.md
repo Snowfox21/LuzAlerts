@@ -12,7 +12,7 @@ LuzAlerts es una aplicación móvil gratuita que centraliza información sobre c
 
 - Mostrar en un mapa y en una lista los cortes programados y no programados publicados por la **ANDE (Administración Nacional de Electricidad)** en su sitio web oficial.
 - Enviar notificaciones push cuando un corte ocurre en un radio aproximado de 5 km de la ubicación del usuario.
-- Permitir a los usuarios reportar cortes mediante un sistema colaborativo de validación (un reporte se confirma cuando coinciden 3 o más usuarios dentro de 500 m).
+- Permitir a los usuarios reportar cortes mediante un sistema colaborativo de validación (un reporte se confirma cuando coinciden 3 o más usuarios de la misma ciudad; en Asunción, del mismo barrio o de barrios vecinos).
 - Permitir comentarios públicos asociados a cada corte.
 
 ---

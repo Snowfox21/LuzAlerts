@@ -72,3 +72,20 @@ async def normal_user(db: AsyncSession):
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def isolate_user_reports():
+    """Cada test arranca sin reportes activos de los tests anteriores.
+
+    La base es compartida por toda la sesión y las zonas de confirmación
+    abarcan una ciudad entera: sin esto, los reportes de un test sumarían
+    vecinos en el siguiente.
+    """
+    from sqlalchemy import update
+    from app.models import UserReport
+
+    async with TestingSessionLocal() as session:
+        await session.execute(update(UserReport).values(is_active=False))
+        await session.commit()
+    yield

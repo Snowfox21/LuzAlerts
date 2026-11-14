@@ -6,7 +6,6 @@ from geoalchemy2.types import Geography
 from sqlalchemy import Boolean, literal, select, cast, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.crowdsource import check_and_confirm_reports
 from app.database import get_db
 from app.geocoding import reverse_geocode, forward_geocode
@@ -18,6 +17,7 @@ from app.report_lifecycle import (
     apply_auto_resolution,
 )
 from app.public_report import to_public_report
+from app.report_zones import ZoneAnchor, reports_in_zone
 from app.schemas import (
     ReportCorroborate,
     ReportCreate,
@@ -98,8 +98,8 @@ async def create_report(request: Request, payload: ReportCreate, db: AsyncSessio
         comment=payload.comment,
     )
 
-    # Проверка на threshold — подтверждаем всех в радиусе
-    await check_and_confirm_reports(db, lat, lon)
+    # Umbral: se confirma toda la zona (la ciudad o, en Asunción, el barrio).
+    await check_and_confirm_reports(db, report)
     await db.refresh(report)
 
     # Метку только что создало это устройство — она заведомо своя.
@@ -158,9 +158,11 @@ async def corroborate_report(
     координатами, а не счетчик-лайк: порог REPORT_THRESHOLD решает, есть ли
     в квартале настоящее отключение, и накрутить его нажатиями нельзя.
 
-    Идемпотентна по человеку: если у этого device_id уже есть активная
-    метка в пределах REPORT_RADIUS_M, вторая не создается — иначе один
-    пользователь дотянул бы метку до "confirmado" в одиночку.
+    Idempotente por persona: si este device_id ya tiene un reporte activo en
+    la misma zona (la ciudad; en Asunción, el barrio y los de al lado), no se
+    crea otro: si no, una sola persona llevaría el reporte a "confirmado".
+    La zona se recalcula igual, porque ese reporte pudo haberse creado antes
+    de que las zonas se contaran por ciudad y todavía no sumó.
     """
     result = await db.execute(select(UserReport).where(UserReport.id == report_id))
     target = result.scalar_one_or_none()
@@ -177,34 +179,27 @@ async def corroborate_report(
 
     lat = payload.latitude
     lon = payload.longitude
-    point = ST_SetSRID(ST_MakePoint(lon, lat), 4326)
-
-    existing = await db.execute(
-        select(UserReport.id).where(
-            UserReport.user_id == user.id,
-            active_report_clause(),
-            ST_DWithin(
-                cast(UserReport.location, Geography(srid=4326)),
-                cast(point, Geography(srid=4326)),
-                settings.REPORT_RADIUS_M,
-            ),
-        ).limit(1)
+    # Ciudad y barrio hacen falta antes de insertar: de ellos depende la zona
+    # y, por lo tanto, si esta persona ya tiene un reporte en ella.
+    geo = await reverse_geocode(lat, lon)
+    zone = await reports_in_zone(
+        db, ZoneAnchor(lat, lon, city=geo.get("city"), barrio=geo.get("barrio"))
     )
-    already_reported = existing.scalar_one_or_none() is not None
+    own_report = next((r for r in zone if r.user_id == user.id), None)
 
-    if not already_reported:
-        geo = await reverse_geocode(lat, lon)
-        await _insert_report(
+    if own_report is None:
+        own_report = await _insert_report(
             db,
             user=user,
             lat=lat,
             lon=lon,
+            department=geo.get("department"),
             city=geo.get("city"),
             barrio=geo.get("barrio"),
             street=geo.get("street"),
             comment="Confirmado desde un reporte compartido",
         )
-        await check_and_confirm_reports(db, lat, lon)
+    await check_and_confirm_reports(db, own_report)
 
     # Отдаем исходную метку: клиент показывает обновленный счетчик именно
     # на ней, на нее же он пришел по ссылке.

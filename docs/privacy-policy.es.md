@@ -27,7 +27,7 @@ Los únicos datos que la aplicación recopila y transmite a nuestros servidores 
 | **Identificador anónimo del dispositivo** (`device_id`) | UUID generado aleatoriamente en su dispositivo la primera vez que abre la aplicación. No corresponde al IMEI, MAC, Android ID ni al identificador publicitario. | Distinguir su dispositivo de otros para asociarle suscripciones y reportes. |
 | **Coordenadas geográficas aproximadas** (latitud/longitud) | Servicio de ubicación del sistema operativo, previa autorización explícita del usuario. | Mostrar cortes cercanos en el mapa y enviar notificaciones cuando un corte ocurre dentro de un radio aproximado de 5 km. |
 | **Token de notificaciones push** (Expo Push Token) | Generado por el SDK de Expo cuando el usuario autoriza notificaciones. | Entregarle alertas sobre cortes en su zona. |
-| **Reportes "no hay luz"** | Cuando el usuario presiona voluntariamente el botón "Sin luz" en la aplicación. Incluye ubicación aproximada y marca temporal. | Confirmación colaborativa de cortes (un reporte se valida cuando coinciden 3 o más usuarios dentro de 500 m). |
+| **Reportes "no hay luz"** | Cuando el usuario presiona voluntariamente el botón "Sin luz" en la aplicación. Incluye ubicación aproximada y marca temporal. | Confirmación colaborativa de cortes (un reporte se valida cuando coinciden 3 o más usuarios de la misma ciudad; en Asunción, del mismo barrio o de barrios vecinos). |
 | **Comentarios** | Texto que el usuario decide publicar voluntariamente sobre un corte. | Comunicación pública entre usuarios afectados por un mismo corte. |
 
 ### Datos que NO recopilamos
