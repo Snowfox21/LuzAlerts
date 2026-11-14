@@ -38,8 +38,8 @@ En un reporte cerrado o en uno ajeno sin confirmar, la tarjeta no aparece.
 del reporte. Para quien confirmó, salen de **su propia** ubicación al tocar «Yo también
 estoy sin luz» (la misma que manda al backend), con la hora de la confirmación y la
 dirección por geocodificación inversa: si no, el reclamo mezclaría su NIS con la casa
-del autor. Ese punto se guarda solo en el teléfono (`@luzalerts_corroboration_points`,
-lo borra «Eliminar mis datos»). Hasta que llega la dirección, el mensaje va sin línea 📍.
+del autor. Ese punto se guarda solo en el teléfono (una clave por reporte,
+`@luzalerts_corroboration_point:<id>`; las borra «Eliminar mis datos»). Hasta que llega la dirección, el mensaje va sin línea 📍.
 
 ### Dónde
 

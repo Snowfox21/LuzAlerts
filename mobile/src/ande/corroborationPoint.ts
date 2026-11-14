@@ -3,37 +3,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { reverseGeocode } from '../utils/reverseGeocode';
 import { ClaimReport } from './claimMessage';
 
-export const CORROBORATION_POINTS_KEY = '@luzalerts_corroboration_points';
-
-type Points = Record<string, ClaimReport>;
+const KEY_PREFIX = '@luzalerts_corroboration_point:';
 
 let generation = 0;
 
-async function readAll(): Promise<Points> {
-    try {
-        const raw = await AsyncStorage.getItem(CORROBORATION_POINTS_KEY);
-        const parsed = raw ? JSON.parse(raw) : null;
-        return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-        return {};
-    }
-}
+const keyFor = (reportId: number) => `${KEY_PREFIX}${reportId}`;
 
 async function write(reportId: number, point: ClaimReport, gen: number): Promise<void> {
     if (gen !== generation) return;
-    const all = await readAll();
-    if (gen !== generation) return;
-    all[String(reportId)] = point;
-    await AsyncStorage.setItem(CORROBORATION_POINTS_KEY, JSON.stringify(all)).catch(() => {});
+    await AsyncStorage.setItem(keyFor(reportId), JSON.stringify(point)).catch(() => {});
 }
 
 export async function forgetCorroborationPoints(): Promise<void> {
     generation += 1;
-    await AsyncStorage.removeItem(CORROBORATION_POINTS_KEY).catch(() => {});
+    try {
+        const keys = await AsyncStorage.getAllKeys();
+        await AsyncStorage.multiRemove(keys.filter(key => key.startsWith(KEY_PREFIX)));
+    } catch {}
 }
 
 export async function getCorroborationPoint(reportId: number): Promise<ClaimReport | null> {
-    return (await readAll())[String(reportId)] ?? null;
+    try {
+        const raw = await AsyncStorage.getItem(keyFor(reportId));
+        const parsed = raw ? JSON.parse(raw) : null;
+        return parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number' ? parsed : null;
+    } catch {
+        return null;
+    }
 }
 
 export function rememberCorroborationPoint(
@@ -52,9 +48,9 @@ export function rememberCorroborationPoint(
         city: null,
         created_at: new Date().toISOString(),
     };
-    write(reportId, point, gen);
+    const saved = write(reportId, point, gen);
     reverseGeocode(latitude, longitude)
-        .then(place => {
+        .then(async place => {
             if (!place || gen !== generation) return;
             const withAddress: ClaimReport = {
                 ...point,
@@ -63,7 +59,8 @@ export function rememberCorroborationPoint(
                 barrio: place.district ?? null,
                 city: place.city ?? place.subregion ?? null,
             };
-            write(reportId, withAddress, gen);
+            await saved;
+            await write(reportId, withAddress, gen);
             onAddress(withAddress);
         })
         .catch(() => {});

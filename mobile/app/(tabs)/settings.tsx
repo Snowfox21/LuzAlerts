@@ -30,7 +30,7 @@ import { SELF_UPDATE_ENABLED } from '../../src/update/distribution';
 import { WebPushRow } from '../../src/push/WebPushRow';
 import { disableWebPush } from '../../src/push/webPush';
 import { getNis, NIS_KEY, setNis } from '../../src/ande/nis';
-import { CORROBORATION_POINTS_KEY, forgetCorroborationPoints } from '../../src/ande/corroborationPoint';
+import { forgetCorroborationPoints } from '../../src/ande/corroborationPoint';
 import { NisField } from '../../src/ande/NisField';
 
 // Версия сборки, а не строковый литерал: с самообновлением вне стора
@@ -57,7 +57,7 @@ const LEGACY_ZONE_LABEL_KEY = '@luzalerts_zone_label';
 
 // Что стирает "Eliminar mis datos" на устройстве, помимо id.
 // Онбординг и проверку обновлений не трогаем — это не данные человека.
-const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports', NIS_KEY, CORROBORATION_POINTS_KEY];
+const LOCAL_DATA_KEYS = [PREFS_KEY, HOME_ZONE_KEY, LEGACY_ZONE_LABEL_KEY, '@luzalerts_my_reports', '@luzalerts_corroborated_reports', NIS_KEY];
 
 export default function SettingsScreen() {
     const [prefs, setPrefs] = useState<NotifyPrefs>(DEFAULT_PREFS);
