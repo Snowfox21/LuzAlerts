@@ -12,6 +12,8 @@ import { HomeZoneEditor } from '../src/places/HomeZoneEditor';
 import { TrackedPlacesEditor } from '../src/places/TrackedPlacesEditor';
 import { getHomeZone } from '../src/utils/homeZone';
 import { WhatsAppButton } from '../src/share/WhatsAppButton';
+import { NisField } from '../src/ande/NisField';
+import { isValidNis, setNis } from '../src/ande/nis';
 
 export const ONBOARDING_KEY = '@luzalerts_onboarding_done';
 
@@ -136,6 +138,15 @@ const SLIDES: Slide[] = [
         cta: 'Siguiente',
     },
     {
+        key: 'ande',
+        Icon: null,
+        iconColor: '',
+        iconBg: '',
+        title: 'Reclamá a la ANDE\nen un toque',
+        body: 'Te armamos el mensaje con tu ubicación y la hora del corte. Escribile por WhatsApp o llamá al 160.',
+        cta: 'Siguiente',
+    },
+    {
         key: 'notifications',
         Icon: BellRing,
         iconColor: '#0A84FF',
@@ -153,6 +164,7 @@ export default function OnboardingScreen() {
     // "Agregar una zona" на слайде zones разворачивает редактор мест на
     // том же слайде (точка прогресса та же), а не отдельным шагом.
     const [editingPlaces, setEditingPlaces] = useState(false);
+    const [nisDraft, setNisDraft] = useState('');
     const touchStartX = useRef(0);
     const slide = SLIDES[index];
 
@@ -188,11 +200,18 @@ export default function OnboardingScreen() {
     const isLegend = slide.key === 'legend';
     const isPlaces = slide.key === 'zones' && editingPlaces;
 
-    const primary = () => {
+    const isAnde = slide.key === 'ande';
+    const nisReady = isValidNis(nisDraft);
+
+    const primary = async () => {
         if (slide.key === 'zones' && !editingPlaces) setEditingPlaces(true);
-        else next();
+        else if (isAnde && nisReady) {
+            await setNis(nisDraft).catch(() => {});
+            next();
+        } else next();
     };
-    const cta = isPlaces ? 'Siguiente' : slide.cta;
+    const cta = isPlaces ? 'Siguiente' : isAnde && nisReady ? 'Guardar y seguir' : slide.cta;
+    const ctaDisabled = isAnde && nisDraft.length > 0 && !nisReady;
     // "Ahora no" пропускает только этот слайд, "Saltar" — весь онбординг.
     const secondary = isPlaces ? null : slide.secondary;
 
@@ -219,6 +238,8 @@ export default function OnboardingScreen() {
                     <ZonesIntro title={slide.title} body={slide.body} />
                 ) : slide.key === 'share' ? (
                     <ShareIntro title={slide.title} body={slide.body} />
+                ) : isAnde ? (
+                    <AndeIntro title={slide.title} body={slide.body} nis={nisDraft} onChangeNis={setNisDraft} />
                 ) : isLegend ? (
                     <>
                         <Text style={styles.title}>{slide.title}</Text>
@@ -241,7 +262,7 @@ export default function OnboardingScreen() {
             </View>
 
             <View style={styles.footer}>
-                <PrimaryButton label={cta} onPress={primary} />
+                <PrimaryButton label={cta} onPress={primary} disabled={ctaDisabled} />
                 {secondary ? (
                     <TouchableOpacity onPress={next} style={styles.skip}>
                         <Text style={styles.skipText}>{secondary}</Text>
@@ -361,6 +382,45 @@ function ShareIntro({ title, body }: { title: string; body: string }) {
             <View pointerEvents="none" style={styles.shareSample}>
                 <WhatsAppButton />
             </View>
+        </ScrollView>
+    );
+}
+
+function AndeIntro({ title, body, nis, onChangeNis }: {
+    title: string;
+    body: string;
+    nis: string;
+    onChangeNis: (value: string) => void;
+}) {
+    return (
+        <ScrollView style={styles.introWrap} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <IntroHeading title={title} body={body} />
+
+            <View style={styles.chat}>
+                <View style={styles.chatHeader}>
+                    <View style={[styles.chatAvatar, styles.andeAvatar]}>
+                        <Text style={styles.chatAvatarText}>A</Text>
+                    </View>
+                    <Text style={styles.chatName}>ANDE</Text>
+                    <Text style={styles.chatStatus}>0962 160 160</Text>
+                </View>
+
+                <View style={[styles.bubbleOut, styles.andeBubble]}>
+                    <Text style={styles.bubbleText}>
+                        {'Buenas. Quiero reportar falta de energía eléctrica.\n'}
+                        {'📍 Dirección: Villa Morra, Asunción\n'}
+                        {'🕒 Sin luz desde hoy a las 19:15\n'}
+                        {'🔢 NIS: '}
+                        <Text style={styles.andeNis}>{isValidNis(nis) ? nis : '•••••••'}</Text>
+                    </Text>
+                </View>
+            </View>
+
+            <Text style={[styles.placesLabel, styles.andeLabel]}>TU NIS (OPCIONAL)</Text>
+            <Text style={styles.andeHint}>
+                ANDE lo pide para los reclamos. Está arriba en tu factura y queda guardado solo en tu teléfono.
+            </Text>
+            <NisField value={nis} onChange={onChangeNis} />
         </ScrollView>
     );
 }
@@ -639,6 +699,26 @@ const styles = StyleSheet.create({
     placesScroll: {
         paddingTop: 8,
         paddingBottom: 16,
+    },
+    andeAvatar: {
+        backgroundColor: DS.blue,
+    },
+    andeBubble: {
+        alignSelf: 'stretch',
+        maxWidth: undefined,
+    },
+    andeNis: {
+        color: DS.amber,
+        fontWeight: '800',
+    },
+    andeLabel: {
+        marginTop: 20,
+    },
+    andeHint: {
+        color: DS.textMid,
+        fontSize: 13,
+        lineHeight: 19,
+        marginBottom: 10,
     },
     placesLabel: {
         color: DS.textMuted,

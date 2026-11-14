@@ -1,20 +1,40 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { Check, Copy, Megaphone, Share2 } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
+import { Check, Copy, House, Megaphone, MessageCircle, Phone, Share2 } from 'lucide-react-native';
 
-import { DS, SectionCard } from '../components/DesignSystem';
-import { ANDE_PHONE_DISPLAY, ANDE_WHATSAPP_DISPLAY, buildAndeComplaint, ComplaintReport } from './complaint';
-import { getNis } from './nis';
+import { DS } from '../components/DesignSystem';
+import {
+    ANDE_PHONE_DISPLAY,
+    ANDE_PHONE_URL,
+    ANDE_WHATSAPP_DISPLAY,
+    ANDE_WHATSAPP_URL,
+    buildClaimMessage,
+    ClaimReport,
+    ClaimScope,
+} from './claimMessage';
+import { getNis, setNis } from './nis';
+import { NisField } from './NisField';
 
-export function AndeComplaintCard({ report, defaultWholeBlock }: {
-    report: ComplaintReport;
-    defaultWholeBlock: boolean;
+const COPIED_MS = 2500;
+
+function TwoHouses({ color }: { color: string }) {
+    return (
+        <View style={styles.twoHouses}>
+            <House size={14} color={color} strokeWidth={2.2} />
+            <House size={14} color={color} strokeWidth={2.2} style={styles.secondHouse} />
+        </View>
+    );
+}
+
+export function AndeComplaintCard({ report, defaultScope }: {
+    report: ClaimReport;
+    defaultScope: ClaimScope;
 }) {
-    const router = useRouter();
     const [nis, setNisState] = useState<string | null>(null);
-    const [wholeBlock, setWholeBlock] = useState(defaultWholeBlock);
+    const [draft, setDraft] = useState('');
+    const [scope, setScope] = useState<ClaimScope>(defaultScope);
     const [copied, setCopied] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -26,131 +46,236 @@ export function AndeComplaintCard({ report, defaultWholeBlock }: {
         if (timer.current) clearTimeout(timer.current);
     }, []);
 
-    const text = buildAndeComplaint(report, { nis, wholeBlock });
+    const message = buildClaimMessage(report, { scope, nis });
 
     const copy = async () => {
-        await Clipboard.setStringAsync(text);
+        await Clipboard.setStringAsync(message);
         setCopied(true);
         if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => setCopied(false), 2500);
+        timer.current = setTimeout(() => setCopied(false), COPIED_MS);
     };
 
+    const openWhatsApp = async () => {
+        await copy().catch(() => {});
+        Linking.openURL(ANDE_WHATSAPP_URL).catch(() => {});
+    };
+
+    const saveNis = async () => {
+        await setNis(draft).catch(() => {});
+        setNisState(await getNis());
+        setDraft('');
+    };
+
+    const askNis = scope === 'house' && !nis;
+
     return (
-        <SectionCard style={styles.card}>
+        <View style={styles.card}>
             <View style={styles.titleRow}>
-                <Megaphone size={18} color={DS.amber} />
+                <View style={styles.titleIcon}>
+                    <Megaphone size={18} color={DS.amber} />
+                </View>
                 <Text style={styles.title}>Reclamo para ANDE</Text>
             </View>
-            <Text style={styles.hint}>
-                Escribile a ANDE por WhatsApp al {ANDE_WHATSAPP_DISPLAY}. Cuando te atienda un operador, pegá este mensaje.
+
+            <Text style={styles.lead}>
+                Escribile a ANDE por WhatsApp al <Text style={styles.strong}>{ANDE_WHATSAPP_DISPLAY}</Text> o llamá al{' '}
+                <Text style={styles.strong}>{ANDE_PHONE_DISPLAY}</Text>. Por WhatsApp, cuando te atienda un operador, pegá este mensaje.
             </Text>
 
-            <View style={styles.toggle}>
-                {[true, false].map(value => (
-                    <TouchableOpacity
-                        key={String(value)}
-                        activeOpacity={0.8}
-                        style={[styles.toggleItem, wholeBlock === value && styles.toggleItemActive]}
-                        onPress={() => setWholeBlock(value)}
-                    >
-                        <Text style={[styles.toggleText, wholeBlock === value && styles.toggleTextActive]}>
-                            {value ? 'Toda la cuadra' : 'Solo mi casa'}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
+            <View style={styles.segment} accessibilityRole="radiogroup">
+                {(['block', 'house'] as const).map(option => {
+                    const active = scope === option;
+                    const color = active ? DS.ink : DS.textMid;
+                    return (
+                        <TouchableOpacity
+                            key={option}
+                            activeOpacity={0.85}
+                            style={[styles.segmentItem, active && styles.segmentItemActive]}
+                            onPress={() => setScope(option)}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: active }}
+                        >
+                            {option === 'block'
+                                ? <TwoHouses color={color} />
+                                : <House size={16} color={color} strokeWidth={2.2} />}
+                            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                                {option === 'block' ? 'Toda la cuadra' : 'Solo mi casa'}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
 
-            <View style={styles.preview}>
-                <Text style={styles.previewText} selectable>{text}</Text>
-            </View>
-
-            {!nis ? (
-                <TouchableOpacity activeOpacity={0.75} onPress={() => router.push('/(tabs)/settings')}>
-                    <Text style={styles.link}>Agregá tu NIS en Ajustes: con él te atienden más rápido</Text>
-                </TouchableOpacity>
+            {askNis ? (
+                <View style={styles.nisAsk}>
+                    <Text style={styles.nisAskText}>
+                        <Text style={styles.strong}>ANDE pide el NIS para los reclamos.</Text> Agregalo y queda guardado en Ajustes.
+                    </Text>
+                    <NisField value={draft} onChange={setDraft} onSave={saveNis} />
+                </View>
             ) : null}
 
-            <TouchableOpacity activeOpacity={0.85} style={styles.primary} onPress={copy}>
-                {copied ? <Check size={18} color={DS.ink} /> : <Copy size={18} color={DS.ink} />}
-                <Text style={styles.primaryText}>{copied ? 'Copiado' : 'Copiar mensaje'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.8} style={styles.secondary} onPress={() => Share.share({ message: text })}>
-                <Share2 size={17} color={DS.text} />
-                <Text style={styles.secondaryText}>Compartir</Text>
+            <View style={styles.preview}>
+                <Text style={styles.previewText} selectable>{message}</Text>
+            </View>
+
+            <View style={styles.actions}>
+                <TouchableOpacity activeOpacity={0.85} style={styles.primary} onPress={openWhatsApp} accessibilityRole="button">
+                    <MessageCircle size={20} color={DS.ink} />
+                    <Text style={styles.primaryText}>Escribir por WhatsApp</Text>
+                </TouchableOpacity>
+                <Text style={styles.note}>Al abrir el chat copiamos el mensaje para que lo pegues.</Text>
+            </View>
+
+            <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.secondary}
+                onPress={() => Linking.openURL(ANDE_PHONE_URL).catch(() => {})}
+                accessibilityRole="button"
+            >
+                <Phone size={18} color={DS.text} />
+                <Text style={styles.secondaryText}>Llamar al {ANDE_PHONE_DISPLAY}</Text>
             </TouchableOpacity>
 
-            <Text style={styles.footnote}>
-                También podés llamar al {ANDE_PHONE_DISPLAY}. LuzAlerts no está afiliado a la ANDE.
-            </Text>
-        </SectionCard>
+            <View style={styles.smallRow}>
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[styles.small, copied && styles.smallCopied]}
+                    onPress={() => copy().catch(() => {})}
+                    accessibilityRole="button"
+                >
+                    {copied ? <Check size={16} color={DS.greenLight} /> : <Copy size={16} color={DS.textMid} />}
+                    <Text style={[styles.smallText, copied && styles.smallTextCopied]}>
+                        {copied ? 'Copiado' : 'Copiar mensaje'}
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.small}
+                    onPress={() => Share.share({ message }).catch(() => {})}
+                    accessibilityRole="button"
+                >
+                    <Share2 size={16} color={DS.textMid} />
+                    <Text style={styles.smallText}>Compartir</Text>
+                </TouchableOpacity>
+            </View>
+
+            <Text style={styles.note}>LuzAlerts no está afiliado a la ANDE.</Text>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     card: {
-        gap: 10,
+        marginTop: 14,
+        backgroundColor: DS.surface,
+        borderWidth: 1,
+        borderColor: DS.border,
+        borderRadius: 12,
+        padding: 16,
+        gap: 12,
     },
     titleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 10,
+    },
+    titleIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(251,191,36,0.14)',
     },
     title: {
         color: DS.text,
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: '800',
     },
-    hint: {
+    lead: {
         color: DS.textMid,
-        fontSize: 13,
-        lineHeight: 19,
+        fontSize: 14,
+        lineHeight: 20,
     },
-    toggle: {
+    strong: {
+        color: DS.text,
+        fontWeight: '800',
+    },
+    segment: {
         flexDirection: 'row',
-        borderRadius: 10,
+        padding: 4,
+        gap: 4,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: DS.border,
-        overflow: 'hidden',
-    },
-    toggleItem: {
-        flex: 1,
-        minHeight: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    toggleItemActive: {
-        backgroundColor: DS.surfaceVar,
-    },
-    toggleText: {
-        color: DS.textMuted,
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    toggleTextActive: {
-        color: DS.text,
-    },
-    preview: {
-        borderRadius: 10,
-        padding: 12,
         backgroundColor: DS.bg,
     },
-    previewText: {
+    segmentItem: {
+        flex: 1,
+        minHeight: 40,
+        borderRadius: 9,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    segmentItemActive: {
+        backgroundColor: DS.amber,
+    },
+    segmentText: {
+        color: DS.textMid,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    segmentTextActive: {
+        color: DS.ink,
+        fontWeight: '800',
+    },
+    twoHouses: {
+        flexDirection: 'row',
+    },
+    secondHouse: {
+        marginLeft: -5,
+    },
+    nisAsk: {
+        gap: 10,
+        padding: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(251,191,36,0.35)',
+        backgroundColor: 'rgba(251,191,36,0.08)',
+    },
+    nisAskText: {
         color: DS.textMid,
         fontSize: 13,
-        lineHeight: 19,
+        lineHeight: 18,
     },
-    link: {
-        color: DS.amber,
+    preview: {
+        backgroundColor: DS.bg,
+        borderWidth: 1,
+        borderColor: DS.border,
+        borderRadius: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+    },
+    previewText: {
+        color: DS.text,
         fontSize: 13,
-        fontWeight: '700',
+        lineHeight: 19,
+        // @ts-expect-error solo web: corta el enlace del mapa
+        wordBreak: 'break-word',
+    },
+    actions: {
+        gap: 6,
     },
     primary: {
-        minHeight: 52,
+        minHeight: 56,
         borderRadius: 12,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
+        gap: 10,
         backgroundColor: DS.amber,
     },
     primaryText: {
@@ -159,8 +284,29 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     secondary: {
-        minHeight: 46,
+        minHeight: 52,
         borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        borderWidth: 1,
+        borderColor: DS.border,
+        backgroundColor: DS.surface,
+    },
+    secondaryText: {
+        color: DS.text,
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    smallRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    small: {
+        flex: 1,
+        minHeight: 44,
+        borderRadius: 10,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -168,14 +314,22 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: DS.border,
     },
-    secondaryText: {
-        color: DS.text,
+    smallCopied: {
+        borderColor: 'rgba(74,222,128,0.5)',
+        backgroundColor: 'rgba(34,197,94,0.14)',
+    },
+    smallText: {
+        color: DS.textMid,
         fontSize: 14,
         fontWeight: '700',
     },
-    footnote: {
+    smallTextCopied: {
+        color: DS.greenLight,
+    },
+    note: {
         color: DS.textMuted,
         fontSize: 12,
         lineHeight: 17,
+        textAlign: 'center',
     },
 });

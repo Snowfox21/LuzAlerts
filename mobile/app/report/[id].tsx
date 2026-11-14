@@ -427,7 +427,7 @@ export function ReportDetail({ id, embedded = false, reloadToken = 0 }: {
                 ) : null}
 
                 {!report.resolved && (mine || corroborated) ? (
-                    <AndeComplaintCard report={report} defaultWholeBlock={confirmations >= 2} />
+                    <AndeComplaintCard report={report} defaultScope={(report.confirmation_count ?? 0) >= 2 ? 'block' : 'house'} />
                 ) : null}
             </View>
         </ScrollView>

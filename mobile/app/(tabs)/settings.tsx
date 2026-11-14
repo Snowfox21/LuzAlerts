@@ -11,7 +11,6 @@ import {
     StyleSheet,
     Switch,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -31,6 +30,7 @@ import { SELF_UPDATE_ENABLED } from '../../src/update/distribution';
 import { WebPushRow } from '../../src/push/WebPushRow';
 import { disableWebPush } from '../../src/push/webPush';
 import { getNis, NIS_KEY, setNis } from '../../src/ande/nis';
+import { NisField } from '../../src/ande/NisField';
 
 // Версия сборки, а не строковый литерал: с самообновлением вне стора
 // расхождение экрана и реального APK путает при поддержке.
@@ -77,9 +77,9 @@ export default function SettingsScreen() {
     const [editingNis, setEditingNis] = useState(false);
     const [nisDraft, setNisDraft] = useState('');
 
-    useEffect(() => {
+    useFocusEffect(useCallback(() => {
         getNis().then(setNisValue);
-    }, []);
+    }, []));
 
     const saveNis = async () => {
         await setNis(nisDraft).catch(() => {});
@@ -238,22 +238,14 @@ export default function SettingsScreen() {
                         }}
                     />
                     {editingNis && (
-                        <View style={[styles.zonePanel, styles.nisPanel]}>
-                            <TextInput
-                                style={styles.nisInput}
+                        <View style={styles.zonePanel}>
+                            <NisField
                                 value={nisDraft}
-                                onChangeText={v => setNisDraft(v.replace(/\D/g, ''))}
-                                placeholder="Número de NIS"
-                                placeholderTextColor={DS.textMuted}
-                                keyboardType="number-pad"
-                                maxLength={12}
+                                onChange={setNisDraft}
+                                onSave={saveNis}
+                                allowEmptySave={!!nis}
                                 autoFocus
-                                returnKeyType="done"
-                                onSubmitEditing={saveNis}
                             />
-                            <TouchableOpacity style={styles.nisSave} activeOpacity={0.85} onPress={saveNis}>
-                                <Text style={styles.nisSaveText}>Guardar</Text>
-                            </TouchableOpacity>
                         </View>
                     )}
                 </SettingSection>
@@ -615,34 +607,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: DS.border,
-    },
-    nisPanel: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    nisInput: {
-        flex: 1,
-        minHeight: 44,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: DS.border,
-        paddingHorizontal: 12,
-        color: DS.text,
-        fontSize: 16,
-        backgroundColor: DS.bg,
-    },
-    nisSave: {
-        minHeight: 44,
-        borderRadius: 10,
-        paddingHorizontal: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: DS.amber,
-    },
-    nisSaveText: {
-        color: DS.ink,
-        fontSize: 14,
-        fontWeight: '800',
     },
     zonesRight: {
         flexDirection: 'row',
