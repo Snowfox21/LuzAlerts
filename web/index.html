@@ -124,7 +124,19 @@
       font-size: clamp(16px, 2vw, 20px); color: var(--text-faint); line-height: 1.6;
       max-width: 520px; margin: 0 auto 32px; text-wrap: pretty;
     }
-    .hero-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    /* Descarga: Google Play como acción principal; APK e iPhone como secundarias, del mismo ancho. */
+    .hero-actions { display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 100%; max-width: 400px; margin: 0 auto; }
+    .hero-actions .btn-primary { justify-content: center; }
+    .dl-secondary { display: flex; gap: 10px; }
+    .btn-secondary {
+      flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 48px; padding: 10px 14px; border: 1px solid rgba(251,191,36,0.55); border-radius: var(--radius);
+      color: var(--amber); font-size: 15px; font-weight: 700; white-space: nowrap;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-secondary:hover { background: rgba(251,191,36,0.08); border-color: var(--amber); }
+    .btn-secondary .dl-icon { width: 18px; height: 18px; }
+    @media (max-width: 360px) { .dl-secondary { flex-direction: column; } }
     .btn-primary {
       display: inline-flex; align-items: center; gap: 10px;
       background: var(--amber); color: #000; font-weight: 700; font-size: 16px;
@@ -136,19 +148,8 @@
     .btn-primary:active { transform: translateY(0); }
     .btn-hint { font-size: 13px; color: var(--text-muted); }
     .btn-hint span { margin: 0 4px; opacity: 0.5; }
-    /* La pregunta del iPhone va en su propia línea: si no, el enlace se parte a la mitad en pantallas angostas. */
-    .btn-hint .btn-hint-ios { display: block; margin: 4px 0 0; opacity: 1; }
-    .btn-hint-ios a { color: var(--amber); text-decoration: underline; white-space: nowrap; }
     .dl-icon { width: 20px; height: 20px; flex-shrink: 0; }
-    .dl-meta { font-size: 13px; color: var(--text-muted); margin: 0; text-align: center; }
-    @media (min-width: 1024px) { .dl-meta { text-align: left; } }
-    .btn-pwa {
-      display: inline-flex; align-items: center; justify-content: center;
-      padding: 14px 28px; border: 1px solid var(--amber); border-radius: var(--radius);
-      color: var(--amber); font-size: 16px; font-weight: 700;
-      transition: background 0.2s;
-    }
-    .btn-pwa:hover { background: rgba(251,191,36,0.08); }
+    .dl-meta, .hero-actions .btn-hint { font-size: 13px; color: var(--text-muted); margin: 0; text-align: center; }
 
     /* Hero placeholder */
     .hero-placeholder {
@@ -168,7 +169,7 @@
       .hero-inner { flex-direction: row; justify-content: space-between; align-items: center; gap: 64px; }
       .hero-text { text-align: left; }
       .hero-sub { margin: 0 0 32px; }
-      .hero-actions { align-items: flex-start; }
+      .hero-actions { margin: 0; }
       .hero-placeholder { max-width: 340px; height: 580px; }
     }
 
@@ -283,7 +284,7 @@
         <a href="#preguntas">Preguntas</a>
         <a href="/privacy">Privacidad</a>
       </nav>
-      <a href="/luzalerts.apk" download="luzalerts.apk" class="nav-cta" aria-label="Descargar LuzAlerts para Android">
+      <a href="https://play.google.com/store/apps/details?id=com.luzalerts.app" rel="noopener" class="nav-cta" aria-label="Descargar LuzAlerts en Google Play">
         <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Descargar
       </a>
@@ -298,6 +299,7 @@
     <a href="/novedades">Novedades</a>
     <a href="#preguntas">Preguntas</a>
     <a href="/privacy">Privacidad</a>
+    <a href="https://play.google.com/store/apps/details?id=com.luzalerts.app" rel="noopener" style="color:var(--amber);font-weight:700;">Descargar en Google Play</a>
     <a href="/luzalerts.apk" download="luzalerts.apk" style="color:var(--amber);font-weight:700;">Descargar APK</a>
     <a href="/app/" style="color:var(--amber);font-weight:700;">App para iPhone</a>
   </nav>
@@ -312,14 +314,17 @@
           <div class="hero-eyebrow" aria-hidden="true">⚡ Android · iPhone · Gratis</div>
           <h1 id="hero-heading">Sabé cuándo y dónde<br>se corta la <em>luz.</em></h1>
           <p class="hero-sub">LuzAlerts te avisa al instante cuando la ANDE programa un corte en tu zona, o cuando los vecinos reportan que se fue la luz cerca tuyo.</p>
-          <div class="hero-actions">
-            <a href="/luzalerts.apk" download="luzalerts.apk" class="btn-primary" id="descargar">
+          <div class="hero-actions" id="descargar">
+            <a href="https://play.google.com/store/apps/details?id=com.luzalerts.app" class="btn-primary" rel="noopener">
               <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar APK · Android
+              Descargar en Google Play
             </a>
-            <p class="dl-meta" id="dl-meta">Para Android 7 o superior</p>
-            <a href="https://luzalerts.lat/app" class="btn-pwa">Abrir en iOS</a>
-            <p class="btn-hint">Gratis <span>·</span> Sin anuncios<span class="btn-hint-ios">¿Tenés iPhone? <a href="/app/">Abrí la app web</a></span></p>
+            <div class="dl-secondary">
+              <a href="/luzalerts.apk" download="luzalerts.apk" class="btn-secondary"><svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Descargar APK</a>
+              <a href="/app/" class="btn-secondary"><svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>Abrir en iOS</a>
+            </div>
+            <p class="dl-meta" id="dl-meta">APK para Android 7 o superior</p>
+            <p class="btn-hint">Gratis <span>·</span> Sin anuncios</p>
           </div>
         </div>
 
@@ -462,11 +467,17 @@
     <section class="cta-final" aria-labelledby="cta-title">
       <div class="cta-final-inner">
         <h2 id="cta-title">Descargá LuzAlerts y dejá de preguntarte si volvió la luz.</h2>
-        <a href="/luzalerts.apk" download="luzalerts.apk" class="btn-primary" style="font-size:17px;padding:16px 36px;display:inline-flex;">
-          <svg style="width:22px;height:22px;flex-shrink:0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Descargar APK · Android
-        </a>
-        <p style="margin-top:16px;font-size:13px;color:var(--text-muted);">Gratis · Sin anuncios · <a href="/app/" style="color:var(--amber);text-decoration:underline;">iPhone (app web)</a></p>
+        <div class="hero-actions">
+          <a href="https://play.google.com/store/apps/details?id=com.luzalerts.app" class="btn-primary" rel="noopener" style="font-size:17px;padding:16px 28px;">
+            <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Descargar en Google Play
+          </a>
+          <div class="dl-secondary">
+            <a href="/luzalerts.apk" download="luzalerts.apk" class="btn-secondary"><svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Descargar APK</a>
+            <a href="/app/" class="btn-secondary"><svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>Abrir en iOS</a>
+          </div>
+          <p class="btn-hint">Gratis <span>·</span> Sin anuncios</p>
+        </div>
       </div>
     </section>
 
@@ -489,6 +500,7 @@
         <div class="footer-col">
           <h4>Producto</h4>
           <ul>
+            <li><a href="https://play.google.com/store/apps/details?id=com.luzalerts.app" rel="noopener">Google Play</a></li>
             <li><a href="/luzalerts.apk" download="luzalerts.apk">Descargar APK</a></li>
             <li><a href="/app/">App para iPhone</a></li>
             <li><a href="#como-funciona">Cómo funciona</a></li>
@@ -630,7 +642,7 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (m) {
           if (!m || !m.versionName) return;
-          var parts = ['Versión ' + m.versionName];
+          var parts = ['APK ' + m.versionName];
           if (m.sizeBytes) parts.push(Math.round(m.sizeBytes / 1048576) + ' MB');
           parts.push('Android 7 o superior');
           el.textContent = parts.join(' · ');
