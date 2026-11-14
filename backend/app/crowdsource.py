@@ -29,8 +29,9 @@ async def check_and_confirm_reports(db: AsyncSession, anchor: UserReport) -> int
     reports = await reports_in_zone(db, ZoneAnchor.from_report(anchor))
     count = len({r.user_id for r in reports})
     reached = count >= settings.REPORT_THRESHOLD
-    # Zona recién confirmada: ningún reporte de ella estaba confirmado antes.
-    newly_confirmed = reached and not any(r.confirmed for r in reports)
+    # Antes de marcar: quiénes ya estaban confirmados y quiénes se suman ahora.
+    already = [(r.latitude, r.longitude) for r in reports if r.confirmed]
+    joining = [(r.latitude, r.longitude) for r in reports if not r.confirmed]
 
     # El contador se guarda también por debajo del umbral: la pantalla del
     # reporte muestra "2 de 3" y sin esto siempre diría 0. Nunca lo bajamos,
@@ -41,12 +42,23 @@ async def check_and_confirm_reports(db: AsyncSession, anchor: UserReport) -> int
             r.confirmed = True
     await db.commit()
 
-    # El push sale una vez, cuando la zona pasa a confirmada: el cuarto o
-    # quinto vecino ya no le avisa de nuevo a todo el barrio.
-    if newly_confirmed:
+    # La zona puede ser una ciudad entera, así que se avisa a quien esté
+    # cerca de cualquiera de los reportes que se confirman ahora, no solo del
+    # último. Quien ya recibió el aviso por un reporte confirmado antes no lo
+    # recibe de nuevo: el cuarto vecino de la misma cuadra no dispara otro
+    # push, pero uno en la otra punta de la ciudad sí avisa a los suyos.
+    if reached and joining:
         place = anchor.barrio or anchor.city
         body = f"Corte confirmado en {place}" if place else "Corte confirmado por usuarios cercanos"
-        await notify_users_near_outage(db, anchor.latitude, anchor.longitude, body)
+        # El punto principal viaja en el push (data.lat/lon): el del reporte
+        # que disparó la confirmación, si es uno de los que se suman.
+        main = (anchor.latitude, anchor.longitude)
+        if main not in joining:
+            main = joining[0]
+        others = [p for p in joining if p != main]
+        await notify_users_near_outage(
+            db, main[0], main[1], body, extra_points=others, exclude_points=already
+        )
 
     return count
 

@@ -45,7 +45,7 @@ def pushes(monkeypatch):
     sent = []
 
     async def fake_notify(db, lat, lon, title, *args, **kwargs):
-        sent.append(title)
+        sent.append((title, kwargs))
 
     monkeypatch.setattr("app.crowdsource.notify_users_near_outage", fake_notify)
     return sent
@@ -140,10 +140,53 @@ async def test_same_person_counts_once(client: AsyncClient, pushes):
 
 
 @pytest.mark.asyncio
-async def test_push_is_sent_once_per_zone(client: AsyncClient, pushes):
-    for i in range(settings.REPORT_THRESHOLD + 2):
-        await _report(client, f"zone-push-{i}", LUQUE_CENTRO, "Luque", "Centro")
-    assert len(pushes) == 1
+async def test_push_reaches_every_part_of_the_zone_once(client: AsyncClient, db, monkeypatch):
+    """La zona es toda la ciudad: el aviso llega a quien esté cerca de
+    cualquiera de los reportes confirmados, y a cada uno una sola vez."""
+    from app import notifications
+    from app.models import User
+
+    far_corner = (-25.3100, -57.4200)  # a más de 5 km de los otros dos puntos
+    listeners = [
+        User(device_id="zone-listen-east", fcm_token="tok-east",
+             latitude=LUQUE_CORONEL_OVIEDO[0], longitude=LUQUE_CORONEL_OVIEDO[1]),
+        User(device_id="zone-listen-west", fcm_token="tok-west",
+             latitude=LUQUE_LAS_MISIONES[0], longitude=LUQUE_LAS_MISIONES[1]),
+        User(device_id="zone-listen-far", fcm_token="tok-far",
+             latitude=far_corner[0], longitude=far_corner[1]),
+    ]
+    db.add_all(listeners)
+    await db.commit()
+
+    sent: list[list[str]] = []
+
+    async def fake_expo(tokens, title, body, data=None):
+        sent.append(sorted(tokens))
+
+    monkeypatch.setattr(notifications, "_send_expo_push", fake_expo)
+
+    try:
+        # Dos reportes al este y el tercero al oeste: se confirma la ciudad y
+        # se enteran los dos lados, no solo el del último reporte.
+        await _report(client, "zone-push-0", LUQUE_CORONEL_OVIEDO, "Luque", "Coronel Oviedo")
+        await _report(client, "zone-push-1", LUQUE_CORONEL_OVIEDO, "Luque", "Coronel Oviedo")
+        assert sent == []
+        await _report(client, "zone-push-2", LUQUE_LAS_MISIONES, "Luque", "Loma Merlo")
+        assert sent == [["tok-east", "tok-west"]]
+
+        # Un cuarto vecino en la misma cuadra no vuelve a avisar a nadie.
+        await _report(client, "zone-push-3", LUQUE_CORONEL_OVIEDO, "Luque", "Coronel Oviedo")
+        assert sent == [["tok-east", "tok-west"]]
+
+        # Uno en otra punta de la ciudad avisa solo a los que no sabían.
+        await _report(client, "zone-push-4", far_corner, "Luque", "Otro")
+        assert sent == [["tok-east", "tok-west"], ["tok-far"]]
+    finally:
+        for user in listeners:
+            user.fcm_token = None
+            user.latitude = None
+            user.longitude = None
+        await db.commit()
 
 
 # ---------- corroborate ----------

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import Sequence
 
 import httpx
 from sqlalchemy import text
@@ -19,41 +20,23 @@ RESOLVED_PUSH_TITLE = "✅ Luz restaurada en tu zona"
 RESOLVED_PUSH_BODY = "La energía ha sido restaurada en tu área."
 
 
-async def notify_users_near_outage(
-    session: AsyncSession,
-    lat: float,
-    lon: float,
-    title: str,
-    body: str | None = None,
-    push_title: str = DEFAULT_PUSH_TITLE,
-    resolved: bool = False,
-) -> None:
-    """Find users within their notify radius of (lat, lon) and send them a push notification.
+def _points_wkt(points) -> str:
+    """WKT de un MULTIPOINT a partir de pares (lat, lon)."""
+    return "MULTIPOINT(" + ", ".join(f"({float(lon)} {float(lat)})" for lat, lon in points) + ")"
 
-    Радиус и типы пушей — личные настройки устройства (notify_radius_m,
-    notify_outages / notify_resolved). resolved=True — пуш "вернулся свет".
 
-    Два канала параллельно: Expo Push (нативный Android, fcm_token) и
-    Web Push (PWA на iOS, web_push_subscription). Один SELECT на оба.
+def _near_clause(param: str) -> str:
+    """SQL: el usuario `u` tiene su punto base o un lugar seguido cerca de :param.
+
+    :param es un MULTIPOINT; ST_DWithin mide hasta el punto más cercano.
     """
-    # Колонка выбирается кодом, не из ввода — f-string здесь безопасен.
-    pref_column = "notify_resolved" if resolved else "notify_outages"
-    # Устройство получает пуш, если отключение в его радиусе от основной
-    # точки ИЛИ от любого включенного отслеживаемого места (у места свой
-    # радиус, tracked_places.radius_m). Выборка
-    # идет по users, поэтому при нескольких совпадениях пуш все равно один.
-    result = await session.execute(
-        text(f"""
-            SELECT u.fcm_token, u.web_push_subscription FROM users u
-            WHERE (u.fcm_token IS NOT NULL OR u.web_push_subscription IS NOT NULL)
-              AND u.{pref_column}
-              AND (
+    return f"""(
                 (
                   u.latitude IS NOT NULL
                   AND u.longitude IS NOT NULL
                   AND ST_DWithin(
                     ST_SetSRID(ST_MakePoint(u.longitude, u.latitude), 4326)::geography,
-                    ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
+                    ST_GeogFromText(:{param}),
                     COALESCE(u.notify_radius_m, :default_radius_m)
                   )
                 )
@@ -63,13 +46,61 @@ async def notify_users_near_outage(
                     AND p.enabled
                     AND ST_DWithin(
                       ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)::geography,
-                      ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography,
+                      ST_GeogFromText(:{param}),
                       p.radius_m
                     )
                 )
-              )
+              )"""
+
+
+async def notify_users_near_outage(
+    session: AsyncSession,
+    lat: float,
+    lon: float,
+    title: str,
+    body: str | None = None,
+    push_title: str = DEFAULT_PUSH_TITLE,
+    resolved: bool = False,
+    extra_points: Sequence[tuple[float, float]] = (),
+    exclude_points: Sequence[tuple[float, float]] = (),
+) -> None:
+    """Find users within their notify radius of (lat, lon) and send them a push notification.
+
+    Радиус и типы пушей — личные настройки устройства (notify_radius_m,
+    notify_outages / notify_resolved). resolved=True — пуш "вернулся свет".
+
+    Два канала параллельно: Expo Push (нативный Android, fcm_token) и
+    Web Push (PWA на iOS, web_push_subscription). Один SELECT на оба.
+
+    extra_points: más puntos (lat, lon) del mismo evento. Un corte vecinal
+    confirmado abarca una ciudad entera, así que se avisa a quien esté cerca
+    de cualquiera de sus reportes; cada usuario recibe un solo push.
+    exclude_points: puntos (lat, lon) por los que ya se avisó antes. Quien
+    esté cerca de alguno de ellos no recibe el push otra vez.
+    """
+    # Колонка выбирается кодом, не из ввода — f-string здесь безопасен.
+    pref_column = "notify_resolved" if resolved else "notify_outages"
+    params = {
+        "target": _points_wkt([(lat, lon), *extra_points]),
+        "default_radius_m": NOTIFY_RADIUS_M,
+    }
+    exclude_sql = ""
+    if exclude_points:
+        params["excluded"] = _points_wkt(exclude_points)
+        exclude_sql = f"AND NOT {_near_clause('excluded')}"
+    # Устройство получает пуш, если отключение в его радиусе от основной
+    # точки ИЛИ от любого включенного отслеживаемого места (у места свой
+    # радиус, tracked_places.radius_m). Выборка
+    # идет по users, поэтому при нескольких совпадениях пуш все равно один.
+    result = await session.execute(
+        text(f"""
+            SELECT u.fcm_token, u.web_push_subscription FROM users u
+            WHERE (u.fcm_token IS NOT NULL OR u.web_push_subscription IS NOT NULL)
+              AND u.{pref_column}
+              AND {_near_clause('target')}
+              {exclude_sql}
         """),
-        {"lat": lat, "lon": lon, "default_radius_m": NOTIFY_RADIUS_M},
+        params,
     )
     rows = result.all()
     tokens = [row[0] for row in rows if row[0]]
