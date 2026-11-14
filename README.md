@@ -4,6 +4,8 @@
 
 > Real-time power outage tracker for Paraguay — official ANDE data + crowdsourced reports, in your pocket.
 
+**Get it:** [Google Play](https://play.google.com/store/apps/details?id=com.luzalerts.app) · [APK](https://luzalerts.lat/luzalerts.apk) · [iPhone (web app)](https://luzalerts.lat/app/)
+
 Paraguay has frequent unannounced power cuts. ANDE publishes planned outage notices on their website — but only as raw HTML you have to scan by eye, with no map and no notification system. LuzAlerts scrapes that data every hour, enriches it with GPS coordinates, and puts it on an interactive map. When the official data has gaps, users fill them in by tapping "Report" from wherever they are.
 
 ---
@@ -15,14 +17,16 @@ Paraguay has frequent unannounced power cuts. ANDE publishes planned outage noti
 | 🗺 **Live map** | Color-coded markers — planned (yellow), active (red), resolved (green), crowdsourced (purple) |
 | 📡 **Official data** | Scrapes ANDE's website every 60 minutes, geocodes zones automatically |
 | 👥 **Crowdsourcing** | Users report outages in one tap; 3+ neighbours in the same city (in Asunción, the same or an adjacent barrio) auto-confirm the area |
-| 🔔 **Push notifications** | Notified when a new outage appears within 5 km — and again when the lights come back. Android via Expo/FCM, iPhone via Web Push |
+| 🔔 **Push notifications** | Notified when a new outage appears within your radius (1–20 km, 5 km by default) — and again when the lights come back. Android via Expo/FCM, iPhone via Web Push |
+| 📍 **My places** | Your own zone plus up to 2 more places (parents' house, office), even in another city |
 | 🍎 **iPhone (PWA)** | Same app as a web app at [luzalerts.lat/app](https://luzalerts.lat/app/) — add it to the Home Screen and get push alerts (iOS 16.4+), no App Store needed |
 | ✋ **"Me too" and closing reports** | Neighbors confirm someone else's report in one tap; authors can close their own report, and stale reports close automatically after 96 h |
+| 📣 **Claim to ANDE** | From your report (or one you confirmed) the app builds a ready-to-paste complaint for an ANDE operator: address, map link, outage start time and, optionally, your NIS. One tap copies it and opens ANDE's WhatsApp (0962 160 160); or call 160. The NIS stays on the phone |
 | 🔗 **Share a report** | Short link `luzalerts.lat/r/{code}` with a WhatsApp preview card; on Android it opens straight in the app (App Links) |
-| 📦 **Self-update** | The APK is distributed outside Google Play and checks `dl/latest.json` itself — users get the update prompt in the app |
+| 📦 **Distribution** | [Google Play](https://play.google.com/store/apps/details?id=com.luzalerts.app) build updates through the store. The site APK checks `dl/latest.json` itself and shows the update prompt in the app |
 | 📊 **Scraper health** | `/status` shows scraper attempts, ANDE ID gaps and coverage; `/events.json` is a public feed of outage events |
 | 💬 **Neighbor comments** | Anonymous comments per outage — useful when the official notice is wrong |
-| 🚀 **Onboarding** | Four-slide intro (welcome, map, legend, notifications) + permission flow on first launch |
+| 🚀 **Onboarding** | Seven slides (welcome, map, legend, my places, WhatsApp sharing, ANDE claim with optional NIS, notifications) + permission flow on first launch |
 | 🌙 **Dark mode** | Default dark UI — useful when the lights are already out |
 | 🌐 **Landing page** | Static marketing site at [luzalerts.lat](https://luzalerts.lat) — privacy policy, terms of use, 404 |
 
@@ -110,7 +114,10 @@ Web Push (VAPID) → Apple Push → iPhone PWA (luzalerts.lat/app)
 `User taps "Report" → POST /reports → if 3+ neighbours in the same zone (city; barrio + neighbours in Asunción) → area confirmed`
 
 **Push notifications:**
-`New outage saved → PostGIS finds users within 5 km → Expo Push API / Web Push → notification`
+`New outage saved → PostGIS finds users within their radius → Expo Push API / Web Push → notification`
+
+**Claim to ANDE (client-only):**
+`Report or confirmation → message built on the phone (mobile/src/ande/claimMessage.ts) → copied + wa.me/595962160160 → user pastes it when an operator takes over`
 
 **Sharing:**
 `Report → share code → luzalerts.lat/r/{code} (server-rendered page with og tags for WhatsApp) → Android opens the app, others see the page`
@@ -146,11 +153,12 @@ Web Push (VAPID) → Apple Push → iPhone PWA (luzalerts.lat/app)
 │   │   ├── index.tsx           # Map
 │   │   ├── list.tsx            # Outage list
 │   │   └── reports.tsx         # Report form
-│   ├── app/onboarding.tsx      # Four-slide intro + permission requests
+│   ├── app/onboarding.tsx      # Seven-slide intro + permission requests
 │   ├── app/report/[id].tsx     # Report detail
 │   ├── app/r/[code].tsx        # Shared report link
 │   ├── public/                 # PWA shell: index.html, manifest.json, sw.js, icons
 │   └── src/
+│       ├── ande/               # ANDE claim: message builder, card, NIS field
 │       ├── api/                # Axios client + types
 │       ├── hooks/              # useDeviceSetup (push + location)
 │       ├── maps/               # Native maps / Leaflet on web
@@ -173,7 +181,8 @@ Web Push (VAPID) → Apple Push → iPhone PWA (luzalerts.lat/app)
 │   ├── luzscreens*.jsx         # App screen previews (rendered via React CDN)
 │   └── favicon.*               # Favicons (16, 32, 192, apple-touch)
 │
-└── docs/                       # Design prompts, internal docs
+└── docs/
+    └── design/                 # Design specs (<feature>.md) + screenshots: source of truth for UI
 ```
 
 ---
@@ -211,6 +220,9 @@ Full interactive docs available at `http://localhost:8000/docs` when running loc
 | `GET` | `/r/{code}` | Public report page with WhatsApp preview |
 | `POST` | `/users/` | Register device (push token or Web Push subscription + location) |
 | `DELETE` | `/users/{device_id}/web-push` | Remove the PWA Web Push subscription |
+| `GET` / `POST` | `/users/{device_id}/places` | List / add tracked places (up to 2) |
+| `PATCH` / `DELETE` | `/users/{device_id}/places/{place_id}` | Rename / remove a tracked place |
+| `DELETE` | `/users/{device_id}/data` | Erase the device's reports, places, comments and settings |
 | `GET` | `/config/vapid-public-key` | Public VAPID key for PWA push subscription |
 | `POST` | `/subscriptions/` | Subscribe to outages near a custom location |
 | `GET` / `DELETE` | `/subscriptions/` | List / remove custom-location subscriptions |
@@ -225,9 +237,9 @@ Database schema is managed by **Alembic** — run `alembic upgrade head` (or jus
 
 - [x] Official ANDE outage scraping
 - [x] Crowdsourced reports with auto-confirmation
-- [x] Push notifications — geo-targeted, 5 km radius, plus a follow-up when power is restored
+- [x] Push notifications — geo-targeted, adjustable radius (1–20 km), plus a follow-up when power is restored
 - [x] Per-outage comments
-- [x] Onboarding flow (4 slides: welcome, map, marker legend, notifications) + dark mode
+- [x] Onboarding flow (7 slides) + dark mode
 - [x] Alembic migrations + protected admin endpoints
 - [x] Tests: parser, comments, REST endpoints, migration smoke
 - [x] Landing page live at [luzalerts.lat](https://luzalerts.lat) — privacy policy, terms, 404, favicon
@@ -237,7 +249,8 @@ Database schema is managed by **Alembic** — run `alembic upgrade head` (or jus
 - [x] APK self-update outside Google Play
 - [x] Scraper observability (`/status`) and public event feed (`/events.json`)
 - [x] iPhone via PWA at [luzalerts.lat/app](https://luzalerts.lat/app/) with Web Push
-- [ ] **Google Play release (Android)** — store listing, screenshots
+- [x] Google Play release (Android) — [store listing](https://play.google.com/store/apps/details?id=com.luzalerts.app), November 2026
+- [x] Ready-to-paste claim to ANDE (WhatsApp / 160) with optional NIS
 - [ ] Native iOS / App Store release
 - [ ] Emergency outage API (`consultas.ande.gov.py`)
 - [ ] NIS number → feeder mapping
