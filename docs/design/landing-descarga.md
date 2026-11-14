@@ -17,7 +17,7 @@ Dos lugares con el mismo bloque:
 
 | # | Elemento | Texto | Destino |
 |---|----------|-------|---------|
-| 1 | Botón principal, ancho completo | Descargar en Google Play | **Pendiente**: `#` hasta que el dueño pase el enlace |
+| 1 | Botón principal, ancho completo | Descargar en Google Play | `https://play.google.com/store/apps/details?id=com.luzalerts.app` |
 | 2 | Dos botones secundarios en fila, mismo ancho | Descargar APK · Abrir en iOS | `/luzalerts.apk` (con `download`) · `/app/` (la PWA) |
 | 3 | Línea del APK (solo en el hero) | `APK 1.2.8 · 110 MB · Android 7 o superior` | — |
 | 4 | Nota | Gratis · Sin anuncios | — |
@@ -34,10 +34,11 @@ Dos lugares con el mismo bloque:
 
 ## Resto de la página
 
-- **Encabezado**: botón «Descargar» → Google Play (pendiente, `#`).
-- **Menú móvil**: «Descargar en Google Play» (pendiente), «Descargar APK», «App para iPhone».
-- **Pie, columna Producto**: «Google Play» (pendiente), «Descargar APK», «App para iPhone», …
-- Lo mismo en `novedades.html`; en `privacy.html` y `terms.html` el «Google Play» del pie.
+- **Encabezado**: botón «Descargar» → Google Play.
+- **Menú móvil**: «Descargar en Google Play», «Descargar APK», «App para iPhone».
+- **Pie, columna Producto**: «Google Play», «Descargar APK», «App para iPhone», …
+- Lo mismo en `novedades.html`. En `privacy.html` y `terms.html` el «Google Play» del pie y el botón «Descargar» del encabezado y del menú móvil también van directo a Google Play (antes iban a `/#descargar`).
+- Todos los enlaces a Google Play apuntan a la ficha de la tienda (publicada el 14/11/2026).
 
 ## Capturas
 
@@ -51,7 +52,7 @@ Dos lugares con el mismo bloque:
 ## Criterios de aceptación
 
 - [ ] El hero y el CTA final muestran el principal y los dos secundarios en este orden.
-- [ ] No hay ningún enlace a Google Play hasta que el dueño lo indique: todos son `#`.
+- [ ] Todos los enlaces a Google Play llevan a la ficha de la tienda; no queda ningún `href="#"`.
 - [ ] «Descargar APK» descarga `/luzalerts.apk`; «Abrir en iOS» abre `/app/`.
 - [ ] La línea del APK muestra versión y tamaño reales de `/dl/latest.json`.
 - [ ] A 375 px no hay scroll horizontal; por debajo de 360 px los secundarios se apilan.
