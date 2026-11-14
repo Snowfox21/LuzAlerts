@@ -34,6 +34,13 @@ Solo si el reporte está abierto (`!report.resolved`) **y** la persona es el aut
 (`mine`) o ya confirmó el reporte con «Yo también estoy sin luz» (`corroborated`).
 En un reporte cerrado o en uno ajeno sin confirmar, la tarjeta no aparece.
 
+**De quién es el lugar del mensaje.** Para el autor, dirección, ubicación y hora salen
+del reporte. Para quien confirmó, salen de **su propia** ubicación al tocar «Yo también
+estoy sin luz» (la misma que manda al backend), con la hora de la confirmación y la
+dirección por geocodificación inversa: si no, el reclamo mezclaría su NIS con la casa
+del autor. Ese punto se guarda solo en el teléfono (`@luzalerts_corroboration_points`,
+lo borra «Eliminar mis datos»). Hasta que llega la dirección, el mensaje va sin línea 📍.
+
 ### Dónde
 
 Al final de la pantalla, después del bloque «Avisá a tus vecinos» (`ShareBlock`).
